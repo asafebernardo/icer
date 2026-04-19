@@ -1,0 +1,33 @@
+{
+  "name": "Contato",
+  "type": "object",
+  "properties": {
+    "nome": {
+      "type": "string",
+      "description": "Nome da pessoa"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email de contato"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone de contato"
+    },
+    "assunto": {
+      "type": "string",
+      "enum": ["oracao", "visita", "informacao", "voluntario", "outro"],
+      "description": "Assunto do contato"
+    },
+    "mensagem": {
+      "type": "string",
+      "description": "Mensagem enviada"
+    },
+    "lido": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a mensagem foi lida"
+    }
+  },
+  "required": ["nome", "mensagem"]
+}

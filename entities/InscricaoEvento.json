@@ -1,0 +1,27 @@
+{
+  "name": "InscricaoEvento",
+  "type": "object",
+  "properties": {
+    "evento_id": {
+      "type": "string",
+      "description": "ID do evento"
+    },
+    "evento_titulo": {
+      "type": "string",
+      "description": "T\u00edtulo do evento (desnormalizado)"
+    },
+    "nome": {
+      "type": "string",
+      "description": "Nome do inscrito"
+    },
+    "email": {
+      "type": "string",
+      "description": "E-mail do inscrito"
+    },
+    "telefone": {
+      "type": "string",
+      "description": "Telefone/WhatsApp do inscrito"
+    }
+  },
+  "required": ["evento_id", "nome", "email"]
+}

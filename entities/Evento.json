@@ -1,0 +1,63 @@
+{
+  "name": "Evento",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo do evento"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o do evento"
+    },
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data do evento"
+    },
+    "horario": {
+      "type": "string",
+      "description": "Hor\u00e1rio de in\u00edcio (ex: 19:00)"
+    },
+    "horario_fim": {
+      "type": "string",
+      "description": "Hor\u00e1rio de t\u00e9rmino (ex: 21:00)"
+    },
+    "local": {
+      "type": "string",
+      "description": "Local do evento"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": [
+        "culto",
+        "estudo",
+        "jovens",
+        "mulheres",
+        "homens",
+        "criancas",
+        "especial",
+        "conferencia"
+      ],
+      "description": "Categoria do evento"
+    },
+    "preletor": {
+      "type": "string",
+      "description": "Nome do preletor/pregador"
+    },
+    "pastor": {
+      "type": "string",
+      "description": "Nome do pastor respons\u00e1vel"
+    },
+    "imagem_url": {
+      "type": "string",
+      "description": "URL da imagem do evento"
+    },
+    "destaque": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se o evento deve ser mostrado em destaque na home"
+    }
+  },
+  "required": ["titulo", "data"]
+}

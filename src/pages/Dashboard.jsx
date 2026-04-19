@@ -1,0 +1,461 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { format, parseISO, isValid } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  CheckCircle,
+  UserPlus,
+  Users,
+  RefreshCw,
+  Lock,
+  Mail,
+  ChevronDown,
+  Clock,
+  User,
+} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import PageHeader from "../components/shared/PageHeader";
+import ProfileSettings from "@/components/dashboard/ProfileSettings";
+import { api } from "@/api/client";
+import * as auth from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
+import {
+  SITE_MENUS,
+  getMemberPermissions,
+  setMemberPermissions,
+  getUserMetaMap,
+  permKeyForUser,
+  getMenuPermBlock,
+} from "@/lib/memberRegistry";
+
+function formatLastLogin(iso) {
+  if (!iso) return "—";
+  try {
+    const d = typeof iso === "string" ? parseISO(iso) : new Date(iso);
+    if (!isValid(d)) return "—";
+    return format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+  } catch {
+    return "—";
+  }
+}
+
+async function fetchUsersMerged() {
+  const meta = getUserMetaMap();
+  const attach = (u) => {
+    const base = { ...u };
+    const key = permKeyForUser(base);
+    return {
+      ...base,
+      _permKey: key,
+      full_name:
+        base.full_name ||
+        base.name ||
+        base.display_name ||
+        (base.email ? base.email.split("@")[0] : "—"),
+      last_login_at:
+        base.last_login_at ||
+        base.lastLogin ||
+        base.last_login ||
+        meta[key]?.lastLogin ||
+        (base.email ? meta[base.email]?.lastLogin : null) ||
+        null,
+    };
+  };
+
+  try {
+    const apiUsers = await api.entities.User.list();
+    if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+      const apiList = apiUsers.map(attach);
+      const localOnly = JSON.parse(localStorage.getItem("users") || "[]");
+      const seen = new Set(
+        apiList.map((u) => (u.email || "").toLowerCase()).filter(Boolean),
+      );
+      const extra = localOnly
+        .filter((u) => u.email && !seen.has(String(u.email).toLowerCase()))
+        .map(attach);
+      return [...apiList, ...extra];
+    }
+  } catch {
+    /* API indisponível — usa local */
+  }
+
+  const localUsers = JSON.parse(localStorage.getItem("users") || "[]");
+  const cur = auth.getUser();
+  const seen = new Set(localUsers.map((u) => u.email));
+  const list = localUsers.map(attach);
+  if (cur?.email && !seen.has(cur.email)) {
+    list.unshift(
+      attach({
+        id: `local-${cur.email}`,
+        email: cur.email,
+        full_name: cur.email,
+        role: cur.role,
+      }),
+    );
+  }
+  return list;
+}
+
+function TabMembros({ user, users, loadingUsers, refetch }) {
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [openUserKey, setOpenUserKey] = useState(null);
+  const [allPermissions, setAllPermissions] = useState(getMemberPermissions);
+
+  const userRows = useMemo(() => {
+    return users.map((u) => ({
+      ...u,
+      permKey: permKeyForUser(u),
+    }));
+  }, [users]);
+
+  const handleInvite = () => {
+    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim().toLowerCase();
+    const existing = JSON.parse(localStorage.getItem("users") || "[]");
+    if (existing.some((u) => u.email?.toLowerCase() === email)) {
+      alert("Este e-mail já está na lista local.");
+      return;
+    }
+    const newUser = {
+      id: Date.now(),
+      email,
+      full_name: inviteName.trim() || email.split("@")[0],
+      role: "user",
+    };
+    localStorage.setItem("users", JSON.stringify([...existing, newUser]));
+    setInviteEmail("");
+    setInviteName("");
+    setInviteSuccess(true);
+    setTimeout(() => setInviteSuccess(false), 3000);
+    refetch();
+  };
+
+  const handlePermChange = (userKey, menuKey, action, checked) => {
+    setAllPermissions((prev) => {
+      const block = getMenuPermBlock(prev, userKey, menuKey);
+      const next = {
+        ...prev,
+        [userKey]: {
+          ...(prev[userKey] || {}),
+          [menuKey]: { ...block, [action]: checked },
+        },
+      };
+      setMemberPermissions(next);
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-8">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <Users className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">
+                Membros
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {loadingUsers ? "Carregando…" : `${userRows.length} cadastro(s)`}
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="icon" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {loadingUsers ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 rounded-xl" />
+            ))}
+          </div>
+        ) : userRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-10">
+            Nenhum membro encontrado. Faça login na API ou adicione membros
+            locais.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {userRows.map((u) => {
+              const key = u.permKey;
+              const open = openUserKey === key;
+              return (
+                <Collapsible
+                  key={key}
+                  open={open}
+                  onOpenChange={(v) => setOpenUserKey(v ? key : null)}
+                  className="border border-border rounded-xl overflow-hidden bg-muted/20"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium text-foreground truncate">
+                          {u.full_name || "—"}
+                        </span>
+                        {auth.isAdminUser(u) && (
+                          <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {u.email}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        Último login: {formatLastLogin(u.last_login_at)}
+                      </p>
+                    </div>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm" className="shrink-0">
+                        Permissões no site
+                        <ChevronDown
+                          className={`w-4 h-4 ml-2 transition-transform ${open ? "rotate-180" : ""}`}
+                        />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+                  <CollapsibleContent>
+                    <div className="px-4 pb-4 pt-0 border-t border-border/80 bg-background/50">
+                      <p className="text-xs text-muted-foreground py-3">
+                        Por omissão, todos os menus têm criar, editar e apagar
+                        ativos para cada membro. Desative só o que quiser
+                        restringir (valores guardados neste navegador).
+                      </p>
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full text-sm min-w-[520px]">
+                          <thead>
+                            <tr className="bg-muted/50 border-b border-border">
+                              <th className="text-left font-medium p-3">
+                                Menu
+                              </th>
+                              <th className="text-center font-medium p-3 w-24">
+                                Criar
+                              </th>
+                              <th className="text-center font-medium p-3 w-24">
+                                Editar
+                              </th>
+                              <th className="text-center font-medium p-3 w-24">
+                                Deletar
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {SITE_MENUS.map((menu) => {
+                              const block = getMenuPermBlock(
+                                allPermissions,
+                                key,
+                                menu.key,
+                              );
+                              return (
+                                <tr
+                                  key={menu.key}
+                                  className="border-b border-border/60 last:border-0"
+                                >
+                                  <td className="p-3 font-medium text-foreground">
+                                    {menu.label}
+                                  </td>
+                                  {(["create", "edit", "delete"]).map(
+                                    (action) => (
+                                      <td
+                                        key={action}
+                                        className="p-3 text-center"
+                                      >
+                                        <div className="flex justify-center">
+                                          <Switch
+                                            checked={block[action]}
+                                            onCheckedChange={(checked) =>
+                                              handlePermChange(
+                                                key,
+                                                menu.key,
+                                                action,
+                                                checked,
+                                              )
+                                            }
+                                            disabled={
+                                              !!user?.email &&
+                                              u.email === user.email
+                                            }
+                                            aria-label={`${menu.label} ${action}`}
+                                          />
+                                        </div>
+                                      </td>
+                                    ),
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {user?.email && u.email === user.email && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          As permissões do seu próprio utilizador não são
+                          alteradas aqui por segurança.
+                        </p>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <h2 className="font-semibold text-foreground text-lg mb-1">
+          Adicionar membro (lista local)
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Use quando a API não estiver disponível ou para registar convidados
+          apenas neste navegador. Membros da API aparecem na lista acima.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="invite-name">Nome</Label>
+            <Input
+              id="invite-name"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
+              placeholder="Nome completo"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invite-email">E-mail</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="invite-email"
+                className="pl-9"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="email@exemplo.com"
+                onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+              />
+            </div>
+          </div>
+        </div>
+        <Button className="mt-4" onClick={handleInvite}>
+          <UserPlus className="w-4 h-4 mr-2" />
+          Adicionar à lista
+        </Button>
+        {inviteSuccess && (
+          <p className="text-green-600 text-sm mt-3 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4" />
+            Membro adicionado.
+          </p>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("profile");
+
+  const isAdmin = auth.isAdminUser(user);
+
+  const { data: users = [], isLoading, refetch } = useQuery({
+    queryKey: ["dashboard-users"],
+    queryFn: fetchUsersMerged,
+    enabled: isAdmin && activeTab === "members",
+  });
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-[60vh] text-muted-foreground">
+        <Lock className="w-8 h-8" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader
+        pageKey="dashboard"
+        tag={isAdmin ? "Admin" : "Conta"}
+        title={isAdmin ? "Dashboard" : "Minha área"}
+        description={
+          isAdmin
+            ? "Perfil, membros e permissões nos menus do site"
+            : "Edite o seu nome, e-mail e palavra-passe"
+        }
+      />
+
+      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+        <div className="mb-6 p-4 rounded-xl border border-border bg-card text-sm">
+          <span className="text-muted-foreground">Sessão:</span>{" "}
+          <span className="font-medium text-foreground">
+            {user.full_name || user.email}
+          </span>
+          <span className="text-muted-foreground"> · </span>
+          <span className="text-foreground">{user.email}</span>
+        </div>
+
+        {isAdmin && (
+          <div className="flex gap-2 mb-6 flex-wrap">
+            <Button
+              type="button"
+              variant={activeTab === "profile" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("profile")}
+            >
+              A minha conta
+            </Button>
+            <Button
+              type="button"
+              variant={activeTab === "members" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("members")}
+            >
+              Membros
+            </Button>
+          </div>
+        )}
+
+        {(!isAdmin || activeTab === "profile") && (
+          <ProfileSettings user={user} />
+        )}
+
+        {isAdmin && activeTab === "members" && (
+          <TabMembros
+            user={user}
+            users={users}
+            loadingUsers={isLoading}
+            refetch={refetch}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

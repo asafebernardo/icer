@@ -1,0 +1,43 @@
+{
+  "name": "Post",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo do post"
+    },
+    "resumo": {
+      "type": "string",
+      "description": "Resumo do post"
+    },
+    "conteudo": {
+      "type": "string",
+      "description": "Conte\u00fado completo do post (HTML/texto)"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": ["devocional", "aviso", "testemunho", "reflexao", "noticias"],
+      "description": "Categoria do post"
+    },
+    "imagem_url": {
+      "type": "string",
+      "description": "URL da imagem de capa"
+    },
+    "autor": {
+      "type": "string",
+      "description": "Autor do post"
+    },
+    "publicado": {
+      "type": "boolean",
+      "default": true
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags do post"
+    }
+  },
+  "required": ["titulo", "conteudo"]
+}

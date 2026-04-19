@@ -1,0 +1,29 @@
+{
+  "name": "FotoGaleria",
+  "type": "object",
+  "properties": {
+    "titulo": {
+      "type": "string",
+      "description": "T\u00edtulo da foto"
+    },
+    "descricao": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o da foto"
+    },
+    "imagem_url": {
+      "type": "string",
+      "description": "URL da imagem"
+    },
+    "categoria": {
+      "type": "string",
+      "enum": ["culto", "evento", "jovens", "missoes", "outros"],
+      "description": "Categoria da foto"
+    },
+    "destaque": {
+      "type": "boolean",
+      "default": false,
+      "description": "Se a foto est\u00e1 em destaque"
+    }
+  },
+  "required": ["imagem_url"]
+}
