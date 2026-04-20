@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { applySiteColorPalette } from "@/lib/colorPalettes";
 
-const ThemeContext = createContext();
+const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {

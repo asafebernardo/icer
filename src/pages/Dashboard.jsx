@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { format, parseISO, isValid } from "date-fns";
@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileSettings from "@/components/dashboard/ProfileSettings";
+import ServerUsersPanel from "@/components/dashboard/ServerUsersPanel";
 import { api } from "@/api/client";
 import * as auth from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -106,12 +107,58 @@ async function fetchUsersMerged() {
   return list;
 }
 
+async function syncMenuPermissionsToServer(nextMap) {
+  try {
+    await fetch("/api/data/menu-permissions", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextMap),
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 function TabMembros({ user, users, loadingUsers, refetch }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [openUserKey, setOpenUserKey] = useState(null);
   const [allPermissions, setAllPermissions] = useState(getMemberPermissions);
+
+  useEffect(() => {
+    if (
+      !auth.isServerAuthEnabled() ||
+      user?._authSource !== "server" ||
+      !auth.isAdminUser(user)
+    ) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/data/menu-permissions", {
+          credentials: "include",
+        });
+        if (!r.ok || cancelled) return;
+        const data = await r.json();
+        if (
+          data &&
+          typeof data === "object" &&
+          Object.keys(data).length > 0
+        ) {
+          setMemberPermissions(data);
+          setAllPermissions(data);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const userRows = useMemo(() => {
     return users.map((u) => ({
@@ -153,6 +200,13 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
         },
       };
       setMemberPermissions(next);
+      if (
+        auth.isServerAuthEnabled() &&
+        user?._authSource === "server" &&
+        auth.isAdminUser(user)
+      ) {
+        void syncMenuPermissionsToServer(next);
+      }
       return next;
     });
   };
@@ -384,6 +438,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("profile");
 
   const isAdmin = auth.isAdminUser(user);
+  const showServerAccountsTab =
+    isAdmin && auth.isServerAuthEnabled() && user?._authSource === "server";
 
   const { data: users = [], isLoading, refetch } = useQuery({
     queryKey: ["dashboard-users"],
@@ -440,6 +496,16 @@ export default function Dashboard() {
             >
               Membros
             </Button>
+            {showServerAccountsTab && (
+              <Button
+                type="button"
+                variant={activeTab === "server-users" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveTab("server-users")}
+              >
+                Contas servidor
+              </Button>
+            )}
           </div>
         )}
 
@@ -454,6 +520,10 @@ export default function Dashboard() {
             loadingUsers={isLoading}
             refetch={refetch}
           />
+        )}
+
+        {showServerAccountsTab && activeTab === "server-users" && (
+          <ServerUsersPanel />
         )}
       </div>
     </div>

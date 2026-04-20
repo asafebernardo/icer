@@ -1,4 +1,5 @@
 import { api } from "@/api/client";
+import { getUser, isServerAuthEnabled } from "@/lib/auth";
 
 /**
  * Com `VITE_LOCAL_IMAGE_UPLOAD=true` no .env, as imagens não são enviadas ao servidor:
@@ -143,6 +144,55 @@ function parseUploadResponse(res) {
 }
 
 /**
+ * Upload para `POST /api/files` (armazenamento privado no servidor Node).
+ * @param {File | Blob} file
+ */
+async function uploadPrivateServerFile(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/files", {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  });
+  const text = await res.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+  }
+  if (!res.ok) {
+    throw new Error(data?.message || res.statusText || "Upload falhou");
+  }
+  const url =
+    data?.url ||
+    (data?.id != null ? `/api/files/${data.id}` : null);
+  if (!url) throw new Error("Resposta sem URL de ficheiro");
+  return { file_url: url };
+}
+
+function shouldUsePrivateServerUpload() {
+  const u = getUser();
+  return isServerAuthEnabled() && u?._authSource === "server";
+}
+
+/**
+ * PDF e outros ficheiros (ex.: Material) — mesmo armazenamento privado em modo servidor.
+ * @param {File | Blob} file
+ */
+export async function uploadIntegrationFile(file) {
+  if (!file) throw new Error("Sem ficheiro");
+  if (shouldUsePrivateServerUpload()) {
+    return uploadPrivateServerFile(file);
+  }
+  const res = await api.integrations.Core.UploadFile({ file });
+  return parseUploadResponse(res);
+}
+
+/**
  * Upload de imagem para entidades (eventos, postagens, admin, recursos…).
  * Em modo local devolve data URL comprimida; caso contrário envia ficheiro comprimido à API.
  */
@@ -156,6 +206,9 @@ export async function uploadImageFile(file) {
     return { file_url };
   }
   const fileToSend = await imageFileToCompressedFile(file).catch(() => file);
+  if (shouldUsePrivateServerUpload()) {
+    return uploadPrivateServerFile(fileToSend);
+  }
   const res = await api.integrations.Core.UploadFile({ file: fileToSend });
   return parseUploadResponse(res);
 }
@@ -181,6 +234,9 @@ export async function imageFileToStorableUrl(file) {
   }
   try {
     const fileToSend = await imageFileToCompressedFile(file).catch(() => file);
+    if (shouldUsePrivateServerUpload()) {
+      return (await uploadPrivateServerFile(fileToSend)).file_url;
+    }
     const res = await api.integrations.Core.UploadFile({ file: fileToSend });
     return parseUploadResponse(res).file_url;
   } catch {

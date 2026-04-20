@@ -11,9 +11,15 @@ import {
   login as authLogin,
   logout as authLogout,
   updateUserProfile as authUpdateUserProfile,
+  isServerAuthEnabled,
+  setServerMenuEffective,
 } from "@/lib/auth";
+import {
+  persistSessionUser,
+  clearSessionUser,
+} from "@/lib/sessionIntegrity";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 function readUserFromStorage() {
   return getUser();
@@ -34,13 +40,65 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    checkUserAuth();
+    let cancelled = false;
+    (async () => {
+      if (isServerAuthEnabled()) {
+        try {
+          const r = await fetch("/api/auth/me", { credentials: "include" });
+          if (r.ok) {
+            const u = await r.json();
+            persistSessionUser({
+              id: u.id,
+              email: u.email,
+              full_name: u.full_name,
+              role: u.role,
+              funcao: u.funcao ?? "",
+              _authSource: "server",
+            });
+            try {
+              const mr = await fetch("/api/auth/menu-effective", {
+                credentials: "include",
+              });
+              if (mr.ok) {
+                setServerMenuEffective(await mr.json());
+              }
+            } catch {
+              /* ignore */
+            }
+          } else {
+            const cur = getUser();
+            if (cur?._authSource === "server") {
+              clearSessionUser();
+              setServerMenuEffective(null);
+            }
+          }
+        } catch {
+          /* rede / servidor offline */
+        }
+      }
+      if (!cancelled) checkUserAuth();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [checkUserAuth]);
 
   const login = useCallback(async (email, senha) => {
     const ok = await authLogin(email, senha);
     if (!ok) return false;
     setUser(getUser());
+    if (isServerAuthEnabled()) {
+      try {
+        const mr = await fetch("/api/auth/menu-effective", {
+          credentials: "include",
+        });
+        if (mr.ok) {
+          setServerMenuEffective(await mr.json());
+        }
+      } catch {
+        /* ignore */
+      }
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("icer-user-session"));
     }

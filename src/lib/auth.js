@@ -17,6 +17,18 @@ import {
   updateLocalAccountPassword,
 } from "@/lib/localAccounts";
 import { verifyPassword } from "@/lib/passwordCrypto";
+import { fetchJson, isServerAuthEnabled } from "@/lib/serverAuth";
+
+/** Mapa `menuKey` → `{ create, edit, delete }` vindo do servidor (sessão com cookie). */
+let serverMenuEffective = null;
+
+export function setServerMenuEffective(map) {
+  serverMenuEffective = map && typeof map === "object" ? map : null;
+}
+
+export function clearServerMenuEffective() {
+  serverMenuEffective = null;
+}
 
 /** Chaves dos menus (alinhadas a `SITE_MENUS` em memberRegistry). */
 export const MENU = {
@@ -84,6 +96,8 @@ function isDemoEmail(email) {
   );
 }
 
+export { isServerAuthEnabled };
+
 function syncLocalUsersSnapshot(oldEmail, newEmail, full_name) {
   try {
     const raw = localStorage.getItem("users");
@@ -99,6 +113,25 @@ function syncLocalUsersSnapshot(oldEmail, newEmail, full_name) {
   } catch {
     /* ignore */
   }
+}
+
+async function loginWithServer(email, senha) {
+  await fetchJson("/auth/login", {
+    method: "POST",
+    body: { email, password: senha },
+  });
+  const u = await fetchJson("/auth/me", { method: "GET" });
+  const userData = {
+    id: u.id,
+    email: u.email,
+    full_name: u.full_name,
+    role: u.role,
+    funcao: u.funcao ?? "",
+    _authSource: "server",
+  };
+  persistSessionUser(userData);
+  recordMemberLogin(userData);
+  return true;
 }
 
 /**
@@ -122,6 +155,14 @@ export async function login(email, senha) {
     return true;
   }
 
+  if (isServerAuthEnabled()) {
+    try {
+      return await loginWithServer(email, senha);
+    } catch {
+      /* continua para conta local no browser */
+    }
+  }
+
   const local = await verifyLocalLogin(email, senha);
   if (!local) return false;
   const userData = {
@@ -136,6 +177,11 @@ export async function login(email, senha) {
 }
 
 export function logout() {
+  const cur = readSessionUser();
+  if (isServerAuthEnabled() || cur?._authSource === "server") {
+    void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  }
+  clearServerMenuEffective();
   clearSessionUser();
   if (typeof window !== "undefined") {
     window.location.assign("/Home");
@@ -161,6 +207,15 @@ export function canMenuAction(user, menuKey, action) {
   if (isAdminUser(user)) return true;
   if (action !== "create" && action !== "edit" && action !== "delete") {
     return false;
+  }
+  if (
+    isServerAuthEnabled() &&
+    user._authSource === "server" &&
+    serverMenuEffective
+  ) {
+    const block = serverMenuEffective[menuKey];
+    if (block && block[action] === false) return false;
+    return true;
   }
   const perms = getMemberPermissions();
   const key = permKeyForUser(user);
@@ -190,6 +245,9 @@ export function isAuthenticated() {
  */
 export async function verifyCurrentPassword(user, plainPassword) {
   if (plainPassword == null || plainPassword === "") return false;
+  if (user?._authSource === "server") {
+    return false;
+  }
   const email = String(user?.email || "").toLowerCase().trim();
   if (isDemoEmail(email)) {
     const demoPass = String(import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "");
@@ -225,12 +283,43 @@ export async function updateUserProfile(fields) {
     throw new Error("Indique um e-mail válido.");
   }
 
+  const oldEmail = String(cur.email || "").toLowerCase().trim();
+
+  if (cur._authSource === "server") {
+    try {
+      const u = await fetchJson("/users/me", {
+        method: "PUT",
+        body: {
+          full_name: nextName,
+          email: nextEmail,
+          current_password: currentPassword,
+          new_password: newPassword || undefined,
+        },
+      });
+      const next = {
+        ...cur,
+        id: u.id,
+        email: u.email,
+        full_name: u.full_name,
+        role: u.role,
+        _authSource: "server",
+      };
+      persistSessionUser(next);
+      recordMemberLogin(next);
+      return next;
+    } catch (e) {
+      throw new Error(
+        e?.message === "invalid_credentials"
+          ? "Palavra-passe atual incorreta."
+          : e?.message || "Não foi possível atualizar o perfil.",
+      );
+    }
+  }
+
   const ok = await verifyCurrentPassword(cur, currentPassword);
   if (!ok) {
     throw new Error("Palavra-passe atual incorreta.");
   }
-
-  const oldEmail = String(cur.email || "").toLowerCase().trim();
 
   if (isDemoEmail(oldEmail)) {
     if (nextEmail !== oldEmail || newPassword.length > 0) {
