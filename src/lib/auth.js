@@ -313,7 +313,7 @@ export async function updateUserProfile(fields) {
         body: {
           full_name: nextName,
           email: nextEmail,
-          current_password: currentPassword,
+          current_password: currentPassword || undefined,
           new_password: newPassword || undefined,
         },
       });
@@ -330,7 +330,11 @@ export async function updateUserProfile(fields) {
       return next;
     } catch (e) {
       throw new Error(
-        e?.message === "invalid_credentials"
+        e?.message === "current_password_required"
+          ? "Informe a palavra-passe atual."
+          : e?.message === "password_not_set"
+            ? "A sua conta ainda não tem palavra-passe. Use o link do convite para criar a sua palavra-passe."
+            : e?.message === "invalid_credentials"
           ? "Palavra-passe atual incorreta."
           : e?.message || "Não foi possível atualizar o perfil.",
       );
