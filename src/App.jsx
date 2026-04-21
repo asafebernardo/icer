@@ -25,6 +25,7 @@ import Dashboard from "./pages/Dashboard";
 import EventoPage from "./pages/EventoPage";
 import Eventos from "./pages/Eventos";
 import Postagens from "./pages/Postagens";
+import AcceptInvite from "./pages/AcceptInvite";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
 // Wrapper que protege rotas privadas — abre modal de login e envia para Home
@@ -104,6 +105,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Navigate to="/Home" replace />} />
 
       <Route path="/login" element={<LoginPathRedirect />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
 
       <Route element={<Layout />}>
         <Route path="/Home" element={<Home />} />
