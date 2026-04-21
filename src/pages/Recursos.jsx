@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -24,22 +24,36 @@ import { canMenuAction, MENU } from "@/lib/auth";
 
 const linkCategoriaBg = {
   Bíblia:
-    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-zinc-800/50 dark:text-zinc-200 dark:border-zinc-600",
+    "border border-primary/25 bg-primary/10 text-primary dark:border-primary/35 dark:bg-primary/15 dark:text-primary",
   Estudos:
-    "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800",
+    "border border-accent/30 bg-accent/10 text-accent dark:border-accent/35 dark:bg-accent/15 dark:text-accent",
   Música:
-    "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800",
+    "border border-category-jovens/30 bg-category-jovens/10 text-category-jovens dark:border-category-jovens/35 dark:bg-category-jovens/12",
   Notícias:
-    "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800",
+    "border border-category-homens/30 bg-category-homens/10 text-category-homens dark:border-category-homens/35 dark:bg-category-homens/12",
   Recursos:
-    "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-900/20 dark:text-pink-300 dark:border-pink-800",
+    "border border-category-mulheres/30 bg-category-mulheres/10 text-category-mulheres dark:border-category-mulheres/35 dark:bg-category-mulheres/12",
 };
 
-function LinksUteisTab({ perm }) {
+function LinksUteisTab({
+  perm,
+  hideTopCreateButton = false,
+  openCreateSignal = 0,
+}) {
   const [links, setLinks] = useState([]);
   const [filter, setFilter] = useState("Todos");
   const [showForm, setShowForm] = useState(false);
   const [editingLink, setEditingLink] = useState(null);
+  const prevOpenCreateSig = useRef(0);
+
+  useEffect(() => {
+    if (!hideTopCreateButton) return;
+    if (openCreateSignal > prevOpenCreateSig.current) {
+      setShowForm(true);
+      setEditingLink(null);
+    }
+    prevOpenCreateSig.current = openCreateSignal;
+  }, [hideTopCreateButton, openCreateSignal]);
 
   useEffect(() => {
     const load = () => {
@@ -77,10 +91,10 @@ function LinksUteisTab({ perm }) {
 
   return (
     <div>
-      {perm.create && (
+      {perm.create && !hideTopCreateButton && (
         <div className="flex justify-end mb-4">
           <Button
-            className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
+            className="w-fit gap-2"
             onClick={() => {
               setShowForm(true);
               setEditingLink(null);
@@ -214,7 +228,14 @@ function LinksUteisTab({ perm }) {
 
 export default function Recursos() {
   const [tab, setTab] = useState("materiais");
+  const [linkCreateSignal, setLinkCreateSignal] = useState(0);
+  const [materialCreateSignal, setMaterialCreateSignal] = useState(0);
   const user = useSyncedAuthUser();
+
+  useEffect(() => {
+    if (tab !== "materiais") setMaterialCreateSignal(0);
+    if (tab !== "links") setLinkCreateSignal(0);
+  }, [tab]);
   const permRecursos = useMemo(
     () => ({
       create: canMenuAction(user, MENU.RECURSOS, "create"),
@@ -238,28 +259,62 @@ export default function Recursos() {
         pageKey="recursos"
         tag="Edificação"
         title="Recursos"
-        description="Materiais para download e links úteis."
+        description="Materiais de apoio e endereços selecionados para estudo, leitura e referência espiritual."
       />
       <section className="py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap gap-1 bg-muted rounded-xl p-1 w-fit mb-10">
-            <button
-              type="button"
-              onClick={() => setTab("materiais")}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === "materiais" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Materiais
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("links")}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === "links" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Links Úteis
-            </button>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div className="flex flex-wrap gap-1 bg-muted rounded-xl p-1 w-fit">
+              <button
+                type="button"
+                onClick={() => setTab("materiais")}
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === "materiais" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Materiais
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("links")}
+                className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${tab === "links" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Links Úteis
+              </button>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 shrink-0 sm:min-h-10 sm:items-center">
+              {tab === "materiais" && permMateriais.create ? (
+                <Button
+                  type="button"
+                  className="w-fit gap-2"
+                  onClick={() => setMaterialCreateSignal((n) => n + 1)}
+                >
+                  <Plus className="w-4 h-4" /> Novo Material
+                </Button>
+              ) : null}
+              {tab === "links" && permRecursos.create ? (
+                <Button
+                  type="button"
+                  className="w-fit gap-2"
+                  onClick={() => setLinkCreateSignal((n) => n + 1)}
+                >
+                  <Plus className="w-4 h-4" /> Adicionar Link
+                </Button>
+              ) : null}
+            </div>
           </div>
-          {tab === "materiais" && <MateriaisTab perm={permMateriais} />}
-          {tab === "links" && <LinksUteisTab perm={permRecursos} />}
+          {tab === "materiais" && (
+            <MateriaisTab
+              perm={permMateriais}
+              hideCreateButton
+              openCreateSignal={materialCreateSignal}
+            />
+          )}
+          {tab === "links" && (
+            <LinksUteisTab
+              perm={permRecursos}
+              hideTopCreateButton
+              openCreateSignal={linkCreateSignal}
+            />
+          )}
         </div>
       </section>
     </div>

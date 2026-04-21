@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { ImagePlus, Trash2 } from "lucide-react";
+import { ImagePlus, Trash2, Plus } from "lucide-react";
 
 import BackgroundSlideshow from "@/components/shared/BackgroundSlideshow";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,17 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 
+import HomeSectionBackdrop from "@/components/home/HomeSectionBackdrop";
 import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
 import { useHeroBackground } from "@/lib/useHeroBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
+import { homeSectionSolidContent } from "@/lib/homeSectionSolidClasses";
+import { SECTION_BG_KEYS } from "@/lib/homeContentDefaults";
 
 const CONFIG_KEY = "serviceTimes";
 
@@ -68,6 +74,16 @@ const DEFAULT_CARDS = [
   },
 ];
 
+const FALLBACK_TEMPLATE = () => ({
+  ...DEFAULT_CARDS[DEFAULT_CARDS.length - 1],
+  id: `card-${Date.now()}`,
+  title: "Novo horário",
+  dateLabel: "",
+  description: "",
+  imageUrl: "",
+  highlight: false,
+});
+
 function normalizeCardImages(c) {
   const urls = Array.isArray(c.imageUrls)
     ? c.imageUrls.filter(Boolean)
@@ -81,9 +97,10 @@ function loadCards() {
   const cfg = getSiteConfig();
   const saved = cfg[CONFIG_KEY]?.cards;
   if (Array.isArray(saved) && saved.length > 0) {
-    const max = DEFAULT_CARDS.length - 1;
     const list = saved.map((c, i) => {
-      const d = DEFAULT_CARDS[Math.min(i, max)] || {};
+      const d =
+        DEFAULT_CARDS[Math.min(i, DEFAULT_CARDS.length - 1)] ||
+        DEFAULT_CARDS[0];
       const merged = {
         ...d,
         ...c,
@@ -111,14 +128,23 @@ function loadCards() {
   });
 }
 
+function sortCardsDisplay(list) {
+  return [...list].sort((a, b) => {
+    if (a.highlight === b.highlight) return 0;
+    return a.highlight ? -1 : 1;
+  });
+}
+
 export default function ServiceTimes() {
   const { rotateIntervalMs, transitionMs, transitionMode } =
     useHeroBackground();
   const user = useSyncedAuthUser();
   const canEditHome = canMenuAction(user, MENU.HOME, "edit");
+  const [sectionBgUrl, setSectionBgUrl] = useState("");
   const [cards, setCards] = useState(loadCards);
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState(null);
+  const [isNewCard, setIsNewCard] = useState(false);
   const fileInputRef = useRef(null);
 
   const persist = useCallback((nextCards) => {
@@ -127,18 +153,33 @@ export default function ServiceTimes() {
   }, []);
 
   useEffect(() => {
-    const onStorage = () => setCards(loadCards());
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("icer-site-config", onStorage);
+    const sync = () => {
+      setSectionBgUrl(
+        String(getSiteConfig()[SECTION_BG_KEYS.serviceTimes] || "").trim(),
+      );
+      setCards(loadCards());
+    };
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener("icer-site-config", sync);
     return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("icer-site-config", onStorage);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("icer-site-config", sync);
     };
   }, []);
 
   const openEdit = (card) => {
     const imageUrls = normalizeCardImages(card);
     setDraft({ ...card, imageUrls, imageUrl: imageUrls[0] || "" });
+    setIsNewCard(false);
+    setEditOpen(true);
+  };
+
+  const openNewCard = () => {
+    const base = FALLBACK_TEMPLATE();
+    const imageUrls = normalizeCardImages(base);
+    setDraft({ ...base, imageUrls, imageUrl: "" });
+    setIsNewCard(true);
     setEditOpen(true);
   };
 
@@ -150,7 +191,12 @@ export default function ServiceTimes() {
       imageUrls,
       imageUrl: imageUrls[0] || "",
     };
-    let next = cards.map((c) => (c.id === draft.id ? payload : c));
+    let next;
+    if (isNewCard || !cards.some((c) => c.id === draft.id)) {
+      next = [...cards, payload];
+    } else {
+      next = cards.map((c) => (c.id === draft.id ? payload : c));
+    }
     if (draft.highlight) {
       next = next.map((c) => ({
         ...c,
@@ -160,6 +206,24 @@ export default function ServiceTimes() {
     persist(next);
     setEditOpen(false);
     setDraft(null);
+    setIsNewCard(false);
+  };
+
+  const removeCard = () => {
+    if (!draft?.id) return;
+    const next = cards.filter((c) => c.id !== draft.id);
+    if (next.length === 0) {
+      toast.error("Tem de existir pelo menos um horário.");
+      return;
+    }
+    let adjusted = next;
+    if (!next.some((c) => c.highlight)) {
+      adjusted = next.map((c, i) => ({ ...c, highlight: i === 0 }));
+    }
+    persist(adjusted);
+    setEditOpen(false);
+    setDraft(null);
+    setIsNewCard(false);
   };
 
   const onPickImages = (e) => {
@@ -200,19 +264,40 @@ export default function ServiceTimes() {
     );
   };
 
-  const highlighted = cards.filter((s) => s.highlight);
-  const others = cards.filter((s) => !s.highlight);
-
   const cardImageUrls = (card) => normalizeCardImages(card);
+  const displayCards = sortCardsDisplay(cards);
+  const solidHeader = !sectionBgUrl;
 
   return (
-    <section className="py-20 lg:py-28 bg-secondary/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center text-center mb-16">
+    <>
+      <HomeSectionBackdrop
+        imageUrl={sectionBgUrl}
+        className="py-16 sm:py-20 lg:py-28"
+      >
+        <div className="container-page min-w-0">
+        {canEditHome && (
+          <div className="flex flex-wrap justify-end gap-2 mb-6">
+            <Button
+              type="button"
+              size="sm"
+              className="gap-2"
+              onClick={openNewCard}
+            >
+              <Plus className="w-4 h-4" />
+              Novo horário
+            </Button>
+          </div>
+        )}
+        <div
+          className={cn(
+            "flex flex-col items-center text-center mb-12 sm:mb-16",
+            solidHeader && homeSectionSolidContent,
+          )}
+        >
           <span className="text-accent font-semibold text-sm tracking-wider uppercase mb-3">
             Nossos cultos
           </span>
-          <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground">
+          <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground tracking-tight">
             Horários de Funcionamento
           </h2>
           <div className="mt-4 w-16 h-1 rounded-full bg-accent/60" />
@@ -222,121 +307,154 @@ export default function ServiceTimes() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {highlighted.map((service) => (
-            <motion.div
-              key={service.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="relative lg:row-span-1 bg-primary text-primary-foreground rounded-2xl overflow-hidden shadow-lg flex flex-col"
-            >
-              {canEditHome && (
-                <button
-                  type="button"
-                  onClick={() => openEdit(service)}
-                  className="absolute top-3 right-3 z-20 text-xs font-medium px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white border border-white/20"
-                >
-                  Editar
-                </button>
-              )}
-              {cardImageUrls(service).length > 0 ? (
-                <div className="relative w-full h-48 sm:h-56 shrink-0 overflow-hidden">
-                  <BackgroundSlideshow
-                    urls={cardImageUrls(service)}
-                    rotateIntervalMs={rotateIntervalMs}
-                    transitionMs={transitionMs}
-                    transitionMode={transitionMode}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/40 to-transparent pointer-events-none" />
-                </div>
-              ) : (
-                <div className="h-3 shrink-0 bg-white/10" />
-              )}
-              <div className="p-8 flex flex-col flex-1 justify-between">
-                <div>
-                  <h3 className="font-semibold text-xl mb-2">{service.title}</h3>
-                  <p className="text-sm font-medium text-white/80 mb-4">
-                    {service.dateLabel}
-                  </p>
-                  {service.description ? (
-                    <p className="text-sm text-white/65 leading-relaxed">
-                      {service.description}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="mt-8 pt-6 border-t border-white/20">
-                  <p className="text-xs text-white/50 uppercase tracking-wider font-semibold">
-                    Culto principal
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {displayCards.map((service, index) => {
+            const urls = cardImageUrls(service);
+            const hasImages = urls.length > 0;
+            const isHighlight = service.highlight;
 
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {others.map((service, index) => (
+            return (
               <motion.div
                 key={service.id}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: (index + 1) * 0.08, duration: 0.5 }}
-                className="relative group bg-card rounded-2xl border border-border overflow-hidden hover:border-accent/40 hover:shadow-md transition-all duration-300 flex flex-col"
+                transition={{ delay: index * 0.05, duration: 0.45 }}
+                className={`relative flex w-full overflow-hidden rounded-sm border shadow-card flex-col ${
+                  isHighlight
+                    ? "sm:col-span-2 min-h-[min(360px,44vh)] sm:min-h-[min(420px,48vh)] ring-2 ring-accent/70 border-accent/40"
+                    : "min-h-[min(280px,34vh)] sm:min-h-[min(300px,36vh)] border-border/80"
+                }`}
               >
                 {canEditHome && (
                   <button
                     type="button"
                     onClick={() => openEdit(service)}
-                    className="absolute top-3 right-3 z-20 text-xs font-medium px-3 py-1.5 rounded-lg bg-background/90 border border-border hover:bg-muted"
+                    className={`absolute top-3 right-3 z-30 text-xs font-medium px-3 py-1.5 rounded-sm border backdrop-blur-sm ${
+                      hasImages
+                        ? "bg-black/45 text-white border-white/25 hover:bg-black/55"
+                        : "bg-background/90 border-border hover:bg-muted"
+                    }`}
                   >
                     Editar
                   </button>
                 )}
-                {cardImageUrls(service).length > 0 ? (
-                  <div className="relative w-full h-40 sm:h-44 shrink-0 overflow-hidden">
-                    <BackgroundSlideshow
-                      urls={cardImageUrls(service)}
-                      rotateIntervalMs={rotateIntervalMs}
-                      transitionMs={transitionMs}
-                      transitionMode={transitionMode}
-                    />
+
+                {hasImages ? (
+                  <>
+                    <div className="absolute inset-0 z-0">
+                      <BackgroundSlideshow
+                        urls={urls}
+                        rotateIntervalMs={rotateIntervalMs}
+                        transitionMs={transitionMs}
+                        transitionMode={transitionMode}
+                      />
+                    </div>
+                    <div className={imageScrimFlat} aria-hidden />
+                    <div className={imageScrimBottom} aria-hidden />
+                  </>
+                ) : (
+                  <>
                     <div
-                      className="pointer-events-none absolute inset-0 bg-gradient-to-r from-card from-0% via-card/55 via-35% to-transparent to-75%"
+                      className={`absolute inset-0 z-0 ${
+                        isHighlight
+                          ? "bg-gradient-to-br from-primary via-primary to-primary/90"
+                          : "bg-gradient-to-br from-card to-muted/80"
+                      }`}
                       aria-hidden
                     />
-                  </div>
-                ) : null}
-                <div className="relative flex-1 flex flex-col p-6 overflow-hidden">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-r from-accent/[0.11] from-0% via-secondary/55 via-40% to-transparent to-90% dark:from-accent/15 dark:via-secondary/25"
-                    aria-hidden
-                  />
-                  <div className="relative z-[1] flex flex-col flex-1">
-                    <h3 className="font-semibold text-foreground text-base mb-1 pr-16">
-                      {service.title}
-                    </h3>
-                    <p className="text-sm font-medium text-accent mb-2">
-                      {service.dateLabel}
+                    <div
+                      className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[1] h-[55%] min-h-[140px] bg-gradient-to-t ${
+                        isHighlight
+                          ? "from-black/35 via-black/15 to-transparent"
+                          : "from-black/22 via-black/8 to-transparent"
+                      }`}
+                      aria-hidden
+                    />
+                  </>
+                )}
+
+                <div
+                  className={`relative z-20 mt-auto flex flex-col justify-end min-h-[140px] flex-1 ${
+                    isHighlight
+                      ? "px-6 py-6 sm:px-10 sm:py-8 min-h-[min(180px,28vh)] sm:min-h-[200px]"
+                      : "px-5 py-5 sm:px-6 sm:py-6"
+                  } ${
+                    hasImages || isHighlight
+                      ? "text-white"
+                      : "text-foreground"
+                  }`}
+                >
+                  {isHighlight && (
+                    <p
+                      className={`mb-2 sm:mb-3 text-xs sm:text-sm font-bold uppercase tracking-[0.18em] ${
+                        hasImages || isHighlight
+                          ? "text-white/85"
+                          : "text-accent"
+                      }`}
+                    >
+                      Destaque
                     </p>
-                    {service.description ? (
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {service.description}
-                      </p>
-                    ) : null}
-                  </div>
+                  )}
+                  <h3
+                    className={`font-display font-semibold leading-tight mb-2 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] ${
+                      isHighlight
+                        ? "text-2xl sm:text-3xl lg:text-4xl"
+                        : "text-xl sm:text-2xl"
+                    } ${
+                      !hasImages && !isHighlight ? "text-foreground [text-shadow:none]" : ""
+                    }`}
+                  >
+                    {service.title}
+                  </h3>
+                  <p
+                    className={`font-medium mb-3 ${
+                      isHighlight
+                        ? "text-base sm:text-lg"
+                        : "text-sm"
+                    } ${
+                      hasImages || isHighlight
+                        ? "text-white/92 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
+                        : "text-accent"
+                    }`}
+                  >
+                    {service.dateLabel}
+                  </p>
+                  {service.description ? (
+                    <p
+                      className={`leading-relaxed max-w-prose ${
+                        isHighlight
+                          ? "text-base sm:text-[1.05rem] max-w-3xl"
+                          : "text-sm"
+                      } ${
+                        hasImages || isHighlight
+                          ? "text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {service.description}
+                    </p>
+                  ) : null}
                 </div>
               </motion.div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
+      </HomeSectionBackdrop>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editOpen} onOpenChange={(o) => {
+        setEditOpen(o);
+        if (!o) {
+          setDraft(null);
+          setIsNewCard(false);
+        }
+      }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar horário</DialogTitle>
+            <DialogTitle>
+              {isNewCard ? "Novo horário" : "Editar horário"}
+            </DialogTitle>
           </DialogHeader>
           {draft && (
             <div className="space-y-4 py-2">
@@ -373,14 +491,10 @@ export default function ServiceTimes() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Imagens do card (carrossel)</Label>
+                <Label>Imagens do card (carrossel — ocupam o card inteiro)</Label>
                 <p className="text-xs text-muted-foreground">
-                  Várias fotos alternam como no hero da página inicial (intervalo,
-                  duração e tipo de transição são os definidos em{" "}
-                  <span className="font-medium text-foreground">
-                    Fundos do hero
-                  </span>
-                  ).
+                  As fotos cobrem todo o cartão; o texto fica sobreposto embaixo.
+                  Intervalo e transição seguem as definições de «Fundos do hero».
                 </p>
                 {(draft.imageUrls || []).length > 0 ? (
                   <ul className="space-y-2 border rounded-lg p-2 max-h-40 overflow-y-auto">
@@ -394,20 +508,20 @@ export default function ServiceTimes() {
                         </span>
                         <Button
                           type="button"
-                          size="icon"
+                          size="sm"
                           variant="ghost"
-                          className="shrink-0 h-8 w-8"
+                          className="shrink-0 h-8 gap-1 px-2"
                           onClick={() => removeImageAt(i)}
-                          aria-label={`Remover imagem ${i + 1}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remover
                         </Button>
                       </li>
                     ))}
                   </ul>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Nenhuma imagem. Adicione ficheiros abaixo.
+                    Nenhuma imagem — o cartão usa cor de fundo.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-2">
@@ -444,9 +558,9 @@ export default function ServiceTimes() {
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
                 <div>
-                  <p className="text-sm font-medium">Card principal</p>
+                  <p className="text-sm font-medium">Card em destaque</p>
                   <p className="text-xs text-muted-foreground">
-                    Destaque na primeira coluna (só um ativo)
+                    Só um ativo; aparece primeiro na lista.
                   </p>
                 </div>
                 <Switch
@@ -458,16 +572,30 @@ export default function ServiceTimes() {
               </div>
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setEditOpen(false)}>
-              Cancelar
-            </Button>
-            <Button variant="success" onClick={saveDraft}>
-              Salvar
-            </Button>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+            {!isNewCard && draft?.id ? (
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full sm:w-auto mr-auto"
+                onClick={removeCard}
+              >
+                Remover horário
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex w-full sm:w-auto gap-2 justify-end">
+              <Button variant="outline" onClick={() => setEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="success" onClick={saveDraft}>
+                Salvar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </>
   );
 }

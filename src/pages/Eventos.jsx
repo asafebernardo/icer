@@ -27,6 +27,10 @@ import { canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import {
+  CATEGORY_BAR_CLASS,
+  CATEGORY_SOFT_BADGE_CLASS,
+} from "@/lib/categoryAppearance";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -39,27 +43,9 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-const categoriaBg = {
-  culto: "bg-blue-600",
-  estudo: "bg-green-600",
-  jovens: "bg-purple-600",
-  mulheres: "bg-pink-500",
-  homens: "bg-orange-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-red-600",
-  conferencia: "bg-indigo-600",
-};
+const categoriaBg = CATEGORY_BAR_CLASS;
 
-const categoriaLight = {
-  culto: "bg-blue-50 text-blue-700 border-blue-200",
-  estudo: "bg-green-50 text-green-700 border-green-200",
-  jovens: "bg-purple-50 text-purple-700 border-purple-200",
-  mulheres: "bg-pink-50 text-pink-700 border-pink-200",
-  homens: "bg-orange-50 text-orange-700 border-orange-200",
-  criancas: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  especial: "bg-red-50 text-red-700 border-red-200",
-  conferencia: "bg-indigo-50 text-indigo-700 border-indigo-200",
-};
+const categoriaLight = CATEGORY_SOFT_BADGE_CLASS;
 
 // Salva o ID do evento destacado no topo
 const DESTAQUE_KEY = "evento_destaque_id";
@@ -83,10 +69,10 @@ function EventoCard({
 }) {
   const date = evento.data ? parseISO(evento.data) : null;
   const passado = date && isPast(new Date(evento.data + "T23:59:59"));
-  /** Sobre a imagem: degradê só em preto/cinza (não usa a cor do evento) */
+  /** Sobre a imagem: degradê neutro a partir da cor de texto do tema */
   const gradientSplitStyle = {
     background:
-      "linear-gradient(90deg, rgb(9 9 11 / 0.9) 0%, rgb(39 39 42 / 0.55) 32%, rgb(82 82 91 / 0.22) 62%, rgb(161 161 170 / 0.06) 88%, transparent 100%)",
+      "linear-gradient(90deg, hsl(var(--foreground) / 0.88) 0%, hsl(var(--foreground) / 0.42) 38%, hsl(var(--foreground) / 0.1) 72%, transparent 100%)",
   };
 
   const barColor = eventCardBarClass(evento, categoriaBg);
@@ -241,7 +227,7 @@ function EventoCard({
 }
 
 export default function Eventos() {
-  const { user } = useAuth();
+  const { user, openLoginModal } = useAuth();
   const canCreate = canMenuAction(user, MENU.EVENTOS, "create");
   const canEdit = canMenuAction(user, MENU.EVENTOS, "edit");
   const canDelete = canMenuAction(user, MENU.EVENTOS, "delete");
@@ -305,7 +291,7 @@ export default function Eventos() {
         pageKey="eventos"
         tag="Programação"
         title="Eventos"
-        description="Aqui cadastra e edita eventos (data, horários, local, programação por dias, imagem e inscrição). A Agenda só mostra os eventos no calendário conforme a data."
+        description="Detalhes dos encontros da igreja: datas, horários, locais e programação para consultar e participar."
       />
 
       <section className="py-10 lg:py-14">
@@ -391,16 +377,27 @@ export default function Eventos() {
               );
             })()}
 
-          {/* Alternância Agenda / Eventos */}
-          <div className="flex bg-muted rounded-xl p-1 gap-1 mb-6 w-fit">
-            <Link to="/Agenda">
-              <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <CalendarDays className="w-4 h-4" /> Agenda
-              </button>
-            </Link>
-            <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-background shadow text-foreground">
-              <ListChecks className="w-4 h-4" /> Eventos
-            </span>
+          {/* Alternância Agenda / Eventos + criar (alinhado à direita das abas) */}
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div className="flex bg-muted rounded-xl p-1 gap-1 w-fit">
+              <Link to="/Agenda">
+                <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  <CalendarDays className="w-4 h-4" /> Agenda
+                </button>
+              </Link>
+              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-background shadow text-foreground">
+                <ListChecks className="w-4 h-4" /> Eventos
+              </span>
+            </div>
+            {canCreate ? (
+              <Button
+                type="button"
+                onClick={handleNew}
+                className="gap-2 w-fit shrink-0"
+              >
+                <Plus className="w-4 h-4" /> Novo evento
+              </Button>
+            ) : null}
           </div>
 
           {canUseForm && (
@@ -420,7 +417,7 @@ export default function Eventos() {
 
           {/* Barra de controles */}
           <div className="flex flex-col gap-3 mb-6">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex bg-muted rounded-lg p-1 gap-1">
                 <button
                   type="button"
@@ -437,24 +434,19 @@ export default function Eventos() {
                   Todos ({sorted.length})
                 </button>
               </div>
-              {canCreate && (
-                <Button
-                  type="button"
-                  onClick={handleNew}
-                  className="gap-2 shrink-0"
-                >
-                  <Plus className="w-4 h-4" /> Novo evento
-                </Button>
-              )}
             </div>
             {!canCreate && !canEdit && !canDelete && (
               <p className="text-sm text-muted-foreground rounded-xl border border-border bg-muted/40 px-4 py-3">
                 Para criar ou gerir eventos, o administrador deve conceder
                 permissões em <strong className="text-foreground">Eventos</strong>{" "}
                 no Dashboard, ou inicie sessão com uma conta autorizada em{" "}
-                <Link to="/login" className="text-accent font-medium underline-offset-2 hover:underline">
-                  Login
-                </Link>
+                <button
+                  type="button"
+                  onClick={() => openLoginModal()}
+                  className="text-primary font-semibold underline-offset-2 hover:underline dark:text-accent"
+                >
+                  Iniciar sessão
+                </button>
                 .
               </p>
             )}

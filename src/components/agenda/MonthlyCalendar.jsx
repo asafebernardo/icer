@@ -9,17 +9,9 @@ import {
 } from "date-fns";
 import { motion } from "framer-motion";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 
-const categoriaColors = {
-  culto: "bg-blue-500",
-  estudo: "bg-purple-500",
-  jovens: "bg-green-500",
-  mulheres: "bg-pink-500",
-  homens: "bg-indigo-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-orange-500",
-  conferencia: "bg-red-500",
-};
+const categoriaColors = CATEGORY_BAR_CLASS;
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 

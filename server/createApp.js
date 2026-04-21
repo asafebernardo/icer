@@ -22,6 +22,12 @@ import { nowIso } from "./security.js";
 import { effectiveMenuPermissions } from "./menuPermissions.js";
 import { createDataRouter } from "./dataRoutes.js";
 import { nextSeq } from "./sequences.js";
+import {
+  clientIp,
+  recordAudit,
+  listAuditLogsForUser,
+  listAuditLogsGlobal,
+} from "./auditLog.js";
 
 /**
  * @param {import("mongodb").Db} db
@@ -33,7 +39,12 @@ import { nextSeq } from "./sequences.js";
  */
 export function createApplication(db, options = {}) {
   const uploadDir =
-    options.uploadDir ?? path.resolve("server", "private_uploads");
+    options.uploadDir ?? path.resolve("server", "uploads");
+  const uploadMaxMb = Number(process.env.ICER_UPLOAD_MAX_MB);
+  const uploadMaxBytes =
+    Number.isFinite(uploadMaxMb) && uploadMaxMb > 0
+      ? uploadMaxMb * 1024 * 1024
+      : 80 * 1024 * 1024;
   const enableUpstreamProxy = options.enableUpstreamProxy === true;
   const loginRateLimit = options.loginRateLimit !== false;
 
@@ -104,20 +115,50 @@ export function createApplication(db, options = {}) {
       { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, password_hash: 1 } },
     );
     if (!row) {
+      await recordAudit(db, {
+        userId: null,
+        actorUserId: null,
+        action: "auth.login_failed",
+        details: { email },
+        ip: clientIp(req),
+      });
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     const ok = await verifyPassword(row.password_hash, parsed.data.password);
     if (!ok) {
+      await recordAudit(db, {
+        userId: row.id,
+        actorUserId: row.id,
+        action: "auth.login_failed",
+        details: { email },
+        ip: clientIp(req),
+      });
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     const { token } = await createSession(db, row.id);
     setSessionCookie(res, token);
+    await recordAudit(db, {
+      userId: row.id,
+      actorUserId: row.id,
+      action: "auth.login",
+      details: { email: row.email },
+      ip: clientIp(req),
+    });
     res.json({ ok: true });
   });
 
   app.post("/api/auth/logout", async (req, res) => {
+    if (req.user) {
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "auth.logout",
+        details: { email: req.user.email },
+        ip: clientIp(req),
+      });
+    }
     if (req.sessionToken) {
       await deleteSessionByToken(db, req.sessionToken);
     }
@@ -183,6 +224,17 @@ export function createApplication(db, options = {}) {
     if (parsed.data.full_name != null) $set.full_name = parsed.data.full_name.trim();
     if (password_hash) $set.password_hash = password_hash;
     await db.collection("users").updateOne({ id: row.id }, { $set });
+    const fields = [];
+    if (nextEmail != null) fields.push("email");
+    if (parsed.data.full_name != null) fields.push("full_name");
+    if (password_hash) fields.push("password");
+    await recordAudit(db, {
+      userId: row.id,
+      actorUserId: row.id,
+      action: "user.profile_update",
+      details: { fields },
+      ip: clientIp(req),
+    });
     const u = await db.collection("users").findOne(
       { id: row.id },
       { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, funcao: 1 } },
@@ -211,6 +263,53 @@ export function createApplication(db, options = {}) {
       .sort({ role: -1, created_at: -1 })
       .toArray();
     res.json(users);
+  });
+
+  app.get("/api/admin/audit-log", requireAdmin, async (req, res) => {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const skip = Math.max(0, Math.min(10000, Number(req.query.skip) || 0));
+    const action = req.query.action != null ? String(req.query.action) : "";
+    const ip = req.query.ip != null ? String(req.query.ip) : "";
+    const userNullRaw = req.query.user_null;
+    const userIdNull =
+      userNullRaw === "1" ||
+      userNullRaw === "true" ||
+      String(userNullRaw || "").toLowerCase() === "yes";
+
+    const uidRaw = req.query.user_id;
+    const actorRaw = req.query.actor_user_id;
+    let userId;
+    if (uidRaw != null && String(uidRaw).trim() !== "") {
+      userId = Number(uidRaw);
+      if (!Number.isFinite(userId)) {
+        res.status(400).json({ message: "invalid_user_id" });
+        return;
+      }
+    }
+    let actorUserId;
+    if (actorRaw != null && String(actorRaw).trim() !== "") {
+      actorUserId = Number(actorRaw);
+      if (!Number.isFinite(actorUserId)) {
+        res.status(400).json({ message: "invalid_actor_user_id" });
+        return;
+      }
+    }
+
+    if (userIdNull && userId !== undefined) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+
+    const result = await listAuditLogsGlobal(db, {
+      limit,
+      skip,
+      action,
+      userId,
+      userIdNull,
+      actorUserId,
+      ip,
+    });
+    res.json(result);
   });
 
   app.post("/api/admin/users", requireAdmin, async (req, res) => {
@@ -243,6 +342,13 @@ export function createApplication(db, options = {}) {
       password_hash,
       created_at: now,
       updated_at: now,
+    });
+    await recordAudit(db, {
+      userId: id,
+      actorUserId: req.user.id,
+      action: "admin.user.create",
+      details: { email, role: parsed.data.role },
+      ip: clientIp(req),
     });
     res.status(201).json({ id });
   });
@@ -291,12 +397,42 @@ export function createApplication(db, options = {}) {
     if (parsed.data.funcao != null) $set.funcao = String(parsed.data.funcao);
     if (password_hash) $set.password_hash = password_hash;
     await db.collection("users").updateOne({ id }, { $set });
+    const fields = [];
+    if (nextEmail != null) fields.push("email");
+    if (parsed.data.full_name != null) fields.push("full_name");
+    if (parsed.data.role != null) fields.push("role");
+    if (parsed.data.funcao != null) fields.push("funcao");
+    if (password_hash) fields.push("password");
+    await recordAudit(db, {
+      userId: id,
+      actorUserId: req.user.id,
+      action: "admin.user.update",
+      details: { fields },
+      ip: clientIp(req),
+    });
     res.json({ ok: true });
+  });
+
+  app.get("/api/admin/users/:id/audit-log", requireAdmin, async (req, res) => {
+    const uid = Number(req.params.id);
+    if (!Number.isFinite(uid)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const exists = await db.collection("users").findOne({ id: uid }, { projection: { id: 1 } });
+    if (!exists) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const skip = Math.max(0, Math.min(10000, Number(req.query.skip) || 0));
+    const logs = await listAuditLogsForUser(db, uid, { limit, skip });
+    res.json(logs);
   });
 
   const upload = multer({
     dest: uploadDir,
-    limits: { fileSize: 15 * 1024 * 1024 },
+    limits: { fileSize: uploadMaxBytes },
   });
 
   app.post("/api/files", requireAuth, upload.single("file"), async (req, res) => {
@@ -307,6 +443,9 @@ export function createApplication(db, options = {}) {
     }
     const now = nowIso();
     const fid = await nextSeq(db, "files");
+    /** Ficheiros do site: leitura pública (imagens em posts, PDFs em materiais, etc.). */
+    const publicRead =
+      String(process.env.ICER_FILE_PUBLIC_READ || "true").toLowerCase() !== "false";
     await db.collection("files").insertOne({
       id: fid,
       owner_user_id: req.user.id,
@@ -315,11 +454,24 @@ export function createApplication(db, options = {}) {
       size: f.size,
       storage_path: f.path,
       created_at: now,
+      public: publicRead,
+    });
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "file.upload",
+      details: {
+        file_id: fid,
+        name: f.originalname,
+        mime: f.mimetype || "",
+        size: f.size,
+      },
+      ip: clientIp(req),
     });
     res.status(201).json({ id: fid, url: `/api/files/${fid}` });
   });
 
-  app.get("/api/files/:id", requireAuth, async (req, res) => {
+  app.get("/api/files/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
       res.status(400).json({ message: "invalid_id" });
@@ -330,10 +482,18 @@ export function createApplication(db, options = {}) {
       res.status(404).json({ message: "not_found" });
       return;
     }
-    const canRead = req.user.role === "admin" || req.user.id === row.owner_user_id;
-    if (!canRead) {
-      res.status(403).json({ message: "forbidden" });
-      return;
+    const isPublic = row.public !== false;
+    if (!isPublic) {
+      if (!req.user) {
+        res.status(401).json({ message: "auth_required" });
+        return;
+      }
+      const canRead =
+        req.user.role === "admin" || req.user.id === row.owner_user_id;
+      if (!canRead) {
+        res.status(403).json({ message: "forbidden" });
+        return;
+      }
     }
     if (!fs.existsSync(row.storage_path)) {
       res.status(404).json({ message: "file_missing" });
@@ -344,6 +504,7 @@ export function createApplication(db, options = {}) {
       "Content-Disposition",
       `inline; filename=\"${String(row.original_name || "file").replaceAll('"', "")}\"`,
     );
+    res.setHeader("Cache-Control", "public, max-age=86400");
     fs.createReadStream(row.storage_path).pipe(res);
   });
 

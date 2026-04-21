@@ -130,6 +130,35 @@ describe("ICER API", () => {
     assert.ok(users.body.length >= 2);
   });
 
+  it("GET /api/admin/users/:id/audit-log (admin)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const users = await agent.get("/api/admin/users").expect(200);
+    const adminRow = users.body.find((u) => u.email === ADMIN_EMAIL);
+    assert.ok(adminRow);
+    const res = await agent
+      .get(`/api/admin/users/${adminRow.id}/audit-log?limit=50`)
+      .expect(200);
+    assert.ok(Array.isArray(res.body));
+    assert.ok(res.body.some((row) => row.action === "auth.login"));
+  });
+
+  it("GET /api/admin/audit-log (global, admin)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const res = await agent.get("/api/admin/audit-log?limit=20&skip=0").expect(200);
+    assert.ok(Array.isArray(res.body.rows));
+    assert.equal(typeof res.body.total, "number");
+    assert.ok(res.body.total >= 1);
+    assert.ok(res.body.rows.length >= 1);
+  });
+
   it("utilizador sem permissões: não cria evento nem postagem; pode criar material", async () => {
     const agent = request.agent(app);
     await agent
@@ -275,6 +304,21 @@ describe("ICER API", () => {
     const id = res.body.id;
     const getRes = await agent.get(`/api/files/${id}`).expect(200);
     assert.equal(getRes.text, "hello");
+  });
+
+  it("GET /api/files/:id sem sessão (ficheiro público no site)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const res = await agent
+      .post("/api/files")
+      .attach("file", Buffer.from("visitante"), "v.txt")
+      .expect(201);
+    const id = res.body.id;
+    const anon = await request(app).get(`/api/files/${id}`).expect(200);
+    assert.equal(anon.text, "visitante");
   });
 
   it("utilizador restrito não apaga evento de outrem", async () => {

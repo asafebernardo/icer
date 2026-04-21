@@ -9,55 +9,50 @@ export default function PageNotFound({}) {
   const sessionUser = useSyncedAuthUser();
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
-      <div className="max-w-md w-full">
-        <div className="text-center space-y-6">
-          {/* 404 Error Code */}
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="w-full max-w-md">
+        <div className="space-y-6 text-center">
           <div className="space-y-2">
-            <h1 className="text-7xl font-light text-slate-300">404</h1>
-            <div className="h-0.5 w-16 bg-slate-200 mx-auto"></div>
+            <h1 className="text-7xl font-light text-muted-foreground/40">404</h1>
+            <div className="mx-auto h-0.5 w-16 bg-border" />
           </div>
 
-          {/* Main Message */}
           <div className="space-y-3">
-            <h2 className="text-2xl font-medium text-slate-800">
-              Page Not Found
-            </h2>
-            <p className="text-slate-600 leading-relaxed">
+            <h2 className="text-2xl font-medium text-foreground">Page Not Found</h2>
+            <p className="leading-relaxed text-muted-foreground">
               The page{" "}
-              <span className="font-medium text-slate-700">"{pageName}"</span>{" "}
+              <span className="font-medium text-foreground">"{pageName}"</span>{" "}
               could not be found in this application.
             </p>
           </div>
 
-          {/* Admin Note */}
           {sessionUser && isAdminUser(sessionUser) && (
-              <div className="mt-8 p-4 bg-slate-100 rounded-lg border border-slate-200">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center mt-0.5">
-                    <div className="w-2 h-2 rounded-full bg-orange-400"></div>
-                  </div>
-                  <div className="text-left space-y-1">
-                    <p className="text-sm font-medium text-slate-700">
-                      Admin Note
-                    </p>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      This could mean that the AI hasn't implemented this page
-                      yet. Ask it to implement it in the chat.
-                    </p>
-                  </div>
+            <div className="mt-8 rounded-lg border border-border bg-muted/50 p-4">
+              <div className="flex items-start space-x-3">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/20">
+                  <div className="h-2 w-2 rounded-full bg-accent" />
+                </div>
+                <div className="space-y-1 text-left">
+                  <p className="text-sm font-medium text-foreground">Admin Note</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    This could mean that the AI hasn&apos;t implemented this page
+                    yet. Ask it to implement it in the chat.
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-          {/* Action Button */}
           <div className="pt-6">
             <button
-              onClick={() => (window.location.href = "/")}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
+              type="button"
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="inline-flex items-center rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors duration-200 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
             >
               <svg
-                className="w-4 h-4 mr-2"
+                className="mr-2 h-4 w-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

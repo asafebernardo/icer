@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
 import ProfileSettings from "@/components/dashboard/ProfileSettings";
 import ServerUsersPanel from "@/components/dashboard/ServerUsersPanel";
+import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import { api } from "@/api/client";
 import * as auth from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -506,6 +507,16 @@ export default function Dashboard() {
                 Contas servidor
               </Button>
             )}
+            {showServerAccountsTab && (
+              <Button
+                type="button"
+                variant={activeTab === "audit-log" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveTab("audit-log")}
+              >
+                Registo global
+              </Button>
+            )}
           </div>
         )}
 
@@ -524,6 +535,10 @@ export default function Dashboard() {
 
         {showServerAccountsTab && activeTab === "server-users" && (
           <ServerUsersPanel />
+        )}
+
+        {showServerAccountsTab && activeTab === "audit-log" && (
+          <GlobalAuditLogPanel />
         )}
       </div>
     </div>

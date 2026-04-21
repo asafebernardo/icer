@@ -5,6 +5,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import {
   getUser,
@@ -18,6 +19,7 @@ import {
   persistSessionUser,
   clearSessionUser,
 } from "@/lib/sessionIntegrity";
+import LoginModal from "@/components/auth/LoginModal";
 
 const AuthContext = createContext(null);
 
@@ -26,9 +28,15 @@ function readUserFromStorage() {
 }
 
 export function AuthProvider({ children }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(readUserFromStorage);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+
+  const openLoginModal = useCallback(() => setLoginModalOpen(true), []);
+  const closeLoginModal = useCallback(() => setLoginModalOpen(false), []);
 
   const checkUserAuth = useCallback(() => {
     setUser(getUser());
@@ -84,8 +92,8 @@ export function AuthProvider({ children }) {
   }, [checkUserAuth]);
 
   const login = useCallback(async (email, senha) => {
-    const ok = await authLogin(email, senha);
-    if (!ok) return false;
+    const result = await authLogin(email, senha);
+    if (!result.ok) return result;
     setUser(getUser());
     if (isServerAuthEnabled()) {
       try {
@@ -102,7 +110,7 @@ export function AuthProvider({ children }) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("icer-user-session"));
     }
-    return true;
+    return { ok: true };
   }, []);
 
   const updateProfile = useCallback(async (fields) => {
@@ -122,11 +130,13 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const navigateToLogin = () => {
-    if (typeof window !== "undefined") {
-      window.location.assign("/login");
+  const navigateToLogin = useCallback(() => {
+    setLoginModalOpen(true);
+    const path = location.pathname;
+    if (path !== "/Home" && path !== "/") {
+      navigate("/Home", { replace: true });
     }
-  };
+  }, [navigate, location.pathname]);
 
   return (
     <AuthContext.Provider
@@ -138,6 +148,9 @@ export function AuthProvider({ children }) {
         authError: null,
         isLoadingPublicSettings: false,
         navigateToLogin,
+        openLoginModal,
+        closeLoginModal,
+        loginModalOpen,
         checkUserAuth,
         login,
         updateProfile,
@@ -145,6 +158,7 @@ export function AuthProvider({ children }) {
       }}
     >
       {children}
+      <LoginModal />
     </AuthContext.Provider>
   );
 }

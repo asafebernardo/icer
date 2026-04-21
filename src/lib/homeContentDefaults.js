@@ -18,3 +18,17 @@ export const DEFAULT_VERSE_REF = "— João 3:16";
 
 export const DEFAULT_HISTORY_VALUE = "3+";
 export const DEFAULT_HISTORY_LABEL = "Anos de história";
+
+/** Secção do canal (entre Sobre e Horários) — cabeçalho + link + carrossel */
+export const DEFAULT_CHANNEL_SECTION_TAG = "Online";
+export const DEFAULT_CHANNEL_SECTION_TITLE = "Nosso canal no YouTube";
+export const DEFAULT_CHANNEL_SECTION_SUBTITLE =
+  "Acompanhe cultos, mensagens e estudos em vídeo.";
+export const DEFAULT_CHANNEL_URL = "https://www.youtube.com";
+
+/** Chaves em `siteConfig` para fundos legados / canal (não expostos na UI) */
+export const SECTION_BG_KEYS = {
+  welcome: "sectionBgWelcome",
+  channel: "sectionBgChannel",
+  serviceTimes: "sectionBgServiceTimes",
+};

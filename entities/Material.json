@@ -17,15 +17,11 @@
     },
     "categoria": {
       "type": "string",
-      "enum": [
-        "liturgia",
-        "louvor",
-        "estudo",
-        "infantil",
-        "administrativo",
-        "divulgacao"
-      ],
-      "description": "Categoria do material"
+      "description": "Identificador da categoria (ex.: sem_categoria, ou id personalizado)"
+    },
+    "icone_id": {
+      "type": ["string", "null"],
+      "description": "Id do \u00edcone Lucide opcional para o cart\u00e3o"
     },
     "arquivo_url": {
       "type": "string",

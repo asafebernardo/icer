@@ -115,12 +115,12 @@ export default function Agenda() {
         pageKey="agenda"
         tag="Calendário"
         title="Agenda"
-        description="Visualização por data: os eventos aparecem no dia correspondente ao campo data. Para criar ou editar eventos (detalhes, programação, imagens), use a aba Eventos."
+        description="A programação da igreja em calendário: cultos, estudos e encontros para acompanhar e participar."
       />
 
       <section className="py-10 lg:py-14">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
             <div className="flex bg-muted rounded-xl p-1 gap-1 w-fit">
               <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-background shadow text-foreground">
                 <CalendarDays className="w-4 h-4" /> Agenda

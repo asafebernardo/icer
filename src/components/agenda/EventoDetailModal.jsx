@@ -10,6 +10,8 @@ import { Clock, MapPin, Mic2, UserRound, Pencil } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+import { CATEGORY_BADGE_QUIET_CLASS } from "@/lib/categoryAppearance";
+
 const categoriaLabels = {
   culto: "Culto",
   estudo: "Estudo",
@@ -21,16 +23,7 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-const categoriaColors = {
-  culto: "bg-blue-100 text-blue-700",
-  estudo: "bg-green-100 text-green-700",
-  jovens: "bg-purple-100 text-purple-700",
-  mulheres: "bg-pink-100 text-pink-700",
-  homens: "bg-orange-100 text-orange-700",
-  criancas: "bg-yellow-100 text-yellow-700",
-  especial: "bg-red-100 text-red-700",
-  conferencia: "bg-indigo-100 text-indigo-700",
-};
+const categoriaColors = CATEGORY_BADGE_QUIET_CLASS;
 
 export default function EventoDetailModal({
   evento,
@@ -65,7 +58,7 @@ export default function EventoDetailModal({
         <div className="space-y-4 py-2">
           {evento.categoria && (
             <Badge
-              className={`${categoriaColors[evento.categoria]} border-0 text-xs`}
+              className={`${categoriaColors[evento.categoria] ?? "bg-muted text-foreground"} border-0 text-xs`}
             >
               {categoriaLabels[evento.categoria] || evento.categoria}
             </Badge>

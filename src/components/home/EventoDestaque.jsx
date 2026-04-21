@@ -7,17 +7,12 @@ import { Calendar, Clock, MapPin, ArrowRight, Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import {
+  CATEGORY_BAR_CLASS,
+  CATEGORY_SOFT_BADGE_CLASS,
+} from "@/lib/categoryAppearance";
 
-const categoriaBg = {
-  culto: "bg-blue-600",
-  estudo: "bg-green-600",
-  jovens: "bg-purple-600",
-  mulheres: "bg-pink-500",
-  homens: "bg-orange-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-red-600",
-  conferencia: "bg-indigo-600",
-};
+const categoriaBg = CATEGORY_BAR_CLASS;
 
 const categoriaLabels = {
   culto: "Culto",
@@ -30,16 +25,7 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-const categoriaLight = {
-  culto: "bg-blue-50 text-blue-700 border-blue-200",
-  estudo: "bg-green-50 text-green-700 border-green-200",
-  jovens: "bg-purple-50 text-purple-700 border-purple-200",
-  mulheres: "bg-pink-50 text-pink-700 border-pink-200",
-  homens: "bg-orange-50 text-orange-700 border-orange-200",
-  criancas: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  especial: "bg-red-50 text-red-700 border-red-200",
-  conferencia: "bg-indigo-50 text-indigo-700 border-indigo-200",
-};
+const categoriaLight = CATEGORY_SOFT_BADGE_CLASS;
 
 export default function EventoDestaque() {
   const { data: eventos = [] } = useQuery({

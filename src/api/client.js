@@ -1,4 +1,5 @@
 import { appParams } from "@/lib/app-params";
+import { isServerAuthEnabled } from "@/lib/serverAuth";
 
 const ACCESS_STORAGE = "icer_access_token";
 const LEGACY_ACCESS_STORAGE = "base44_access_token";
@@ -23,7 +24,7 @@ function getToken() {
 }
 
 function useServerEntities() {
-  return import.meta.env.VITE_USE_SERVER_AUTH === "true";
+  return isServerAuthEnabled();
 }
 
 function buildBaseHeaders(extra = {}) {

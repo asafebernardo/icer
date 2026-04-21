@@ -14,7 +14,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, RefreshCw, Shield, KeyRound } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Users, RefreshCw, Shield, KeyRound, ScrollText } from "lucide-react";
+import {
+  labelForAction,
+  formatAuditDetails,
+} from "@/lib/auditLogLabels";
 
 function formatTs(iso) {
   if (!iso) return "—";
@@ -42,6 +53,24 @@ async function fetchServerUsers() {
   return r.json();
 }
 
+async function fetchUserAuditLog(userId) {
+  const r = await fetch(
+    `/api/admin/users/${userId}/audit-log?limit=100`,
+    { credentials: "include" },
+  );
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t;
+    try {
+      msg = JSON.parse(t).message || t;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || r.statusText);
+  }
+  return r.json();
+}
+
 export default function ServerUsersPanel() {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
@@ -52,10 +81,27 @@ export default function ServerUsersPanel() {
   const [msg, setMsg] = useState(null);
   const [resetId, setResetId] = useState(null);
   const [resetPass, setResetPass] = useState("");
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [activityUserId, setActivityUserId] = useState(null);
+  const [activityUserLabel, setActivityUserLabel] = useState("");
 
   const { data: users = [], isLoading, refetch, error } = useQuery({
     queryKey: ["server-admin-users"],
     queryFn: fetchServerUsers,
+  });
+
+  const emailById = Object.fromEntries(
+    (users || []).map((u) => [u.id, u.email]),
+  );
+
+  const {
+    data: auditRows = [],
+    isLoading: auditLoading,
+    error: auditError,
+  } = useQuery({
+    queryKey: ["server-user-audit", activityUserId],
+    queryFn: () => fetchUserAuditLog(activityUserId),
+    enabled: activityOpen && activityUserId != null,
   });
 
   const handleCreate = async () => {
@@ -165,7 +211,8 @@ export default function ServerUsersPanel() {
                 Contas no servidor
               </h2>
               <p className="text-sm text-muted-foreground">
-                Utilizadores reais (SQLite + sessão). Apenas administradores.
+                Utilizadores no servidor (MongoDB + sessão). Apenas
+                administradores.
               </p>
             </div>
           </div>
@@ -248,16 +295,32 @@ export default function ServerUsersPanel() {
                       </div>
                     </div>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setResetId(u.id);
-                        setResetPass("");
-                      }}
-                    >
-                      Redefinir palavra-passe
-                    </Button>
+                    <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setActivityUserId(u.id);
+                          setActivityUserLabel(
+                            u.full_name || u.email || `ID ${u.id}`,
+                          );
+                          setActivityOpen(true);
+                        }}
+                      >
+                        <ScrollText className="w-4 h-4 mr-1" />
+                        Ver atividade
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setResetId(u.id);
+                          setResetPass("");
+                        }}
+                      >
+                        Redefinir palavra-passe
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -265,6 +328,97 @@ export default function ServerUsersPanel() {
           </div>
         )}
       </motion.div>
+
+      <Dialog
+        open={activityOpen}
+        onOpenChange={(open) => {
+          setActivityOpen(open);
+          if (!open) {
+            setActivityUserId(null);
+            setActivityUserLabel("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              <ScrollText className="w-5 h-5 shrink-0" />
+              Atividade — {activityUserLabel || "—"}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground font-normal pt-1">
+              Registos recentes associados a este utilizador (início de sessão,
+              alterações e ações no servidor).
+            </p>
+          </DialogHeader>
+          <ScrollArea className="max-h-[min(60vh,520px)] px-6 pb-6">
+            {auditLoading && (
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-lg" />
+                ))}
+              </div>
+            )}
+            {auditError && (
+              <p className="text-sm text-destructive py-4">
+                {auditError.message || "Não foi possível carregar os registos."}
+              </p>
+            )}
+            {!auditLoading &&
+              !auditError &&
+              (!auditRows || auditRows.length === 0) && (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  Ainda não há registos para este utilizador.
+                </p>
+              )}
+            {!auditLoading &&
+              !auditError &&
+              auditRows?.length > 0 && (
+                <div className="space-y-3 pr-2">
+                  {auditRows.map((row) => {
+                    const actorId = row.actor_user_id;
+                    const subjectId = row.user_id;
+                    const actorOther =
+                      actorId != null &&
+                      subjectId != null &&
+                      actorId !== subjectId;
+                    const actorLabel =
+                      actorOther && emailById[actorId]
+                        ? emailById[actorId]
+                        : actorOther
+                          ? `#${actorId}`
+                          : null;
+                    return (
+                      <div
+                        key={row.id}
+                        className="border border-border rounded-xl p-3 text-sm space-y-1.5 bg-muted/30"
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-medium text-foreground">
+                            {labelForAction(row.action)}
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                            {formatTs(row.created_at)}
+                          </span>
+                        </div>
+                        {actorLabel && (
+                          <p className="text-xs text-muted-foreground">
+                            Executado por: {actorLabel}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground break-all">
+                          IP: {row.ip || "—"}
+                        </p>
+                        <pre className="text-[11px] leading-snug text-muted-foreground whitespace-pre-wrap break-all font-mono bg-background/80 rounded-md p-2 border border-border/60">
+                          {formatAuditDetails(row.details)}
+                        </pre>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}

@@ -733,12 +733,12 @@ export default function EventoFormPanel({
                 />
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive"
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
                   onClick={clearImagem}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  Remover imagem
                 </Button>
               </>
             )}

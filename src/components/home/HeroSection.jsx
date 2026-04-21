@@ -38,7 +38,6 @@ function formatSeconds(ms) {
 export default function HeroSection() {
   const {
     slides,
-    isAdmin,
     appendFromFiles,
     removeAt,
     clearAll,
@@ -102,9 +101,9 @@ export default function HeroSection() {
 
   return (
     <section className="relative min-h-[70vh] sm:min-h-[80vh] lg:min-h-[85vh] flex flex-col overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-800" />
+      <div className="absolute inset-0 z-[1] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
 
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 z-[2] overflow-hidden">
         {slides.length > 0 ? (
           <BackgroundSlideshow
             urls={slides}
@@ -114,7 +113,7 @@ export default function HeroSection() {
           />
         ) : (
           <div
-            className="absolute inset-0 opacity-10 pointer-events-none"
+            className="pointer-events-none absolute inset-0 opacity-10"
             style={{
               backgroundImage:
                 "radial-gradient(circle at 20% 50%, #181818 0%, transparent 50%), radial-gradient(circle at 80% 20%, #a1a1aa 0%, transparent 40%)",
@@ -125,41 +124,37 @@ export default function HeroSection() {
 
       {/* Degradé pequeno na base, sobre as imagens — transição suave para a secção seguinte */}
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[22%] min-h-[90px] max-h-[180px] bg-gradient-to-t from-black/35 via-black/[0.08] to-transparent dark:from-zinc-950/55 dark:via-zinc-950/10"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] h-[22%] min-h-[90px] max-h-[180px] bg-gradient-to-t from-black/35 via-black/[0.08] to-transparent dark:from-zinc-950/55 dark:via-zinc-950/10"
         aria-hidden
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col flex-1 min-h-0 justify-end pb-10 sm:pb-14 lg:pb-16 pt-28 sm:pt-32">
-        {(isAdmin || canEditHome) && (
-          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end">
-            {canEditHome && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
-                onClick={() => {
-                  setDraftEyebrow(heroEyebrow);
-                  setDraftHeroTitle(heroTitle);
-                  setHeroTextOpen(true);
-                }}
-              >
-                <Pencil className="w-4 h-4" />
-                Títulos
-              </Button>
-            )}
-            {isAdmin && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
-                onClick={() => setPanelOpen(true)}
-              >
-                <ImagePlus className="w-4 h-4 mr-2" />
-                Fundos do hero
-              </Button>
-            )}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0 flex flex-col flex-1 min-h-0 justify-end pb-10 sm:pb-14 lg:pb-16 pt-28 sm:pt-32">
+        {canEditHome && (
+          <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
+              onClick={() => {
+                setDraftEyebrow(heroEyebrow);
+                setDraftHeroTitle(heroTitle);
+                setHeroTextOpen(true);
+              }}
+            >
+              <Pencil className="w-4 h-4" />
+              Títulos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
+              onClick={() => setPanelOpen(true)}
+            >
+              <ImagePlus className="w-4 h-4 mr-2" />
+              Fundo do hero
+            </Button>
           </div>
         )}
 
@@ -167,12 +162,12 @@ export default function HeroSection() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75 }}
-          className="max-w-3xl"
+          className="max-w-3xl min-w-0 w-full"
         >
-          <p className="text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3">
+          <p className="text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]">
             {heroEyebrow}
           </p>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight">
+          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight break-words [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]">
             {heroTitle}
           </h1>
         </motion.div>
@@ -227,10 +222,10 @@ export default function HeroSection() {
       <Dialog open={panelOpen} onOpenChange={setPanelOpen}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Fundos do hero</DialogTitle>
+            <DialogTitle>Fundo do hero</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Imagens de fundo na página inicial. Com várias fotos, elas alternam
+            Imagens de fundo do topo da página. Com várias fotos, elas alternam
             conforme o intervalo e o tipo de transição abaixo. Uma só imagem
             fica fixa. Formatos: PNG, JPG, WebP.
           </p>
@@ -333,13 +328,13 @@ export default function HeroSection() {
                   </span>
                   <Button
                     type="button"
-                    size="icon"
+                    size="sm"
                     variant="ghost"
-                    className="shrink-0 h-8 w-8"
+                    className="shrink-0 h-8 gap-1 px-2"
                     onClick={() => removeAt(i)}
-                    aria-label={`Remover imagem ${i + 1}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remover
                   </Button>
                 </li>
               ))}
