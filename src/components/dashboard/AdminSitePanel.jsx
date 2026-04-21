@@ -23,7 +23,11 @@ import {
 import { toast } from "sonner";
 
 import { uploadImageFile } from "@/lib/uploadImage";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+} from "@/lib/siteConfig";
 import { getPageBackgroundUrl } from "@/lib/usePageBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
@@ -138,7 +142,8 @@ export default function AdminSitePanel() {
     try {
       const { file_url } = await uploadImageFile(file);
       setLogoUrl(file_url);
-      setSiteConfig({ logoUrl: file_url });
+      await savePublicSiteConfigAdmin({ logoUrl: file_url });
+      await refreshPublicSiteConfig();
     } catch (err) {
       console.error(err);
     } finally {
@@ -155,7 +160,8 @@ export default function AdminSitePanel() {
       const url = await imageFileToStorableUrl(file);
       const cfg = getSiteConfig();
       const nextBg = { ...(cfg.pageBackgrounds || {}), [key]: url };
-      setSiteConfig({ pageBackgrounds: nextBg });
+      await savePublicSiteConfigAdmin({ pageBackgrounds: nextBg });
+      await refreshPublicSiteConfig();
       if (key === "login") setLoginHeroUrl(url);
       else setLoginFormBgUrl(url);
     } catch (err) {
@@ -167,7 +173,9 @@ export default function AdminSitePanel() {
     const cfg = getSiteConfig();
     const nextBg = { ...(cfg.pageBackgrounds || {}) };
     delete nextBg[key];
-    setSiteConfig({ pageBackgrounds: nextBg });
+    savePublicSiteConfigAdmin({ pageBackgrounds: nextBg })
+      .then(() => refreshPublicSiteConfig())
+      .catch(() => {});
     if (key === "login") setLoginHeroUrl("");
     else setLoginFormBgUrl("");
   };
@@ -267,7 +275,9 @@ export default function AdminSitePanel() {
               className="text-destructive hover:text-destructive"
               onClick={() => {
                 setLogoUrl("");
-                setSiteConfig({ logoUrl: "" });
+                    savePublicSiteConfigAdmin({ logoUrl: "" })
+                      .then(() => refreshPublicSiteConfig())
+                      .catch(() => {});
               }}
             >
               Remover
@@ -507,7 +517,9 @@ export default function AdminSitePanel() {
                 type="button"
                 onClick={() => {
                   setPaletteId(p.id);
-                  setSiteConfig({ colorPalette: p.id });
+                          savePublicSiteConfigAdmin({ colorPalette: p.id })
+                            .then(() => refreshPublicSiteConfig())
+                            .catch(() => {});
                   applySiteColorPalette(p.id);
                 }}
                 className={`rounded-xl border-2 p-3 text-left transition-all hover:opacity-95 ${

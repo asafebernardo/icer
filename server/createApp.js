@@ -59,6 +59,14 @@ export function createApplication(db, options = {}) {
   const SESSION_TTL_KEY = "session_ttl_minutes";
   const SESSION_TTL_ALLOWED = new Set([10, 30, 60, 120, 300]);
   const SESSION_TTL_DEFAULT = 120;
+  const SITE_CONFIG_KEY = "site_config_public_v1";
+
+  async function getPublicSiteConfig() {
+    const row = await db.collection("app_kv").findOne({ key: SITE_CONFIG_KEY });
+    const v = row?.value;
+    if (!v || typeof v !== "object") return {};
+    return v;
+  }
 
   async function getSessionTtlMinutes() {
     const row = await db.collection("app_kv").findOne({ key: SESSION_TTL_KEY });
@@ -112,6 +120,13 @@ export function createApplication(db, options = {}) {
     res.json({ ok: true, time: nowIso() });
   });
 
+  // Config pública do site (logo, fundos, paleta, etc.). Não depende de sessão.
+  app.get("/api/site-config", async (_req, res) => {
+    const cfg = await getPublicSiteConfig();
+    res.setHeader("Cache-Control", "no-store");
+    res.json(cfg);
+  });
+
   app.use(async (req, _res, next) => {
     try {
       const token = req.cookies?.[getCookieName()];
@@ -121,6 +136,33 @@ export function createApplication(db, options = {}) {
     } catch (e) {
       next(e);
     }
+  });
+
+  // Admin: grava config pública do site no servidor (Mongo).
+  app.put("/api/admin/site-config", requireAuth, requireAdmin, async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : null;
+    if (!body) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const current = await getPublicSiteConfig();
+    const next = { ...(current || {}), ...body };
+    const now = nowIso();
+    await db.collection("app_kv").updateOne(
+      { key: SITE_CONFIG_KEY },
+      { $set: { key: SITE_CONFIG_KEY, value: next, updated_at: now } },
+      { upsert: true },
+    );
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "site.config.update",
+      details: { keys: Object.keys(body).slice(0, 50) },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, config: next });
   });
 
   const loginMw = loginRateLimit ? rateLimitLogin : (_req, _res, next) => next();
