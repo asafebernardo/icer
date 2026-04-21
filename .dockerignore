@@ -1,0 +1,16 @@
+.git
+.github
+.cursor
+node_modules
+dist
+.vite
+coverage
+*.log
+.env
+.env.*
+!.env.example
+!env.example
+server/uploads
+server/private_uploads
+server/data
+logs

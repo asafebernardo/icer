@@ -1,0 +1,6 @@
+# EasyPanel/Nixpacks: fixar Node 20.
+# Avisos de "SecretsUsedInArgOrEnv" vêm do Dockerfile gerado quando variáveis sensíveis
+# estão em "Build args" no painel — use só "Environment" em runtime, ou use o `Dockerfile` do repo.
+
+[variables]
+NIXPACKS_NODE_VERSION = "20"

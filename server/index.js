@@ -90,7 +90,9 @@ const app = createApplication(db, {
   loginRateLimit: true,
 });
 
-app.listen(PORT, "127.0.0.1", () => {
+const HOST = String(process.env.HOST || "127.0.0.1").trim() || "127.0.0.1";
+
+app.listen(PORT, HOST, () => {
   // eslint-disable-next-line no-console
-  console.log(`[ICER] API server on http://127.0.0.1:${PORT}`);
+  console.log(`[ICER] API server on http://${HOST}:${PORT}`);
 });
