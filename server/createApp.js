@@ -893,11 +893,9 @@ export function createApplication(db, options = {}) {
   const distPath = path.resolve(process.cwd(), "dist");
   if (fs.existsSync(path.join(distPath, "index.html"))) {
     app.use(express.static(distPath, { index: false }));
-    app.get("*", (req, res, next) => {
-      if (req.path.startsWith("/api")) {
-        next();
-        return;
-      }
+    // Express 5 + path-to-regexp v6: `"*"` não é um path válido.
+    // Regex abaixo serve o SPA para tudo exceto rotas `/api/*`.
+    app.get(/^(?!\/api(?:\/|$)).*/, (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
