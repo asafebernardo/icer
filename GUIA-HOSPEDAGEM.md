@@ -1,6 +1,6 @@
 # Guia de desenvolvimento e hospedagem — ICER
 
-Este documento explica como correr o projeto no **computador local** e como **publicar** num VPS ou alojamento com painel (ex.: CyberPanel), com API Node + SQLite e frontend estático (Vite).
+Este documento explica como correr o projeto no **computador local** e como **publicar** num VPS ou alojamento com painel (ex.: CyberPanel), com API Node + **MongoDB** e frontend estático (Vite).
 
 ---
 
@@ -9,8 +9,8 @@ Este documento explica como correr o projeto no **computador local** e como **pu
 | Peça | Função |
 |------|--------|
 | **Pasta `dist/`** | Site React compilado (`npm run build`). O Nginx/OpenLiteSpeed/Apache serve estes ficheiros. |
-| **Node (`server/index.js`)** | API em `http://127.0.0.1:PORT` (ex.: 3001). Autenticação, dados em SQLite, uploads privados. |
-| **SQLite** | Ficheiro `server/data/app.db` — criado/atualizado quando o Node arranca (não é um serviço separado). |
+| **Node (`server/index.js`)** | API em `http://127.0.0.1:PORT` (ex.: 3001). Autenticação, dados em MongoDB, uploads privados. |
+| **MongoDB** | Base configurada em `MONGODB_URI` / `MONGODB_DB_NAME` (Atlas ou instância própria). |
 | **Reverse proxy** | O domínio público encaminha `/api` para o Node; o resto é ficheiros estáticos ou `index.html` (SPA). |
 
 ---
@@ -26,7 +26,7 @@ Este documento explica como correr o projeto no **computador local** e como **pu
    npm run dev:all
    ```
 
-   Isto inicia o **Express** (API + SQLite em `server/data/app.db`) e o **Vite** em paralelo.
+   Isto inicia o **Express** (API + MongoDB) e o **Vite** em paralelo.
 
    **Alternativa — dois terminais:**
 
@@ -38,7 +38,7 @@ Este documento explica como correr o projeto no **computador local** e como **pu
    npm run dev
    ```
 
-3. `npm run dev` **sozinho** só abre o frontend; sem o Node não há API nem atualização da base local.
+3. `npm run dev` **sozinho** só abre o frontend; sem o Node não há API. O MongoDB tem de estar acessível na `MONGODB_URI` quando corre a API.
 
 O Vite, com `VITE_USE_SERVER_AUTH=true`, encaminha `/api` para `http://127.0.0.1:3001` (ou `VITE_DEV_API_URL` / `PORT` definidos no ambiente).
 
@@ -51,8 +51,8 @@ Consulte também **`env.example`** na raiz do projeto.
 | Onde | Variáveis típicas |
 |------|-------------------|
 | **Build do frontend** (`VITE_*`) | `VITE_USE_SERVER_AUTH=true` para o browser falar com `/api` no mesmo domínio. |
-| **Runtime do Node** | `PORT` ou `ICER_SERVER_PORT` (porta interna, ex.: `3001`). |
-| **Primeiro administrador** | `ICER_ADMIN_EMAIL`, `ICER_ADMIN_FULL_NAME`, `ICER_ADMIN_PASSWORD` — só criam utilizador se a tabela `users` estiver vazia. |
+| **Runtime do Node** | `MONGODB_URI`, `MONGODB_DB_NAME` (opcional), `PORT` ou `ICER_SERVER_PORT` (porta interna, ex.: `3001`). |
+| **Primeiro administrador** | `ICER_ADMIN_EMAIL`, `ICER_ADMIN_FULL_NAME`, `ICER_ADMIN_PASSWORD` — só criam utilizador se esse email ainda não existir em `users`. |
 | **Opcional** | `ICER_UPSTREAM_API` se ainda reencaminhar parte do tráfego para uma API externa (ex.: Base44). |
 
 ---
@@ -84,7 +84,7 @@ Consulte também **`env.example`** na raiz do projeto.
 
 6. **HTTPS** no domínio público — necessário para cookies de sessão **Secure** em produção (o Express já usa `trust proxy`).
 
-7. **Permissões** — o utilizador do serviço Node precisa de **escrita** em `server/data/` e `server/private_uploads/` (criados em runtime).
+7. **Permissões** — o utilizador do serviço Node precisa de **escrita** em `server/private_uploads/` (ficheiros enviados). O MongoDB gere os dados na instância remota ou local.
 
 ---
 

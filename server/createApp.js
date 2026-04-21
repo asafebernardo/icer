@@ -21,9 +21,10 @@ import {
 import { nowIso } from "./security.js";
 import { effectiveMenuPermissions } from "./menuPermissions.js";
 import { createDataRouter } from "./dataRoutes.js";
+import { nextSeq } from "./sequences.js";
 
 /**
- * @param {import("better-sqlite3").Database} db
+ * @param {import("mongodb").Db} db
  * @param {{
  *   uploadDir?: string;
  *   enableUpstreamProxy?: boolean;
@@ -70,11 +71,15 @@ export function createApplication(db, options = {}) {
     return jsonParser(req, res, next);
   });
 
-  app.use((req, _res, next) => {
-    const token = req.cookies?.[getCookieName()];
-    req.user = getSessionUser(db, token);
-    req.sessionToken = token || null;
-    next();
+  app.use(async (req, _res, next) => {
+    try {
+      const token = req.cookies?.[getCookieName()];
+      req.user = await getSessionUser(db, token);
+      req.sessionToken = token || null;
+      next();
+    } catch (e) {
+      next(e);
+    }
   });
 
   app.get("/api/health", (_req, res) => {
@@ -94,11 +99,10 @@ export function createApplication(db, options = {}) {
       return;
     }
     const email = parsed.data.email.toLowerCase().trim();
-    const row = db
-      .prepare(
-        `SELECT id, email, full_name, role, password_hash FROM users WHERE email = ?`,
-      )
-      .get(email);
+    const row = await db.collection("users").findOne(
+      { email },
+      { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, password_hash: 1 } },
+    );
     if (!row) {
       res.status(401).json({ message: "invalid_credentials" });
       return;
@@ -108,14 +112,14 @@ export function createApplication(db, options = {}) {
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
-    const { token } = createSession(db, row.id);
+    const { token } = await createSession(db, row.id);
     setSessionCookie(res, token);
     res.json({ ok: true });
   });
 
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
     if (req.sessionToken) {
-      deleteSessionByToken(db, req.sessionToken);
+      await deleteSessionByToken(db, req.sessionToken);
     }
     clearSessionCookie(res);
     res.json({ ok: true });
@@ -129,8 +133,8 @@ export function createApplication(db, options = {}) {
     res.json(req.user);
   });
 
-  app.get("/api/auth/menu-effective", requireAuth, (req, res) => {
-    res.json(effectiveMenuPermissions(db, req.user));
+  app.get("/api/auth/menu-effective", requireAuth, async (req, res) => {
+    res.json(await effectiveMenuPermissions(db, req.user));
   });
 
   app.use("/api/data", createDataRouter(db));
@@ -147,9 +151,10 @@ export function createApplication(db, options = {}) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
-    const row = db
-      .prepare(`SELECT id, email, full_name, password_hash FROM users WHERE id = ?`)
-      .get(req.user.id);
+    const row = await db.collection("users").findOne(
+      { id: req.user.id },
+      { projection: { _id: 0, id: 1, email: 1, full_name: 1, password_hash: 1 } },
+    );
     if (!row) {
       res.status(404).json({ message: "not_found" });
       return;
@@ -162,7 +167,7 @@ export function createApplication(db, options = {}) {
     const nextEmail =
       parsed.data.email != null ? parsed.data.email.toLowerCase().trim() : undefined;
     if (nextEmail && nextEmail !== row.email) {
-      const clash = db.prepare(`SELECT id FROM users WHERE email = ?`).get(nextEmail);
+      const clash = await db.collection("users").findOne({ email: nextEmail });
       if (clash && clash.id !== row.id) {
         res.status(409).json({ message: "email_already_exists" });
         return;
@@ -173,34 +178,38 @@ export function createApplication(db, options = {}) {
       password_hash = await hashPassword(parsed.data.new_password);
     }
     const now = nowIso();
-    db.prepare(
-      `UPDATE users SET
-        email = COALESCE(?, email),
-        full_name = COALESCE(?, full_name),
-        password_hash = COALESCE(?, password_hash),
-        updated_at = ?
-       WHERE id = ?`,
-    ).run(
-      nextEmail ?? null,
-      parsed.data.full_name?.trim() ?? null,
-      password_hash ?? null,
-      now,
-      row.id,
+    const $set = { updated_at: now };
+    if (nextEmail != null) $set.email = nextEmail;
+    if (parsed.data.full_name != null) $set.full_name = parsed.data.full_name.trim();
+    if (password_hash) $set.password_hash = password_hash;
+    await db.collection("users").updateOne({ id: row.id }, { $set });
+    const u = await db.collection("users").findOne(
+      { id: row.id },
+      { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, funcao: 1 } },
     );
-    const u = db
-      .prepare(`SELECT id, email, full_name, role, funcao FROM users WHERE id = ?`)
-      .get(row.id);
     res.json(u);
   });
 
-  app.get("/api/admin/users", requireAdmin, (_req, res) => {
-    const users = db
-      .prepare(
-        `SELECT id, email, full_name, role, funcao, created_at, updated_at
-         FROM users
-         ORDER BY role DESC, created_at DESC`,
+  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    const users = await db
+      .collection("users")
+      .find(
+        {},
+        {
+          projection: {
+            _id: 0,
+            id: 1,
+            email: 1,
+            full_name: 1,
+            role: 1,
+            funcao: 1,
+            created_at: 1,
+            updated_at: 1,
+          },
+        },
       )
-      .all();
+      .sort({ role: -1, created_at: -1 })
+      .toArray();
     res.json(users);
   });
 
@@ -217,20 +226,25 @@ export function createApplication(db, options = {}) {
       return;
     }
     const email = parsed.data.email.toLowerCase().trim();
-    const exists = db.prepare(`SELECT id FROM users WHERE email = ?`).get(email);
+    const exists = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
     if (exists) {
       res.status(409).json({ message: "email_already_exists" });
       return;
     }
     const password_hash = await hashPassword(parsed.data.password);
     const now = nowIso();
-    const info = db
-      .prepare(
-        `INSERT INTO users (email, full_name, role, password_hash, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(email, parsed.data.full_name.trim(), parsed.data.role, password_hash, now, now);
-    res.status(201).json({ id: info.lastInsertRowid });
+    const id = await nextSeq(db, "users");
+    await db.collection("users").insertOne({
+      id,
+      email,
+      full_name: parsed.data.full_name.trim(),
+      role: parsed.data.role,
+      funcao: "",
+      password_hash,
+      created_at: now,
+      updated_at: now,
+    });
+    res.status(201).json({ id });
   });
 
   app.put("/api/admin/users/:id", requireAdmin, async (req, res) => {
@@ -251,7 +265,7 @@ export function createApplication(db, options = {}) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
-    const cur = db.prepare(`SELECT id, email FROM users WHERE id = ?`).get(id);
+    const cur = await db.collection("users").findOne({ id }, { projection: { _id: 0, id: 1, email: 1 } });
     if (!cur) {
       res.status(404).json({ message: "not_found" });
       return;
@@ -263,31 +277,20 @@ export function createApplication(db, options = {}) {
     const nextEmail =
       parsed.data.email != null ? parsed.data.email.toLowerCase().trim() : undefined;
     if (nextEmail && nextEmail !== cur.email) {
-      const clash = db.prepare(`SELECT id FROM users WHERE email = ?`).get(nextEmail);
+      const clash = await db.collection("users").findOne({ email: nextEmail });
       if (clash) {
         res.status(409).json({ message: "email_already_exists" });
         return;
       }
     }
     const now = nowIso();
-    db.prepare(
-      `UPDATE users SET
-        email = COALESCE(?, email),
-        full_name = COALESCE(?, full_name),
-        role = COALESCE(?, role),
-        funcao = COALESCE(?, funcao),
-        password_hash = COALESCE(?, password_hash),
-        updated_at = ?
-       WHERE id = ?`,
-    ).run(
-      nextEmail ?? null,
-      parsed.data.full_name?.trim() ?? null,
-      parsed.data.role ?? null,
-      parsed.data.funcao != null ? String(parsed.data.funcao) : null,
-      password_hash ?? null,
-      now,
-      id,
-    );
+    const $set = { updated_at: now };
+    if (nextEmail != null) $set.email = nextEmail;
+    if (parsed.data.full_name != null) $set.full_name = parsed.data.full_name.trim();
+    if (parsed.data.role != null) $set.role = parsed.data.role;
+    if (parsed.data.funcao != null) $set.funcao = String(parsed.data.funcao);
+    if (password_hash) $set.password_hash = password_hash;
+    await db.collection("users").updateOne({ id }, { $set });
     res.json({ ok: true });
   });
 
@@ -296,43 +299,33 @@ export function createApplication(db, options = {}) {
     limits: { fileSize: 15 * 1024 * 1024 },
   });
 
-  app.post("/api/files", requireAuth, upload.single("file"), (req, res) => {
+  app.post("/api/files", requireAuth, upload.single("file"), async (req, res) => {
     const f = req.file;
     if (!f) {
       res.status(400).json({ message: "file_required" });
       return;
     }
     const now = nowIso();
-    const info = db
-      .prepare(
-        `INSERT INTO files (owner_user_id, original_name, mime, size, storage_path, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        req.user.id,
-        f.originalname,
-        f.mimetype || "application/octet-stream",
-        f.size,
-        f.path,
-        now,
-      );
-    const fid = info.lastInsertRowid;
+    const fid = await nextSeq(db, "files");
+    await db.collection("files").insertOne({
+      id: fid,
+      owner_user_id: req.user.id,
+      original_name: f.originalname,
+      mime: f.mimetype || "application/octet-stream",
+      size: f.size,
+      storage_path: f.path,
+      created_at: now,
+    });
     res.status(201).json({ id: fid, url: `/api/files/${fid}` });
   });
 
-  app.get("/api/files/:id", requireAuth, (req, res) => {
+  app.get("/api/files/:id", requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
       res.status(400).json({ message: "invalid_id" });
       return;
     }
-    const row = db
-      .prepare(
-        `SELECT id, owner_user_id, original_name, mime, size, storage_path
-         FROM files
-         WHERE id = ?`,
-      )
-      .get(id);
+    const row = await db.collection("files").findOne({ id }, { projection: { _id: 0 } });
     if (!row) {
       res.status(404).json({ message: "not_found" });
       return;

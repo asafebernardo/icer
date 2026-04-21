@@ -7,7 +7,6 @@ import {
   isSameDay,
   isToday,
 } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { motion } from "framer-motion";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 
