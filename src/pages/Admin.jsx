@@ -67,7 +67,7 @@ function GateAdmin() {
 function TabMembros({ user, users, loadingUsers, refetch }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState(false);
-  const [inviteTempPw, setInviteTempPw] = useState(null);
+  const [inviteLink, setInviteLink] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [updatingRole, setUpdatingRole] = useState({});
   const queryClient = useQueryClient();
@@ -82,7 +82,12 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
   const handleInvite = async () => {
     if (!inviteEmail.trim()) return;
     setInviteLoading(true);
-    await api.users.inviteUser(inviteEmail.trim(), "user");
+    const r = await api.users.inviteUser(inviteEmail.trim(), "user");
+    const token = r?.invite_token;
+    const link = token
+      ? `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`
+      : null;
+    setInviteLink(link);
     setInviteSuccess(true);
     setInviteEmail("");
     setInviteLoading(false);
@@ -140,13 +145,13 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
           <div className="mt-3 text-sm space-y-2">
             <div className="flex items-center gap-2 text-green-600">
               <CheckCircle className="w-4 h-4 shrink-0" />
-              {inviteTempPw
-                ? "Utilizador criado no servidor. Guarde a palavra-passe e envie-a ao novo membro."
+              {inviteLink
+                ? "Convite criado no servidor. Copie o link e envie ao novo membro para ele cadastrar a senha."
                 : "Convite enviado com sucesso!"}
             </div>
-            {inviteTempPw ? (
+            {inviteLink ? (
               <code className="block p-2 rounded-md bg-muted text-foreground break-all text-xs">
-                {inviteTempPw}
+                {inviteLink}
               </code>
             ) : null}
           </div>

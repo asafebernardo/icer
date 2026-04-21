@@ -42,6 +42,9 @@ export async function ensureMongoIndexes(db) {
   await db.collection("users").createIndex({ email: 1 }, { unique: true });
   await db.collection("sessions").createIndex({ token_hash: 1 }, { unique: true });
   await db.collection("sessions").createIndex({ expires_at: 1 });
+  await db.collection("user_invites").createIndex({ token_hash: 1 }, { unique: true });
+  await db.collection("user_invites").createIndex({ user_id: 1, created_at: -1 });
+  await db.collection("user_invites").createIndex({ expires_at: 1 });
   await db.collection("files").createIndex({ id: 1 }, { unique: true });
   await db.collection("app_kv").createIndex({ key: 1 }, { unique: true });
   for (const c of [

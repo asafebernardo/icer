@@ -18,7 +18,7 @@ import {
   setSessionCookie,
   verifyPassword,
 } from "./auth.js";
-import { nowIso } from "./security.js";
+import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
 import { effectiveMenuPermissions } from "./menuPermissions.js";
 import { createDataRouter } from "./dataRoutes.js";
 import { nextSeq } from "./sequences.js";
@@ -123,6 +123,10 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
       });
       res.status(401).json({ message: "invalid_credentials" });
+      return;
+    }
+    if (!row.password_hash) {
+      res.status(409).json({ message: "password_not_set" });
       return;
     }
     const ok = await verifyPassword(row.password_hash, parsed.data.password);
@@ -351,6 +355,121 @@ export function createApplication(db, options = {}) {
       ip: clientIp(req),
     });
     res.status(201).json({ id });
+  });
+
+  app.post("/api/admin/users/invite", requireAdmin, async (req, res) => {
+    const schema = z.object({
+      email: z.string().email(),
+      role: z.enum(["admin", "user"]).default("user"),
+      expires_days: z.number().int().min(1).max(30).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const email = parsed.data.email.toLowerCase().trim();
+    const role = parsed.data.role;
+
+    const existing = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
+    if (existing) {
+      res.status(409).json({ message: "email_already_exists" });
+      return;
+    }
+
+    const now = nowIso();
+    const id = await nextSeq(db, "users");
+    await db.collection("users").insertOne({
+      id,
+      email,
+      full_name: email.includes("@") ? email.split("@")[0] : email,
+      role,
+      funcao: "",
+      password_hash: null,
+      created_at: now,
+      updated_at: now,
+      invited_at: now,
+    });
+
+    const token = randomToken();
+    const token_hash = sha256Hex(token);
+    const expires_at = addDaysIso(parsed.data.expires_days ?? 7);
+    const inviteId = await nextSeq(db, "user_invites");
+    await db.collection("user_invites").insertOne({
+      id: inviteId,
+      user_id: id,
+      token_hash,
+      created_at: now,
+      expires_at,
+      used_at: null,
+      used_ip: null,
+      created_ip: clientIp(req),
+    });
+
+    await recordAudit(db, {
+      userId: id,
+      actorUserId: req.user.id,
+      action: "admin.user.invite",
+      details: { email, role, expires_at },
+      ip: clientIp(req),
+    });
+
+    res.status(201).json({ id, invite_token: token, expires_at });
+  });
+
+  app.post("/api/auth/accept-invite", async (req, res) => {
+    const schema = z.object({
+      token: z.string().min(10),
+      password: z.string().min(10),
+      full_name: z.string().min(1).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const token_hash = sha256Hex(parsed.data.token);
+    const now = nowIso();
+    const inv = await db.collection("user_invites").findOne(
+      { token_hash, used_at: null, expires_at: { $gt: now } },
+      { projection: { _id: 0, id: 1, user_id: 1 } },
+    );
+    if (!inv) {
+      res.status(400).json({ message: "invalid_or_expired_invite" });
+      return;
+    }
+    const user = await db.collection("users").findOne(
+      { id: inv.user_id },
+      { projection: { _id: 0, id: 1, email: 1, password_hash: 1 } },
+    );
+    if (!user) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    if (user.password_hash) {
+      res.status(409).json({ message: "password_already_set" });
+      return;
+    }
+    const password_hash = await hashPassword(parsed.data.password);
+    const $set = { password_hash, updated_at: now };
+    if (parsed.data.full_name) {
+      $set.full_name = parsed.data.full_name.trim();
+    }
+    await db.collection("users").updateOne({ id: user.id }, { $set });
+    await db.collection("user_invites").updateOne(
+      { id: inv.id },
+      { $set: { used_at: now, used_ip: clientIp(req) } },
+    );
+
+    await recordAudit(db, {
+      userId: user.id,
+      actorUserId: user.id,
+      action: "auth.invite_accepted",
+      details: { email: user.email },
+      ip: clientIp(req),
+    });
+
+    res.json({ ok: true });
   });
 
   app.put("/api/admin/users/:id", requireAdmin, async (req, res) => {
