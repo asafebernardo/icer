@@ -1,6 +1,6 @@
 #env
-.env
-.env.*
+
+.env.local
 server/private_uploads/
 server/uploads/
 server/data/
@@ -28,6 +28,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-.env
 .vite
