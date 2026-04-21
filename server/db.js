@@ -3,6 +3,28 @@ import { MongoClient } from "mongodb";
 /** @type {MongoClient | null} */
 let client = null;
 
+function resolveMongoTimeouts() {
+  const serverSelectionTimeoutMS = Number(
+    process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 8000,
+  );
+  const connectTimeoutMS = Number(process.env.MONGODB_CONNECT_TIMEOUT_MS || 8000);
+  const socketTimeoutMS = Number(process.env.MONGODB_SOCKET_TIMEOUT_MS || 0);
+  return {
+    serverSelectionTimeoutMS:
+      Number.isFinite(serverSelectionTimeoutMS) && serverSelectionTimeoutMS > 0
+        ? serverSelectionTimeoutMS
+        : 8000,
+    connectTimeoutMS:
+      Number.isFinite(connectTimeoutMS) && connectTimeoutMS > 0
+        ? connectTimeoutMS
+        : 8000,
+    socketTimeoutMS:
+      Number.isFinite(socketTimeoutMS) && socketTimeoutMS >= 0
+        ? socketTimeoutMS
+        : 0,
+  };
+}
+
 /**
  * Atlas / mongodb+srv: password com @ : # / etc. → use credenciais separadas (encoding automático).
  * Aceita MONGODB_USER / MONGODB_PASSWORD ou MONGODB_SRV_USER / MONGODB_SRV_PASSWORD.
@@ -72,7 +94,10 @@ export async function ensureMongoIndexes(db) {
  * @returns {Promise<import("mongodb").Db>}
  */
 export async function openDbFromUri(uri, dbName = "icer") {
-  client = new MongoClient(uri);
+  const timeouts = resolveMongoTimeouts();
+  client = new MongoClient(uri, {
+    ...timeouts,
+  });
   await client.connect();
   const db = client.db(dbName);
   await ensureMongoIndexes(db);
