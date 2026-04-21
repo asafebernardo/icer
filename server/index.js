@@ -90,7 +90,27 @@ const app = createApplication(db, {
   loginRateLimit: true,
 });
 
-const HOST = String(process.env.HOST || "127.0.0.1").trim() || "127.0.0.1";
+/**
+ * Em Docker / EasyPanel o proxy liga ao container pela rede; escutar só em
+ * 127.0.0.1 impede conexões externas e o healthcheck mata o processo (SIGTERM).
+ */
+function resolveListenHost() {
+  const explicit = String(process.env.HOST || "").trim();
+  if (explicit) return explicit;
+  if (process.env.NODE_ENV === "production") return "0.0.0.0";
+  if (process.env.PORT != null && String(process.env.PORT).trim() !== "") {
+    return "0.0.0.0";
+  }
+  if (
+    process.env.ICER_SERVER_PORT != null &&
+    String(process.env.ICER_SERVER_PORT).trim() !== ""
+  ) {
+    return "0.0.0.0";
+  }
+  return "127.0.0.1";
+}
+
+const HOST = resolveListenHost();
 
 app.listen(PORT, HOST, () => {
   // eslint-disable-next-line no-console
