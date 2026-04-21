@@ -22,6 +22,7 @@ export default function ProfileSettings({ user: userProp }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
+  const requiresCurrentPassword = !demo && (!!newPassword || email !== (user?.email || ""));
 
   useEffect(() => {
     if (!user) return;
@@ -117,7 +118,12 @@ export default function ProfileSettings({ user: userProp }) {
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             autoComplete="current-password"
-            required
+            required={requiresCurrentPassword}
+            placeholder={
+              requiresCurrentPassword
+                ? ""
+                : "Só é necessária para trocar e-mail ou palavra-passe"
+            }
           />
         </div>
         <div className="space-y-2">
