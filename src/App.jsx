@@ -120,6 +120,7 @@ const AppRoutes = () => {
             </PrivateRoute>
           }
         />
+        <Route path="/Admin" element={<Navigate to="/Dashboard" replace />} />
         <Route path="/Evento/:id" element={<EventoPage />} />
         <Route path="/Eventos" element={<Eventos />} />
         <Route path="/Postagens" element={<Postagens />} />
