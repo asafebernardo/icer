@@ -126,8 +126,41 @@ function resolveListenHost() {
 const HOST = resolveListenHost();
 
 const server = app.listen(PORT, HOST, () => {
+  const scheme = "http";
+  const advertisedHost =
+    HOST === "0.0.0.0"
+      ? process.env.PUBLIC_HOST || "localhost"
+      : HOST || "localhost";
+  const baseUrl = `${scheme}://${advertisedHost}:${PORT}`;
+  const env = process.env.NODE_ENV || "development";
+  const dbName =
+    String(
+      process.env.MONGODB_DB_NAME || process.env.MONGODB_SRV_DATABASE || "icer",
+    ).trim() || "icer";
   // eslint-disable-next-line no-console
   console.log(`[ICER] API server on http://${HOST}:${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(
+    [
+      "",
+      "============================================================",
+      " ICER — Startup checklist",
+      "============================================================",
+      ` ENV: ${env}`,
+      ` MongoDB: connected (db=${dbName})`,
+      ` Upload dir: ${UPLOAD_DIR}`,
+      "",
+      " API endpoints (should return 200):",
+      `  - ${baseUrl}/health        -> ok`,
+      `  - ${baseUrl}/api/health    -> { ok: true }`,
+      "",
+      " Next steps:",
+      "  - Open the site (Front) and login",
+      "  - Go to /Dashboard -> admin tabs (if admin on server)",
+      "============================================================",
+      "",
+    ].join("\n"),
+  );
 });
 
 function shutdown(signal) {

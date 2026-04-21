@@ -13,12 +13,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  CheckCircle,
-  UserPlus,
   Users,
   RefreshCw,
   Lock,
-  Mail,
   ChevronDown,
   Clock,
   User,
@@ -28,6 +25,7 @@ import PageHeader from "../components/shared/PageHeader";
 import ProfileSettings from "@/components/dashboard/ProfileSettings";
 import ServerUsersPanel from "@/components/dashboard/ServerUsersPanel";
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
+import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
 import { api } from "@/api/client";
 import * as auth from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -39,6 +37,18 @@ import {
   permKeyForUser,
   getMenuPermBlock,
 } from "@/lib/memberRegistry";
+
+function LockedTabNotice() {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-foreground font-medium mb-1">
+        <Lock className="w-4 h-4" />
+        Acesso restrito
+      </div>
+      Esta aba está visível, mas só administradores podem usar.
+    </div>
+  );
+}
 
 function formatLastLogin(iso) {
   if (!iso) return "—";
@@ -76,36 +86,23 @@ async function fetchUsersMerged() {
 
   try {
     const apiUsers = await api.entities.User.list();
-    if (Array.isArray(apiUsers) && apiUsers.length > 0) {
-      const apiList = apiUsers.map(attach);
-      const localOnly = JSON.parse(localStorage.getItem("users") || "[]");
-      const seen = new Set(
-        apiList.map((u) => (u.email || "").toLowerCase()).filter(Boolean),
-      );
-      const extra = localOnly
-        .filter((u) => u.email && !seen.has(String(u.email).toLowerCase()))
-        .map(attach);
-      return [...apiList, ...extra];
-    }
+    if (Array.isArray(apiUsers)) return apiUsers.map(attach);
   } catch {
-    /* API indisponível — usa local */
+    /* ignore */
   }
 
-  const localUsers = JSON.parse(localStorage.getItem("users") || "[]");
   const cur = auth.getUser();
-  const seen = new Set(localUsers.map((u) => u.email));
-  const list = localUsers.map(attach);
-  if (cur?.email && !seen.has(cur.email)) {
-    list.unshift(
+  if (cur?.email) {
+    return [
       attach({
-        id: `local-${cur.email}`,
+        id: `session-${cur.email}`,
         email: cur.email,
-        full_name: cur.email,
+        full_name: cur.full_name || cur.email,
         role: cur.role,
       }),
-    );
+    ];
   }
-  return list;
+  return [];
 }
 
 async function syncMenuPermissionsToServer(nextMap) {
@@ -122,9 +119,6 @@ async function syncMenuPermissionsToServer(nextMap) {
 }
 
 function TabMembros({ user, users, loadingUsers, refetch }) {
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteName, setInviteName] = useState("");
-  const [inviteSuccess, setInviteSuccess] = useState(false);
   const [openUserKey, setOpenUserKey] = useState(null);
   const [allPermissions, setAllPermissions] = useState(getMemberPermissions);
 
@@ -167,28 +161,6 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
       permKey: permKeyForUser(u),
     }));
   }, [users]);
-
-  const handleInvite = () => {
-    if (!inviteEmail.trim()) return;
-    const email = inviteEmail.trim().toLowerCase();
-    const existing = JSON.parse(localStorage.getItem("users") || "[]");
-    if (existing.some((u) => u.email?.toLowerCase() === email)) {
-      alert("Este e-mail já está na lista local.");
-      return;
-    }
-    const newUser = {
-      id: Date.now(),
-      email,
-      full_name: inviteName.trim() || email.split("@")[0],
-      role: "user",
-    };
-    localStorage.setItem("users", JSON.stringify([...existing, newUser]));
-    setInviteEmail("");
-    setInviteName("");
-    setInviteSuccess(true);
-    setTimeout(() => setInviteSuccess(false), 3000);
-    refetch();
-  };
 
   const handlePermChange = (userKey, menuKey, action, checked) => {
     setAllPermissions((prev) => {
@@ -247,8 +219,7 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
           </div>
         ) : userRows.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-10">
-            Nenhum membro encontrado. Faça login na API ou adicione membros
-            locais.
+            Nenhum membro encontrado.
           </p>
         ) : (
           <div className="space-y-3">
@@ -379,57 +350,6 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
           </div>
         )}
       </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <h2 className="font-semibold text-foreground text-lg mb-1">
-          Adicionar membro (lista local)
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Use quando a API não estiver disponível ou para registar convidados
-          apenas neste navegador. Membros da API aparecem na lista acima.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="invite-name">Nome</Label>
-            <Input
-              id="invite-name"
-              value={inviteName}
-              onChange={(e) => setInviteName(e.target.value)}
-              placeholder="Nome completo"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="invite-email">E-mail</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                id="invite-email"
-                className="pl-9"
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="email@exemplo.com"
-                onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-              />
-            </div>
-          </div>
-        </div>
-        <Button className="mt-4" onClick={handleInvite}>
-          <UserPlus className="w-4 h-4 mr-2" />
-          Adicionar à lista
-        </Button>
-        {inviteSuccess && (
-          <p className="text-green-600 text-sm mt-3 flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" />
-            Membro adicionado.
-          </p>
-        )}
-      </motion.div>
     </div>
   );
 }
@@ -439,7 +359,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("profile");
 
   const isAdmin = auth.isAdminUser(user);
-  const showServerAccountsTab =
+  const canUseAdminTabs =
     isAdmin && auth.isServerAuthEnabled() && user?._authSource === "server";
 
   const { data: users = [], isLoading, refetch } = useQuery({
@@ -497,26 +417,36 @@ export default function Dashboard() {
             >
               Membros
             </Button>
-            {showServerAccountsTab && (
-              <Button
-                type="button"
-                variant={activeTab === "server-users" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveTab("server-users")}
-              >
-                Contas servidor
-              </Button>
-            )}
-            {showServerAccountsTab && (
-              <Button
-                type="button"
-                variant={activeTab === "audit-log" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveTab("audit-log")}
-              >
-                Registo global
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant={activeTab === "server-users" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("server-users")}
+              disabled={!canUseAdminTabs}
+              title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+            >
+              Contas servidor
+            </Button>
+            <Button
+              type="button"
+              variant={activeTab === "site" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("site")}
+              disabled={!canUseAdminTabs}
+              title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+            >
+              Site
+            </Button>
+            <Button
+              type="button"
+              variant={activeTab === "audit-log" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveTab("audit-log")}
+              disabled={!canUseAdminTabs}
+              title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+            >
+              Logs
+            </Button>
           </div>
         )}
 
@@ -533,13 +463,14 @@ export default function Dashboard() {
           />
         )}
 
-        {showServerAccountsTab && activeTab === "server-users" && (
-          <ServerUsersPanel />
-        )}
+        {activeTab === "server-users" &&
+          (canUseAdminTabs ? <ServerUsersPanel /> : <LockedTabNotice />)}
 
-        {showServerAccountsTab && activeTab === "audit-log" && (
-          <GlobalAuditLogPanel />
-        )}
+        {activeTab === "site" &&
+          (canUseAdminTabs ? <AdminSitePanel /> : <LockedTabNotice />)}
+
+        {activeTab === "audit-log" &&
+          (canUseAdminTabs ? <GlobalAuditLogPanel /> : <LockedTabNotice />)}
       </div>
     </div>
   );
