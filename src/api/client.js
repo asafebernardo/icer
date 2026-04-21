@@ -176,8 +176,8 @@ function serverUserEntity() {
     update(id, data) {
       return request("PUT", `/admin/users/${id}`, { body: data });
     },
-    delete() {
-      throw new Error("Remoção de conta não suportada aqui.");
+    delete(id) {
+      return request("DELETE", `/admin/users/${id}`);
     },
   };
 }

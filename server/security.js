@@ -10,6 +10,12 @@ export function addDaysIso(days) {
   return d.toISOString();
 }
 
+export function addMinutesIso(minutes) {
+  const m = Number(minutes);
+  const delta = Number.isFinite(m) ? m : 0;
+  return new Date(Date.now() + delta * 60 * 1000).toISOString();
+}
+
 export function randomToken() {
   return crypto.randomBytes(32).toString("base64url");
 }

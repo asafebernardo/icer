@@ -54,6 +54,26 @@ export function createApplication(db, options = {}) {
   const LOGIN_WINDOW_MS = 15 * 60 * 1000;
   const LOGIN_MAX = 40;
 
+  const SESSION_TTL_KEY = "session_ttl_minutes";
+  const SESSION_TTL_ALLOWED = new Set([10, 30, 60, 120, 300]);
+  const SESSION_TTL_DEFAULT = 120;
+
+  async function getSessionTtlMinutes() {
+    const row = await db.collection("app_kv").findOne({ key: SESSION_TTL_KEY });
+    const v = row?.value != null ? Number(row.value) : NaN;
+    if (Number.isFinite(v) && SESSION_TTL_ALLOWED.has(v)) return v;
+    return SESSION_TTL_DEFAULT;
+  }
+
+  function auditCtx(req) {
+    const originUrlRaw = req.headers["x-origin-url"];
+    const originUrl =
+      typeof originUrlRaw === "string" ? originUrlRaw.slice(0, 2048) : null;
+    const route = String(req.originalUrl || req.url || "").slice(0, 512) || null;
+    const userAgent = String(req.headers["user-agent"] || "").slice(0, 256) || null;
+    return { originUrl, route, userAgent };
+  }
+
   function rateLimitLogin(req, res, next) {
     const ip = String(req.ip || req.socket?.remoteAddress || "unknown");
     const now = Date.now();
@@ -112,7 +132,17 @@ export function createApplication(db, options = {}) {
     const email = parsed.data.email.toLowerCase().trim();
     const row = await db.collection("users").findOne(
       { email },
-      { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, password_hash: 1 } },
+      {
+        projection: {
+          _id: 0,
+          id: 1,
+          email: 1,
+          full_name: 1,
+          role: 1,
+          password_hash: 1,
+          disabled: 1,
+        },
+      },
     );
     if (!row) {
       await recordAudit(db, {
@@ -121,12 +151,28 @@ export function createApplication(db, options = {}) {
         action: "auth.login_failed",
         details: { email },
         ip: clientIp(req),
+        ...auditCtx(req),
       });
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     if (!row.password_hash) {
       res.status(409).json({ message: "password_not_set" });
+      return;
+    }
+    if (row.disabled === true) {
+      res.status(403).json({ message: "account_disabled" });
+      return;
+    }
+    // Sessão única: bloqueia novo login se já existir sessão ativa.
+    // (Só libera quando expirar ou o utilizador fizer logout.)
+    const now = nowIso();
+    const active = await db.collection("sessions").findOne({
+      user_id: row.id,
+      expires_at: { $gt: now },
+    });
+    if (active) {
+      res.status(409).json({ message: "session_already_active" });
       return;
     }
     const ok = await verifyPassword(row.password_hash, parsed.data.password);
@@ -137,11 +183,13 @@ export function createApplication(db, options = {}) {
         action: "auth.login_failed",
         details: { email },
         ip: clientIp(req),
+        ...auditCtx(req),
       });
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
-    const { token } = await createSession(db, row.id);
+    const ttlMinutes = await getSessionTtlMinutes();
+    const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
     setSessionCookie(res, token);
     await recordAudit(db, {
       userId: row.id,
@@ -149,6 +197,7 @@ export function createApplication(db, options = {}) {
       action: "auth.login",
       details: { email: row.email },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
     res.json({ ok: true });
   });
@@ -161,6 +210,7 @@ export function createApplication(db, options = {}) {
         action: "auth.logout",
         details: { email: req.user.email },
         ip: clientIp(req),
+        ...auditCtx(req),
       });
     }
     if (req.sessionToken) {
@@ -238,6 +288,7 @@ export function createApplication(db, options = {}) {
       action: "user.profile_update",
       details: { fields },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
     const u = await db.collection("users").findOne(
       { id: row.id },
@@ -259,14 +310,51 @@ export function createApplication(db, options = {}) {
             full_name: 1,
             role: 1,
             funcao: 1,
+            disabled: 1,
             created_at: 1,
             updated_at: 1,
+            invited_at: 1,
           },
         },
       )
       .sort({ role: -1, created_at: -1 })
       .toArray();
     res.json(users);
+  });
+
+  app.get("/api/admin/session-ttl", requireAdmin, async (_req, res) => {
+    const ttl_minutes = await getSessionTtlMinutes();
+    res.json({ ttl_minutes });
+  });
+
+  app.put("/api/admin/session-ttl", requireAdmin, async (req, res) => {
+    const schema = z.object({
+      ttl_minutes: z.number().int(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const v = parsed.data.ttl_minutes;
+    if (!SESSION_TTL_ALLOWED.has(v)) {
+      res.status(400).json({ message: "invalid_ttl_minutes" });
+      return;
+    }
+    await db.collection("app_kv").updateOne(
+      { key: SESSION_TTL_KEY },
+      { $set: { key: SESSION_TTL_KEY, value: String(v) } },
+      { upsert: true },
+    );
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.session_ttl_update",
+      details: { ttl_minutes: v },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true, ttl_minutes: v });
   });
 
   app.get("/api/admin/audit-log", requireAdmin, async (req, res) => {
@@ -344,6 +432,7 @@ export function createApplication(db, options = {}) {
       role: parsed.data.role,
       funcao: "",
       password_hash,
+      disabled: false,
       created_at: now,
       updated_at: now,
     });
@@ -386,6 +475,7 @@ export function createApplication(db, options = {}) {
       role,
       funcao: "",
       password_hash: null,
+      disabled: false,
       created_at: now,
       updated_at: now,
       invited_at: now,
@@ -412,6 +502,7 @@ export function createApplication(db, options = {}) {
       action: "admin.user.invite",
       details: { email, role, expires_at },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
 
     res.status(201).json({ id, invite_token: token, expires_at });
@@ -467,6 +558,7 @@ export function createApplication(db, options = {}) {
       action: "auth.invite_accepted",
       details: { email: user.email },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
 
     res.json({ ok: true });
@@ -484,13 +576,17 @@ export function createApplication(db, options = {}) {
       role: z.enum(["admin", "user"]).optional(),
       password: z.string().min(10).optional(),
       funcao: z.string().optional(),
+      disabled: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
-    const cur = await db.collection("users").findOne({ id }, { projection: { _id: 0, id: 1, email: 1 } });
+    const cur = await db.collection("users").findOne(
+      { id },
+      { projection: { _id: 0, id: 1, email: 1, disabled: 1 } },
+    );
     if (!cur) {
       res.status(404).json({ message: "not_found" });
       return;
@@ -515,6 +611,7 @@ export function createApplication(db, options = {}) {
     if (parsed.data.role != null) $set.role = parsed.data.role;
     if (parsed.data.funcao != null) $set.funcao = String(parsed.data.funcao);
     if (password_hash) $set.password_hash = password_hash;
+    if (parsed.data.disabled != null) $set.disabled = parsed.data.disabled;
     await db.collection("users").updateOne({ id }, { $set });
     const fields = [];
     if (nextEmail != null) fields.push("email");
@@ -522,14 +619,114 @@ export function createApplication(db, options = {}) {
     if (parsed.data.role != null) fields.push("role");
     if (parsed.data.funcao != null) fields.push("funcao");
     if (password_hash) fields.push("password");
+    if (parsed.data.disabled != null) fields.push("disabled");
     await recordAudit(db, {
       userId: id,
       actorUserId: req.user.id,
       action: "admin.user.update",
       details: { fields },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
     res.json({ ok: true });
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    if (req.user?.id === id) {
+      res.status(400).json({ message: "cannot_delete_self" });
+      return;
+    }
+    const row = await db.collection("users").findOne(
+      { id },
+      { projection: { _id: 0, id: 1, email: 1, role: 1 } },
+    );
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+
+    await Promise.all([
+      db.collection("sessions").deleteMany({ user_id: id }),
+      db.collection("user_invites").deleteMany({ user_id: id }),
+      db.collection("users").deleteOne({ id }),
+    ]);
+
+    await recordAudit(db, {
+      userId: id,
+      actorUserId: req.user.id,
+      action: "admin.user.delete",
+      details: { email: row.email, role: row.role },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+
+    res.json({ ok: true });
+  });
+
+  app.get("/api/admin/sessions/active", requireAdmin, async (_req, res) => {
+    const now = nowIso();
+    const rows = await db
+      .collection("sessions")
+      .aggregate([
+        { $match: { expires_at: { $gt: now } } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "user_id",
+            foreignField: "id",
+            as: "user",
+          },
+        },
+        { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 0,
+            token_hash: 1,
+            user_id: 1,
+            created_at: 1,
+            expires_at: 1,
+            user_email: "$user.email",
+            user_full_name: "$user.full_name",
+            user_role: "$user.role",
+            user_disabled: "$user.disabled",
+          },
+        },
+        { $sort: { expires_at: 1 } },
+        { $limit: 500 },
+      ])
+      .toArray();
+    res.json(rows);
+  });
+
+  app.delete("/api/admin/sessions/active/:userId", requireAdmin, async (req, res) => {
+    const uid = Number(req.params.userId);
+    if (!Number.isFinite(uid)) {
+      res.status(400).json({ message: "invalid_user_id" });
+      return;
+    }
+    if (req.user?.id === uid) {
+      res.status(400).json({ message: "cannot_kick_self" });
+      return;
+    }
+    const now = nowIso();
+    const result = await db.collection("sessions").deleteMany({
+      user_id: uid,
+      expires_at: { $gt: now },
+    });
+    await recordAudit(db, {
+      userId: uid,
+      actorUserId: req.user.id,
+      action: "admin.session.kick",
+      details: { deleted: result.deletedCount },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true, deleted: result.deletedCount });
   });
 
   app.get("/api/admin/users/:id/audit-log", requireAdmin, async (req, res) => {
@@ -586,6 +783,7 @@ export function createApplication(db, options = {}) {
         size: f.size,
       },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
     res.status(201).json({ id: fid, url: `/api/files/${fid}` });
   });

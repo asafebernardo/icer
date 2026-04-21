@@ -29,6 +29,7 @@ import {
   Trash2,
   Search,
   Palette,
+  ScrollText,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
@@ -39,6 +40,8 @@ import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
+import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
 
 const MEMBER_MENUS = [
   { key: "galeria", label: "Galeria de Fotos" },
@@ -70,6 +73,8 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
   const [inviteLink, setInviteLink] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [updatingRole, setUpdatingRole] = useState({});
+  const [togglingDisabled, setTogglingDisabled] = useState({});
+  const [deletingUser, setDeletingUser] = useState({});
   const queryClient = useQueryClient();
 
   const handleRoleChange = async (userId, newRole) => {
@@ -93,6 +98,29 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
     setInviteLoading(false);
     setTimeout(() => setInviteSuccess(false), 3000);
     refetch();
+  };
+
+  const handleToggleDisabled = async (target) => {
+    if (!target?.id) return;
+    if (target.id === user?.id) return;
+    const nextDisabled = !(target.disabled === true);
+    setTogglingDisabled((r) => ({ ...r, [target.id]: true }));
+    await api.entities.User.update(target.id, { disabled: nextDisabled });
+    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    setTogglingDisabled((r) => ({ ...r, [target.id]: false }));
+  };
+
+  const handleDeleteUser = async (target) => {
+    if (!target?.id) return;
+    if (target.id === user?.id) return;
+    const ok = window.confirm(
+      `Tem certeza que deseja remover o usuário "${target.email}"? Esta ação não pode ser desfeita.`,
+    );
+    if (!ok) return;
+    setDeletingUser((r) => ({ ...r, [target.id]: true }));
+    await api.entities.User.delete(target.id);
+    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    setDeletingUser((r) => ({ ...r, [target.id]: false }));
   };
 
   return (
@@ -216,9 +244,14 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
                     <p className="text-xs text-muted-foreground truncate">
                       {u.email}
                     </p>
+                    {u.disabled === true ? (
+                      <p className="text-[11px] mt-0.5 text-destructive">
+                        Desativado
+                      </p>
+                    ) : null}
                   </div>
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
                   {updatingRole[u.id] ? (
                     <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
                   ) : (
@@ -242,6 +275,40 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
                       </SelectContent>
                     </Select>
                   )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={u.id === user?.id || togglingDisabled[u.id] === true}
+                    onClick={() => handleToggleDisabled(u)}
+                    className="h-8"
+                    title={u.disabled === true ? "Reativar" : "Desativar"}
+                  >
+                    {togglingDisabled[u.id] ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : u.disabled === true ? (
+                      "Reativar"
+                    ) : (
+                      "Desativar"
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 text-destructive hover:text-destructive"
+                    disabled={u.id === user?.id || deletingUser[u.id] === true}
+                    onClick={() => handleDeleteUser(u)}
+                    title="Remover"
+                  >
+                    {deletingUser[u.id] ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
             ))}
@@ -272,7 +339,81 @@ function TabSite() {
   const [paletteId, setPaletteId] = useState(
     () => getSiteConfig().colorPalette || "azul",
   );
+  const [sessionTtl, setSessionTtl] = useState(120);
+  const [loadingSessionTtl, setLoadingSessionTtl] = useState(true);
+  const [savingSessionTtl, setSavingSessionTtl] = useState(false);
+  const [purgingLocal, setPurgingLocal] = useState(false);
   const logoRef = useRef();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/admin/session-ttl", {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (!cancelled && j?.ttl_minutes) {
+          setSessionTtl(Number(j.ttl_minutes) || 120);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setLoadingSessionTtl(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const saveSessionTtl = async () => {
+    setSavingSessionTtl(true);
+    try {
+      const r = await fetch("/api/admin/session-ttl", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ttl_minutes: sessionTtl }),
+      });
+      const text = await r.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      if (!r.ok) {
+        const msg = parsed?.message || "Não foi possível salvar.";
+        throw new Error(msg);
+      }
+      toast.success("Tempo de sessão atualizado.");
+    } catch (e) {
+      toast.error(e?.message || "Erro ao salvar tempo de sessão.");
+    } finally {
+      setSavingSessionTtl(false);
+    }
+  };
+
+  const purgeLocalUsers = async () => {
+    setPurgingLocal(true);
+    try {
+      const keep = String(import.meta.env.VITE_DEMO_ADMIN_EMAIL || "")
+        .toLowerCase()
+        .trim();
+      const { removed, kept } = purgeLegacyLocalAccounts({
+        keepEmails: keep ? [keep] : [],
+      });
+      toast.success(
+        `Limpeza concluída. Removidos: ${removed}${kept ? ` • Mantidos: ${kept}` : ""}`,
+      );
+    } catch (e) {
+      toast.error(e?.message || "Erro ao limpar usuários locais.");
+    } finally {
+      setPurgingLocal(false);
+    }
+  };
 
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -319,6 +460,46 @@ function TabSite() {
     const updated = { ...menuConfig, [key]: !menuConfig[key] };
     setMenuConfig(updated);
     localStorage.setItem("icer_member_menus", JSON.stringify(updated));
+  };
+
+  const {
+    data: activeSessions = [],
+    isLoading: loadingSessions,
+    refetch: refetchSessions,
+  } = useQuery({
+    queryKey: ["admin-active-sessions"],
+    queryFn: async () => {
+      const r = await fetch("/api/admin/sessions/active", {
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Erro ao carregar sessões.");
+      return r.json();
+    },
+  });
+
+  const [kickingUser, setKickingUser] = useState({});
+  const kickUser = async (userId) => {
+    setKickingUser((m) => ({ ...m, [userId]: true }));
+    try {
+      const r = await fetch(`/api/admin/sessions/active/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const text = await r.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      if (!r.ok) throw new Error(parsed?.message || "Não foi possível derrubar.");
+      toast.success("Sessão derrubada.");
+      refetchSessions();
+    } catch (e) {
+      toast.error(e?.message || "Erro ao derrubar sessão.");
+    } finally {
+      setKickingUser((m) => ({ ...m, [userId]: false }));
+    }
   };
 
   return (
@@ -383,6 +564,59 @@ function TabSite() {
               Remover
             </Button>
           )}
+        </div>
+      </motion.div>
+
+      {/* Sessão do site (servidor/MongoDB) */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.06 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <Lock className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">
+              Tempo de sessão
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Define por quanto tempo a sessão permanece ativa após o login.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Select
+            value={String(sessionTtl)}
+            onValueChange={(v) => setSessionTtl(Number(v))}
+            disabled={loadingSessionTtl || savingSessionTtl}
+          >
+            <SelectTrigger className="h-9 w-56">
+              <SelectValue placeholder="Selecione..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 minutos</SelectItem>
+              <SelectItem value="30">30 minutos</SelectItem>
+              <SelectItem value="60">1 hora</SelectItem>
+              <SelectItem value="120">2 horas</SelectItem>
+              <SelectItem value="300">5 horas</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button
+            type="button"
+            onClick={saveSessionTtl}
+            disabled={loadingSessionTtl || savingSessionTtl}
+            className="gap-2"
+          >
+            {savingSessionTtl ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : null}
+            Salvar
+          </Button>
         </div>
       </motion.div>
 
@@ -611,6 +845,237 @@ function TabSite() {
           de menus.
         </p>
       </motion.div>
+
+      {/* Sessões ativas */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.09 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <Users className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">
+                Usuários logados agora
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {Array.isArray(activeSessions) ? activeSessions.length : 0} sessão(ões)
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => refetchSessions()}
+            disabled={loadingSessions}
+            title="Atualizar"
+          >
+            <RefreshCw className={`w-4 h-4 ${loadingSessions ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+
+        {loadingSessions ? (
+          <div className="space-y-3">
+            {Array(3)
+              .fill(0)
+              .map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))}
+          </div>
+        ) : !Array.isArray(activeSessions) || activeSessions.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-6">
+            Nenhuma sessão ativa.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {activeSessions.map((s) => (
+              <div
+                key={s.token_hash}
+                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {s.user_full_name || "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {s.user_email || `user_id=${s.user_id}`}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    expira: {String(s.expires_at).replace("T", " ").replace("Z", "")}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={kickingUser[s.user_id] === true || s.user_id === user?.id}
+                  onClick={() => kickUser(s.user_id)}
+                >
+                  {kickingUser[s.user_id] ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Derrubar"
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Limpeza de usuários locais antigos */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+            <Trash2 className="w-5 h-5 text-destructive" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">
+              Remover usuários antigos (local)
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Apaga contas que eram criadas apenas neste navegador (antes do MongoDB).
+              Mantém o admin demo do .env (se existir).
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={purgeLocalUsers}
+          disabled={purgingLocal}
+          className="gap-2"
+        >
+          {purgingLocal ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+          Limpar agora
+        </Button>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Aba Logs ───────────────────────────────────────────────────
+function TabLogs() {
+  const [action, setAction] = useState("");
+  const [ip, setIp] = useState("");
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["admin-audit-log", action, ip],
+    queryFn: async () => {
+      const qs = new URLSearchParams();
+      qs.set("limit", "200");
+      if (action.trim()) qs.set("action", action.trim());
+      if (ip.trim()) qs.set("ip", ip.trim());
+      const r = await fetch(`/api/admin/audit-log?${qs.toString()}`, {
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Erro ao carregar logs.");
+      return r.json();
+    },
+  });
+
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+  return (
+    <div className="space-y-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <ScrollText className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">Logs</h2>
+              <p className="text-sm text-muted-foreground">
+                Auditoria central (login/logout, falhas, ações admin, uploads etc.)
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => refetch()}>
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Filtrar por ação (ex.: auth.login_failed)"
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Input
+            placeholder="Filtrar por IP (opcional)"
+            value={ip}
+            onChange={(e) => setIp(e.target.value)}
+          />
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.06 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array(6)
+              .fill(0)
+              .map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-8">
+            Nenhum log encontrado.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((r) => (
+              <div
+                key={r.id}
+                className="p-4 bg-muted/50 rounded-xl space-y-1"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {r.action}
+                  </p>
+                  <p className="text-xs text-muted-foreground shrink-0">
+                    {String(r.created_at).replace("T", " ").replace("Z", "")}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  user_id: {r.user_id ?? "—"} • actor: {r.actor_user_id ?? "—"} • ip:{" "}
+                  {r.ip ?? "—"}
+                </p>
+                {r.route || r.origin_url ? (
+                  <p className="text-[11px] text-muted-foreground break-all">
+                    {r.route ? `rota: ${r.route}` : ""}{" "}
+                    {r.origin_url ? `• origem: ${r.origin_url}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -803,6 +1268,7 @@ export default function Admin() {
     { key: "membros", label: "Membros", icon: Users },
     { key: "conteudo", label: "Conteúdo", icon: FileText },
     { key: "site", label: "Site", icon: Settings },
+    { key: "logs", label: "Logs", icon: ScrollText },
   ];
 
   return (
@@ -847,6 +1313,7 @@ export default function Admin() {
           )}
           {activeTab === "conteudo" && <TabConteudo />}
           {activeTab === "site" && <TabSite />}
+          {activeTab === "logs" && <TabLogs />}
         </div>
       </section>
     </div>
