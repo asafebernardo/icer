@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 
@@ -47,15 +52,25 @@ export function readHeroSettings() {
   return { rotateIntervalMs, transitionMs, transitionMode };
 }
 
-function persistHeroSlides(urls) {
+async function persistHeroSlides(urls, { publicWrite } = {}) {
   const clean = urls.filter(Boolean);
   const cfg = getSiteConfig();
   const first = clean[0] || "";
-  setSiteConfig({
+  const patch = {
     homeHeroSlides: clean,
     pageBackgrounds: { ...(cfg.pageBackgrounds || {}), home: first },
     heroBg: first,
-  });
+  };
+  if (publicWrite) {
+    try {
+      await savePublicSiteConfigAdmin(patch);
+      await refreshPublicSiteConfig();
+      return;
+    } catch {
+      // fallback: não bloquear edição local (ex.: offline)
+    }
+  }
+  setSiteConfig(patch);
 }
 
 export function useHeroBackground() {
@@ -83,10 +98,13 @@ export function useHeroBackground() {
     };
   }, [sync]);
 
-  const setHeroSlides = useCallback((urls) => {
-    persistHeroSlides(urls);
-    setSlides(urls.filter(Boolean));
-  }, []);
+  const setHeroSlides = useCallback(
+    (urls) => {
+      void persistHeroSlides(urls, { publicWrite: isAdmin });
+      setSlides(urls.filter(Boolean));
+    },
+    [isAdmin],
+  );
 
   const appendFromFiles = useCallback(async (fileList) => {
     if (!fileList?.length) return;
@@ -129,13 +147,22 @@ export function useHeroBackground() {
     }
     const transitionMode =
       merged.homeHeroTransitionMode === "slide" ? "slide" : "fade";
-    setSiteConfig({
+    const nextPatch = {
       homeHeroTransitionMs: transitionMs,
       homeHeroRotateIntervalMs: rotateIntervalMs,
       homeHeroTransitionMode: transitionMode,
-    });
+    };
+    if (isAdmin) {
+      savePublicSiteConfigAdmin(nextPatch)
+        .then(() => refreshPublicSiteConfig())
+        .catch(() => {
+          setSiteConfig(nextPatch);
+        });
+    } else {
+      setSiteConfig(nextPatch);
+    }
     setSettings(readHeroSettings());
-  }, []);
+  }, [isAdmin]);
 
   return {
     slides,

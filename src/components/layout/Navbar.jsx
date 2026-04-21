@@ -22,7 +22,11 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
-import { setSiteConfig } from "@/lib/siteConfig";
+import {
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, isAdminUser, logout as authLogout, MENU } from "@/lib/auth";
@@ -73,7 +77,12 @@ export default function Navbar() {
                   void (async () => {
                     try {
                       const u = await imageFileToStorableUrl(f);
-                      setSiteConfig({ logoUrl: u });
+                      try {
+                        await savePublicSiteConfigAdmin({ logoUrl: u });
+                        await refreshPublicSiteConfig();
+                      } catch {
+                        setSiteConfig({ logoUrl: u });
+                      }
                     } catch (err) {
                       console.warn(err);
                     }
@@ -120,7 +129,11 @@ export default function Navbar() {
                     className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
                     title="Remover logo"
                     onClick={() => {
-                      setSiteConfig({ logoUrl: "" });
+                      savePublicSiteConfigAdmin({ logoUrl: "" })
+                        .then(() => refreshPublicSiteConfig())
+                        .catch(() => {
+                          setSiteConfig({ logoUrl: "" });
+                        });
                     }}
                   >
                     <Trash2 className="w-3.5 h-3.5 sm:mr-1" />
