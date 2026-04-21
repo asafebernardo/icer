@@ -42,6 +42,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
+import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 
 const MEMBER_MENUS = [
   { key: "galeria", label: "Galeria de Fotos" },
@@ -966,118 +967,7 @@ function TabSite() {
 
 // ── Aba Logs ───────────────────────────────────────────────────
 function TabLogs() {
-  const [action, setAction] = useState("");
-  const [ip, setIp] = useState("");
-
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-audit-log", action, ip],
-    queryFn: async () => {
-      const qs = new URLSearchParams();
-      qs.set("limit", "200");
-      if (action.trim()) qs.set("action", action.trim());
-      if (ip.trim()) qs.set("ip", ip.trim());
-      const r = await fetch(`/api/admin/audit-log?${qs.toString()}`, {
-        credentials: "include",
-      });
-      if (!r.ok) throw new Error("Erro ao carregar logs.");
-      return r.json();
-    },
-  });
-
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
-
-  return (
-    <div className="space-y-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <ScrollText className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground text-lg">Logs</h2>
-              <p className="text-sm text-muted-foreground">
-                Auditoria central (login/logout, falhas, ações admin, uploads etc.)
-              </p>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" onClick={() => refetch()}>
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Filtrar por ação (ex.: auth.login_failed)"
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Input
-            placeholder="Filtrar por IP (opcional)"
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-          />
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.06 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        {isLoading ? (
-          <div className="space-y-3">
-            {Array(6)
-              .fill(0)
-              .map((_, i) => (
-                <Skeleton key={i} className="h-14 rounded-xl" />
-              ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-8">
-            Nenhum log encontrado.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {rows.map((r) => (
-              <div
-                key={r.id}
-                className="p-4 bg-muted/50 rounded-xl space-y-1"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {r.action}
-                  </p>
-                  <p className="text-xs text-muted-foreground shrink-0">
-                    {String(r.created_at).replace("T", " ").replace("Z", "")}
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  user_id: {r.user_id ?? "—"} • actor: {r.actor_user_id ?? "—"} • ip:{" "}
-                  {r.ip ?? "—"}
-                </p>
-                {r.route || r.origin_url ? (
-                  <p className="text-[11px] text-muted-foreground break-all">
-                    {r.route ? `rota: ${r.route}` : ""}{" "}
-                    {r.origin_url ? `• origem: ${r.origin_url}` : ""}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    </div>
-  );
+  return <GlobalAuditLogPanel />;
 }
 
 // ── Aba Conteúdo ──────────────────────────────────────────────
