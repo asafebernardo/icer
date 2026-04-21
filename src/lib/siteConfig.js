@@ -1,5 +1,8 @@
-// Utilitário para salvar/carregar configurações visuais do site no localStorage
+// Configurações visuais do site.
+// IMPORTANTE: o objetivo é que sejam públicas (persistidas no servidor),
+// com cache local apenas para inicialização mais rápida.
 const KEY = "icer_site_config";
+const SERVER_CACHE_KEY = "icer_site_config_server_cache";
 
 /** Ícone da aba quando não há logo personalizada (alinhado ao fallback da navbar). */
 export const DEFAULT_SITE_FAVICON = "/favicon.svg";
@@ -48,7 +51,10 @@ export function syncDocumentBrandingFromSiteConfig(config) {
 }
 
 export function getSiteConfig() {
+  // Preferir cache do servidor (config pública), com fallback para o legado local.
   try {
+    const cached = localStorage.getItem(SERVER_CACHE_KEY);
+    if (cached) return JSON.parse(cached || "{}");
     return JSON.parse(localStorage.getItem(KEY) || "{}");
   } catch {
     return {};
@@ -59,7 +65,10 @@ export function setSiteConfig(updates) {
   const current = getSiteConfig();
   const next = { ...current, ...updates };
   try {
+    // Mantém compatibilidade com leituras antigas.
     localStorage.setItem(KEY, JSON.stringify(next));
+    // Cache “público” local (espelha o que vem do servidor).
+    localStorage.setItem(SERVER_CACHE_KEY, JSON.stringify(next));
   } catch (e) {
     const quota =
       e?.name === "QuotaExceededError" ||
@@ -76,4 +85,58 @@ export function setSiteConfig(updates) {
     window.dispatchEvent(new CustomEvent("icer-site-config", { detail: next }));
     syncDocumentBrandingFromSiteConfig(next);
   }
+}
+
+export async function refreshPublicSiteConfig() {
+  const r = await fetch("/api/site-config", {
+    method: "GET",
+    // Evita ficar preso em caches intermediários.
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  if (!r.ok) throw new Error("Não foi possível carregar a configuração do site.");
+  const cfg = (await r.json()) || {};
+  try {
+    localStorage.setItem(SERVER_CACHE_KEY, JSON.stringify(cfg));
+    // mantém também o legado
+    localStorage.setItem(KEY, JSON.stringify(cfg));
+  } catch {
+    // ignore
+  }
+  // Dispara atualização reativa e sincroniza branding.
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("icer-site-config", { detail: cfg }));
+    syncDocumentBrandingFromSiteConfig(cfg);
+  }
+  return cfg;
+}
+
+export async function savePublicSiteConfigAdmin(updates) {
+  const r = await fetch("/api/admin/site-config", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(updates || {}),
+  });
+  const text = await r.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = null;
+  }
+  if (!r.ok) {
+    const msg = parsed?.message || "Não foi possível salvar a configuração.";
+    throw new Error(msg);
+  }
+  const cfg = parsed?.config && typeof parsed.config === "object" ? parsed.config : parsed;
+  // Persistir localmente para refletir imediatamente.
+  try {
+    localStorage.setItem(SERVER_CACHE_KEY, JSON.stringify(cfg || {}));
+    localStorage.setItem(KEY, JSON.stringify(cfg || {}));
+  } catch {
+    // ignore
+  }
+  setSiteConfig(cfg || {});
+  return cfg || {};
 }

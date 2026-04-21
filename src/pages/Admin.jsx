@@ -34,7 +34,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
 import { isAdminUser, getUser } from "@/lib/auth";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+} from "@/lib/siteConfig";
 import { getPageBackgroundUrl } from "@/lib/usePageBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
@@ -423,7 +427,8 @@ function TabSite() {
     try {
       const { file_url } = await uploadImageFile(file);
       setLogoUrl(file_url);
-      setSiteConfig({ logoUrl: file_url });
+      await savePublicSiteConfigAdmin({ logoUrl: file_url });
+      await refreshPublicSiteConfig();
     } catch (err) {
       console.error(err);
     } finally {
@@ -440,7 +445,8 @@ function TabSite() {
       const url = await imageFileToStorableUrl(file);
       const cfg = getSiteConfig();
       const nextBg = { ...(cfg.pageBackgrounds || {}), [key]: url };
-      setSiteConfig({ pageBackgrounds: nextBg });
+      await savePublicSiteConfigAdmin({ pageBackgrounds: nextBg });
+      await refreshPublicSiteConfig();
       if (key === "login") setLoginHeroUrl(url);
       else setLoginFormBgUrl(url);
     } catch (err) {
@@ -452,7 +458,9 @@ function TabSite() {
     const cfg = getSiteConfig();
     const nextBg = { ...(cfg.pageBackgrounds || {}) };
     delete nextBg[key];
-    setSiteConfig({ pageBackgrounds: nextBg });
+    savePublicSiteConfigAdmin({ pageBackgrounds: nextBg })
+      .then(() => refreshPublicSiteConfig())
+      .catch(() => {});
     if (key === "login") setLoginHeroUrl("");
     else setLoginFormBgUrl("");
   };
@@ -559,7 +567,9 @@ function TabSite() {
               className="text-destructive hover:text-destructive"
               onClick={() => {
                 setLogoUrl("");
-                setSiteConfig({ logoUrl: "" });
+                  savePublicSiteConfigAdmin({ logoUrl: "" })
+                    .then(() => refreshPublicSiteConfig())
+                    .catch(() => {});
               }}
             >
               Remover
@@ -821,7 +831,9 @@ function TabSite() {
                 type="button"
                 onClick={() => {
                   setPaletteId(p.id);
-                  setSiteConfig({ colorPalette: p.id });
+                      savePublicSiteConfigAdmin({ colorPalette: p.id })
+                        .then(() => refreshPublicSiteConfig())
+                        .catch(() => {});
                   applySiteColorPalette(p.id);
                 }}
                 className={`rounded-xl border-2 p-3 text-left transition-all hover:opacity-95 ${
