@@ -86,6 +86,7 @@ describe("ICER API", () => {
       uploadDir,
       enableUpstreamProxy: false,
       loginRateLimit: false,
+      enforceSingleSession: false,
     });
   });
 
