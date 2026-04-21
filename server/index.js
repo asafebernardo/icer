@@ -17,7 +17,20 @@ const UPLOAD_DIR = process.env.ICER_UPLOAD_DIR
   ? path.resolve(process.env.ICER_UPLOAD_DIR)
   : path.resolve("server", "uploads");
 
-const db = await openDb();
+let db;
+try {
+  // eslint-disable-next-line no-console
+  console.log("[ICER] Connecting to MongoDB…");
+  db = await openDb();
+  // eslint-disable-next-line no-console
+  console.log("[ICER] MongoDB connected");
+} catch (err) {
+  // eslint-disable-next-line no-console
+  console.error("[ICER] MongoDB connection failed");
+  // eslint-disable-next-line no-console
+  console.error(err);
+  process.exit(1);
+}
 
 const MIN_PASSWORD_LEN = 10;
 
