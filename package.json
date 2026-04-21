@@ -14,8 +14,11 @@
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
     "test:server": "node --test server/tests/api.integration.test.mjs",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare.mjs",
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s"
+  },
+  "overrides": {
+    "cross-env": "^7.0.3"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
