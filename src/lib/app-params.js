@@ -14,7 +14,6 @@ const getAppParamValue = (
     return defaultValue;
   }
   const storageKey = `icer_${toSnakeCase(paramName)}`;
-  const legacyStorageKey = `base44_${toSnakeCase(paramName)}`;
   const urlParams = new URLSearchParams(window.location.search);
   const searchParam = urlParams.get(paramName);
   if (removeFromUrl) {
@@ -32,7 +31,7 @@ const getAppParamValue = (
     storage.setItem(storageKey, defaultValue);
     return defaultValue;
   }
-  const storedValue = storage.getItem(storageKey) ?? storage.getItem(legacyStorageKey);
+  const storedValue = storage.getItem(storageKey);
   if (storedValue) {
     return storedValue;
   }
@@ -42,12 +41,11 @@ const getAppParamValue = (
 const getAppParams = () => {
   if (getAppParamValue("clear_access_token") === "true") {
     storage.removeItem("icer_access_token");
-    storage.removeItem("base44_access_token");
     storage.removeItem("token");
   }
   return {
     appId: getAppParamValue("app_id", {
-      defaultValue: import.meta.env.VITE_APP_ID || import.meta.env.VITE_BASE44_APP_ID,
+      defaultValue: import.meta.env.VITE_APP_ID,
     }),
     /** Removido da barra de endereço após leitura; evite partilhar URLs com token. */
     token: getAppParamValue("access_token", { removeFromUrl: true }),
@@ -55,13 +53,10 @@ const getAppParams = () => {
       defaultValue: window.location.href,
     }),
     functionsVersion: getAppParamValue("functions_version", {
-      defaultValue:
-        import.meta.env.VITE_APP_FUNCTIONS_VERSION ||
-        import.meta.env.VITE_BASE44_FUNCTIONS_VERSION,
+      defaultValue: import.meta.env.VITE_APP_FUNCTIONS_VERSION,
     }),
     appBaseUrl: getAppParamValue("app_base_url", {
-      defaultValue:
-        import.meta.env.VITE_APP_BASE_URL || import.meta.env.VITE_BASE44_APP_BASE_URL,
+      defaultValue: import.meta.env.VITE_APP_BASE_URL,
     }),
   };
 };

@@ -511,7 +511,6 @@ export function createApplication(db, options = {}) {
   const proxyTarget = enableUpstreamProxy
     ? process.env.ICER_UPSTREAM_API ||
       process.env.VITE_APP_BASE_URL ||
-      process.env.VITE_BASE44_APP_BASE_URL ||
       ""
     : "";
 

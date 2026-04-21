@@ -11,8 +11,6 @@ Frontend Vite + React. Com API ICER (`VITE_USE_SERVER_AUTH=true`), **media** (im
 
 Nota: `npm run dev` sozinho **só** inicia o frontend; a API precisa de MongoDB acessível na `MONGODB_URI` quando corre `dev:server` ou `dev:all`.
 
-Migração de dados antigos (SQLite → Mongo): `npm run migrate:sqlite-to-mongo -- --sqlite=server/data/app.db --uri=... --db=...`
-
 ## Produção
 
 Ver **[GUIA-HOSPEDAGEM.md](./GUIA-HOSPEDAGEM.md)** (proxy `/api`, SPA fallback, systemd, checklist).
