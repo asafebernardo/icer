@@ -20,7 +20,12 @@ import {
 
 import BackgroundSlideshow from "@/components/shared/BackgroundSlideshow";
 import HomeSectionBackdrop from "@/components/home/HomeSectionBackdrop";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
@@ -35,12 +40,7 @@ import {
   DEFAULT_CHANNEL_SECTION_SUBTITLE,
   SECTION_BG_KEYS,
 } from "@/lib/homeContentDefaults";
-import {
-  readChannelSlides,
-  readChannelSettings,
-  persistChannelSlides,
-  persistChannelSettings,
-} from "@/lib/channelSectionBackground";
+import { readChannelSlides, readChannelSettings } from "@/lib/channelSectionBackground";
 
 function formatSeconds(ms) {
   const s = Math.round((ms / 1000) * 10) / 10;
@@ -137,7 +137,7 @@ export default function ChurchChannelSection() {
     if (rMs < tMs + 350) rMs = tMs + 350;
 
     try {
-      setSiteConfig({
+      const patch = {
         channelSectionTag:
           draft.sectionTag?.trim() || DEFAULT_CHANNEL_SECTION_TAG,
         channelSectionTitle:
@@ -145,14 +145,19 @@ export default function ChurchChannelSection() {
         channelSectionSubtitle:
           draft.sectionSubtitle?.trim() || DEFAULT_CHANNEL_SECTION_SUBTITLE,
         channelUrl: draft.url.trim() || DEFAULT_CHANNEL_URL,
-      });
-      persistChannelSlides(draft.slides.filter(Boolean));
-      persistChannelSettings({
+        channelSectionSlides: (draft.slides || []).filter(Boolean),
         channelSectionRotateIntervalMs: rMs,
         channelSectionTransitionMs: tMs,
         channelSectionTransitionMode:
           draft.transitionMode === "slide" ? "slide" : "fade",
-      });
+      };
+      if (canEditHome) {
+        savePublicSiteConfigAdmin(patch)
+          .then(() => refreshPublicSiteConfig())
+          .catch(() => setSiteConfig(patch));
+      } else {
+        setSiteConfig(patch);
+      }
     } catch (e) {
       toast.error(e?.message || "Não foi possível guardar.");
       return;

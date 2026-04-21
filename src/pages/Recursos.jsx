@@ -15,7 +15,12 @@ import {
   ExternalLink,
 } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { LinkCardIcon } from "@/components/useful-links/LinkCardIcon";
 import { UsefulLinkForm } from "@/components/useful-links/UsefulLinkForm";
 import MateriaisTab from "@/components/materiais/MateriaisTab";
@@ -67,7 +72,13 @@ function LinksUteisTab({
 
   const saveLinks = (newLinks) => {
     setLinks(newLinks);
-    setSiteConfig({ linksUteis: newLinks });
+    if (perm?.create || perm?.edit || perm?.delete) {
+      savePublicSiteConfigAdmin({ linksUteis: newLinks })
+        .then(() => refreshPublicSiteConfig())
+        .catch(() => setSiteConfig({ linksUteis: newLinks }));
+    } else {
+      setSiteConfig({ linksUteis: newLinks });
+    }
   };
 
   const handleAdd = (data) => {

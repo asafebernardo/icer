@@ -45,7 +45,6 @@ export function persistChannelSlides(urls) {
   const clean = urls.filter(Boolean);
   setSiteConfig({
     channelSectionSlides: clean,
-    sectionBgChannel: clean[0] || "",
   });
 }
 

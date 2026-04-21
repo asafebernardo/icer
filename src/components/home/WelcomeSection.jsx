@@ -15,7 +15,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import HomeSectionBackdrop from "@/components/home/HomeSectionBackdrop";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
@@ -135,7 +140,18 @@ export default function WelcomeSection() {
         homeDraft.historyYearsLabel.trim() || DEFAULT_HISTORY_LABEL,
     };
     try {
-      setSiteConfig(next);
+      if (canEditHome) {
+        void (async () => {
+          try {
+            await savePublicSiteConfigAdmin(next);
+            await refreshPublicSiteConfig();
+          } catch (e) {
+            setSiteConfig(next);
+          }
+        })();
+      } else {
+        setSiteConfig(next);
+      }
     } catch (err) {
       toast.error(err?.message || "Não foi possível guardar.");
       return;

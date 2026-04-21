@@ -22,7 +22,12 @@ import {
 import { ImagePlus, Pencil, Trash2 } from "lucide-react";
 
 import { useHeroBackground } from "@/lib/useHeroBackground";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
 import {
@@ -209,7 +214,13 @@ export default function HeroSection() {
                 const t = draftHeroTitle.trim() || DEFAULT_HERO_TITLE;
                 setHeroEyebrow(e);
                 setHeroTitle(t);
-                setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                if (canEditHome) {
+                  savePublicSiteConfigAdmin({ heroEyebrow: e, heroTitle: t })
+                    .then(() => refreshPublicSiteConfig())
+                    .catch(() => setSiteConfig({ heroEyebrow: e, heroTitle: t }));
+                } else {
+                  setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                }
                 setHeroTextOpen(false);
               }}
             >

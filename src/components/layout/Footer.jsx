@@ -10,7 +10,12 @@ import {
   X,
 } from "lucide-react";
 
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import SiteLogoMark from "@/components/layout/SiteLogoMark";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
@@ -111,7 +116,13 @@ export default function Footer() {
   const update = (key, value) => {
     const next = { ...cfg, [key]: value };
     setCfg(next);
-    setSiteConfig(next);
+    if (canEditHome) {
+      savePublicSiteConfigAdmin({ [key]: value })
+        .then(() => refreshPublicSiteConfig())
+        .catch(() => setSiteConfig({ [key]: value }));
+    } else {
+      setSiteConfig({ [key]: value });
+    }
   };
 
   const Txt = ({ field, className, multiline }) => {
