@@ -129,6 +129,11 @@ describe("ICER API", () => {
     const users = await agent.get("/api/admin/users").expect(200);
     assert.ok(Array.isArray(users.body));
     assert.ok(users.body.length >= 2);
+    const adminRow = users.body.find((u) => u.email === ADMIN_EMAIL);
+    assert.ok(adminRow);
+    assert.ok(
+      typeof adminRow.last_login_at === "string" && adminRow.last_login_at.length > 5,
+    );
   });
 
   it("GET /api/admin/users/:id/audit-log (admin)", async () => {
@@ -206,6 +211,37 @@ describe("ICER API", () => {
     await request(app).get("/api/data/posts").expect(200);
     await request(app).get("/api/data/materiais").expect(200);
     await request(app).get("/api/data/fotos-galeria").expect(200);
+  });
+
+  it("GET /api/public-workspace e POST dismiss-destaque (sem sessão)", async () => {
+    const ws = await request(app).get("/api/public-workspace").expect(200);
+    assert.ok(Array.isArray(ws.body.evento_destaque_dismissed_ids));
+
+    await request(app)
+      .post("/api/public-workspace/dismiss-destaque")
+      .send({ id: "42" })
+      .expect(200);
+
+    const ws2 = await request(app).get("/api/public-workspace").expect(200);
+    assert.ok(ws2.body.evento_destaque_dismissed_ids.includes("42"));
+  });
+
+  it("PUT /api/public-workspace/agenda-sugestoes (utilizador com edição em eventos)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: USER_EMAIL, password: USER_PASS })
+      .expect(200);
+    const res = await agent
+      .put("/api/public-workspace/agenda-sugestoes")
+      .send({
+        agenda_sugestoes: {
+          titulo: ["A", "B"],
+          preletor: ["X"],
+        },
+      })
+      .expect(200);
+    assert.ok(res.body.agenda_sugestoes?.titulo?.includes("A"));
   });
 
   it("POST /api/data/contatos (público)", async () => {

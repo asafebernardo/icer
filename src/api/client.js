@@ -34,7 +34,9 @@ function buildBaseHeaders(extra = {}) {
     headers["X-Origin-URL"] = window.location.href;
   }
   const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (token && !useServerEntities()) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   const fv = appParams.functionsVersion || import.meta.env.VITE_APP_FUNCTIONS_VERSION;
   if (fv) headers["X-Functions-Version"] = String(fv);
   return headers;
@@ -372,6 +374,11 @@ export const api = new Proxy(
       if (prop === "setToken") {
         return (newToken) => {
           if (typeof window === "undefined") return;
+          if (useServerEntities()) {
+            localStorage.removeItem(ACCESS_STORAGE);
+            localStorage.removeItem("token");
+            return;
+          }
           if (newToken) localStorage.setItem(ACCESS_STORAGE, newToken);
           else localStorage.removeItem(ACCESS_STORAGE);
         };

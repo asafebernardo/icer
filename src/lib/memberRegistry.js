@@ -3,6 +3,8 @@
  * Complementa dados da API quando necessário.
  */
 
+import { isServerAuthEnabled } from "@/lib/serverAuth";
+
 const META_KEY = "icer_user_meta";
 const PERMS_KEY = "icer_member_permissions";
 
@@ -20,8 +22,39 @@ export const SITE_MENUS = [
 
 const DASHBOARD_MENUS_STORAGE_KEY = "icer_dashboard_site_menus";
 
+/** Em modo servidor, espelho em memória (carregado a partir de `/api/public-workspace`). */
+let serverPermissionsMirror = null;
+
+/** Em modo servidor, lista de menus do painel (se existir no workspace). */
+let serverDashboardMenusMirror = null;
+
+/**
+ * Chamado após `GET /api/public-workspace` para alinhar caches em memória.
+ * @param {Record<string, unknown> | null | undefined} workspace
+ */
+export function hydrateMemberRegistryFromPublicWorkspace(workspace) {
+  if (!isServerAuthEnabled() || !workspace || typeof workspace !== "object") {
+    return;
+  }
+  if (Array.isArray(workspace.dashboard_site_menus)) {
+    serverDashboardMenusMirror = workspace.dashboard_site_menus.map((m) => ({
+      key: String(m.key || ""),
+      label: String(m.label || ""),
+    }));
+  }
+}
+
 /** Lista usada na tabela de permissões (pode ser personalizada no Dashboard). */
 export function getDashboardMenus() {
+  if (isServerAuthEnabled()) {
+    if (
+      Array.isArray(serverDashboardMenusMirror) &&
+      serverDashboardMenusMirror.length > 0
+    ) {
+      return serverDashboardMenusMirror.map((m) => ({ ...m }));
+    }
+    return SITE_MENUS.map((m) => ({ ...m }));
+  }
   try {
     const raw = localStorage.getItem(DASHBOARD_MENUS_STORAGE_KEY);
     if (!raw) return SITE_MENUS.map((m) => ({ ...m }));
@@ -46,14 +79,26 @@ export function getDashboardMenus() {
 }
 
 export function setDashboardMenus(menus) {
-  localStorage.setItem(DASHBOARD_MENUS_STORAGE_KEY, JSON.stringify(menus));
+  const list = Array.isArray(menus) ? menus : [];
+  if (isServerAuthEnabled()) {
+    serverDashboardMenusMirror = list.map((m) => ({
+      key: String(m.key || ""),
+      label: String(m.label || ""),
+    }));
+  } else {
+    localStorage.setItem(DASHBOARD_MENUS_STORAGE_KEY, JSON.stringify(list));
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("icer-dashboard-menus"));
   }
 }
 
 export function resetDashboardMenusToDefault() {
-  localStorage.removeItem(DASHBOARD_MENUS_STORAGE_KEY);
+  if (isServerAuthEnabled()) {
+    serverDashboardMenusMirror = null;
+  } else {
+    localStorage.removeItem(DASHBOARD_MENUS_STORAGE_KEY);
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("icer-dashboard-menus"));
   }
@@ -67,6 +112,9 @@ export function permKeyForUser(user) {
 }
 
 export function getUserMetaMap() {
+  if (isServerAuthEnabled()) {
+    return {};
+  }
   try {
     return JSON.parse(localStorage.getItem(META_KEY) || "{}");
   } catch {
@@ -77,6 +125,9 @@ export function getUserMetaMap() {
 /** Regista último acesso (por id e/ou e-mail). */
 export function recordMemberLogin(user) {
   if (!user) return;
+  if (isServerAuthEnabled()) {
+    return;
+  }
   const map = getUserMetaMap();
   const now = new Date().toISOString();
   const keys = new Set();
@@ -89,6 +140,12 @@ export function recordMemberLogin(user) {
 }
 
 export function getMemberPermissions() {
+  if (isServerAuthEnabled()) {
+    return serverPermissionsMirror &&
+      typeof serverPermissionsMirror === "object"
+      ? serverPermissionsMirror
+      : {};
+  }
   try {
     return JSON.parse(localStorage.getItem(PERMS_KEY) || "{}");
   } catch {
@@ -97,7 +154,12 @@ export function getMemberPermissions() {
 }
 
 export function setMemberPermissions(all) {
-  localStorage.setItem(PERMS_KEY, JSON.stringify(all));
+  const next = all && typeof all === "object" ? all : {};
+  if (isServerAuthEnabled()) {
+    serverPermissionsMirror = next;
+  } else {
+    localStorage.setItem(PERMS_KEY, JSON.stringify(next));
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("icer-member-permissions"));
   }
@@ -127,6 +189,9 @@ export function migrateMemberStorageForEmailChange(oldEmail, newEmail, userId) {
   const oe = String(oldEmail || "").toLowerCase().trim();
   const ne = String(newEmail || "").toLowerCase().trim();
   if (!oe || !ne || oe === ne) return;
+  if (isServerAuthEnabled()) {
+    return;
+  }
 
   const perms = getMemberPermissions();
   if (perms[oe]) {

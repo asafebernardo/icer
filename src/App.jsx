@@ -15,6 +15,7 @@ import {
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import UserNotRegisteredError from "@/components/UserNotRegisteredError";
+import AppErrorBoundary from "@/components/shared/AppErrorBoundary";
 
 import Layout from "./components/layout/Layout";
 import Home from "./pages/Home";
@@ -25,17 +26,24 @@ import Dashboard from "./pages/Dashboard";
 import EventoPage from "./pages/EventoPage";
 import Eventos from "./pages/Eventos";
 import Postagens from "./pages/Postagens";
+import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
-// Wrapper que protege rotas privadas — abre modal de login e envia para Home
+// Rotas privadas — abre modal de login e envia para Início (efeito evita loop no render)
 const PrivateRoute = ({ children }) => {
-  const {
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, navigateToLogin } =
+    useAuth();
+
+  useEffect(() => {
+    if (isLoadingAuth || isLoadingPublicSettings) return;
+    if (!isAuthenticated) navigateToLogin();
+  }, [
     isAuthenticated,
     isLoadingAuth,
     isLoadingPublicSettings,
     navigateToLogin,
-  } = useAuth();
+  ]);
 
   if (isLoadingAuth || isLoadingPublicSettings) {
     return (
@@ -46,8 +54,11 @@ const PrivateRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    navigateToLogin();
-    return null;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
+      </div>
+    );
   }
 
   return children;
@@ -57,14 +68,14 @@ function TrackLastVisitedPath() {
   const location = useLocation();
   useEffect(() => {
     const p = location.pathname + location.search;
-    if (p !== "/login") {
+    if (p !== "/login" && p !== "/Login") {
       sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
     }
   }, [location.pathname, location.search]);
   return null;
 }
 
-/** Abre o modal de login e redireciona para Início (links antigos para /login). */
+/** Links antigos para /login: abre o modal e vai para Início. */
 function LoginPathRedirect() {
   const { openLoginModal } = useAuth();
   const navigate = useNavigate();
@@ -82,6 +93,12 @@ function LoginPathRedirect() {
 const AppRoutes = () => {
   const { isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
+  useEffect(() => {
+    if (authError?.type === "auth_required") {
+      navigateToLogin();
+    }
+  }, [authError, navigateToLogin]);
+
   if (isLoadingPublicSettings) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -90,14 +107,16 @@ const AppRoutes = () => {
     );
   }
 
-  if (authError) {
-    if (authError.type === "user_not_registered") {
-      return <UserNotRegisteredError />;
-    }
-    if (authError.type === "auth_required") {
-      navigateToLogin();
-      return null;
-    }
+  if (authError?.type === "user_not_registered") {
+    return <UserNotRegisteredError />;
+  }
+
+  if (authError?.type === "auth_required") {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
+      </div>
+    );
   }
 
   return (
@@ -105,25 +124,27 @@ const AppRoutes = () => {
       <Route path="/" element={<Navigate to="/Home" replace />} />
 
       <Route path="/login" element={<LoginPathRedirect />} />
+      <Route path="/Login" element={<LoginPathRedirect />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
 
       <Route element={<Layout />}>
-        <Route path="/Home" element={<Home />} />
-        <Route path="/Recursos" element={<Recursos />} />
-        <Route path="/Agenda" element={<Agenda />} />
+        <Route path="Home" element={<Home />} />
+        <Route path="Recursos" element={<Recursos />} />
+        <Route path="Agenda" element={<Agenda />} />
 
         <Route
-          path="/Dashboard"
+          path="Dashboard"
           element={
             <PrivateRoute>
               <Dashboard />
             </PrivateRoute>
           }
         />
-        <Route path="/Admin" element={<Navigate to="/Dashboard" replace />} />
-        <Route path="/Evento/:id" element={<EventoPage />} />
-        <Route path="/Eventos" element={<Eventos />} />
-        <Route path="/Postagens" element={<Postagens />} />
+        <Route path="Admin" element={<Navigate to="/Dashboard" replace />} />
+        <Route path="Evento/:id" element={<EventoPage />} />
+        <Route path="Eventos" element={<Eventos />} />
+        <Route path="Postagens" element={<Postagens />} />
+        <Route path="Post/:id" element={<PostPage />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />
@@ -140,7 +161,9 @@ function App() {
             <TooltipProvider delayDuration={300}>
               <NativeTitleLifetime />
               <TrackLastVisitedPath />
-              <AppRoutes />
+              <AppErrorBoundary>
+                <AppRoutes />
+              </AppErrorBoundary>
             </TooltipProvider>
             <Toaster />
           </AuthProvider>

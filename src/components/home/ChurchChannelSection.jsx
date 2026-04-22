@@ -26,7 +26,7 @@ import {
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
-import { imageFileToStorableUrl } from "@/lib/uploadImage";
+import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
 import { toast } from "sonner";
@@ -38,6 +38,9 @@ import {
   DEFAULT_CHANNEL_SECTION_TAG,
   DEFAULT_CHANNEL_SECTION_TITLE,
   DEFAULT_CHANNEL_SECTION_SUBTITLE,
+  DEFAULT_INSTAGRAM_SECTION_TITLE,
+  DEFAULT_INSTAGRAM_SECTION_SUBTITLE,
+  DEFAULT_INSTAGRAM_URL,
   SECTION_BG_KEYS,
 } from "@/lib/homeContentDefaults";
 import { readChannelSlides, readChannelSettings } from "@/lib/channelSectionBackground";
@@ -57,6 +60,13 @@ function loadChannelFromConfig() {
       c.channelSectionSubtitle ?? DEFAULT_CHANNEL_SECTION_SUBTITLE,
     url: c.channelUrl ?? DEFAULT_CHANNEL_URL,
     slides: readChannelSlides(),
+    instagramTitle: c.instagramSectionTitle ?? DEFAULT_INSTAGRAM_SECTION_TITLE,
+    instagramSubtitle:
+      c.instagramSectionSubtitle ?? DEFAULT_INSTAGRAM_SECTION_SUBTITLE,
+    instagramUrl: c.instagramUrl ?? DEFAULT_INSTAGRAM_URL,
+    instagramSlides: Array.isArray(c.instagramSectionSlides)
+      ? c.instagramSectionSlides.filter(Boolean)
+      : [],
     rotateIntervalMs: s.rotateIntervalMs,
     transitionMs: s.transitionMs,
     transitionMode: s.transitionMode,
@@ -74,12 +84,21 @@ export default function ChurchChannelSection() {
   );
   const [url, setUrl] = useState(DEFAULT_CHANNEL_URL);
   const [slides, setSlides] = useState([]);
+  const [instagramTitle, setInstagramTitle] = useState(
+    DEFAULT_INSTAGRAM_SECTION_TITLE,
+  );
+  const [instagramSubtitle, setInstagramSubtitle] = useState(
+    DEFAULT_INSTAGRAM_SECTION_SUBTITLE,
+  );
+  const [instagramUrl, setInstagramUrl] = useState(DEFAULT_INSTAGRAM_URL);
+  const [instagramSlides, setInstagramSlides] = useState([]);
   const [rotateIntervalMs, setRotateIntervalMs] = useState(4000);
   const [transitionMs, setTransitionMs] = useState(700);
   const [transitionMode, setTransitionMode] = useState("fade");
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState(null);
   const multiRef = useRef(null);
+  const instaMultiRef = useRef(null);
 
   const apply = useCallback((data) => {
     setSectionTag(data.sectionTag);
@@ -87,6 +106,10 @@ export default function ChurchChannelSection() {
     setSectionSubtitle(data.sectionSubtitle);
     setUrl(data.url);
     setSlides(data.slides || []);
+    setInstagramTitle(data.instagramTitle);
+    setInstagramSubtitle(data.instagramSubtitle);
+    setInstagramUrl(data.instagramUrl);
+    setInstagramSlides(data.instagramSlides || []);
     setRotateIntervalMs(data.rotateIntervalMs);
     setTransitionMs(data.transitionMs);
     setTransitionMode(data.transitionMode || "fade");
@@ -118,6 +141,10 @@ export default function ChurchChannelSection() {
       sectionSubtitle: cur.sectionSubtitle,
       url: cur.url,
       slides: [...cur.slides],
+      instagramTitle: cur.instagramTitle,
+      instagramSubtitle: cur.instagramSubtitle,
+      instagramUrl: cur.instagramUrl,
+      instagramSlides: [...(cur.instagramSlides || [])],
       intervalDraft: formatSeconds(cur.rotateIntervalMs),
       transitionDraft: formatSeconds(cur.transitionMs),
       transitionMode: cur.transitionMode,
@@ -146,6 +173,12 @@ export default function ChurchChannelSection() {
           draft.sectionSubtitle?.trim() || DEFAULT_CHANNEL_SECTION_SUBTITLE,
         channelUrl: draft.url.trim() || DEFAULT_CHANNEL_URL,
         channelSectionSlides: (draft.slides || []).filter(Boolean),
+        instagramSectionTitle:
+          draft.instagramTitle?.trim() || DEFAULT_INSTAGRAM_SECTION_TITLE,
+        instagramSectionSubtitle:
+          draft.instagramSubtitle?.trim() || DEFAULT_INSTAGRAM_SECTION_SUBTITLE,
+        instagramUrl: draft.instagramUrl?.trim() || DEFAULT_INSTAGRAM_URL,
+        instagramSectionSlides: (draft.instagramSlides || []).filter(Boolean),
         channelSectionRotateIntervalMs: rMs,
         channelSectionTransitionMs: tMs,
         channelSectionTransitionMode:
@@ -172,6 +205,12 @@ export default function ChurchChannelSection() {
         draft.sectionSubtitle?.trim() || DEFAULT_CHANNEL_SECTION_SUBTITLE,
       url: draft.url.trim() || DEFAULT_CHANNEL_URL,
       slides: draft.slides.filter(Boolean),
+      instagramTitle:
+        draft.instagramTitle?.trim() || DEFAULT_INSTAGRAM_SECTION_TITLE,
+      instagramSubtitle:
+        draft.instagramSubtitle?.trim() || DEFAULT_INSTAGRAM_SECTION_SUBTITLE,
+      instagramUrl: draft.instagramUrl?.trim() || DEFAULT_INSTAGRAM_URL,
+      instagramSlides: (draft.instagramSlides || []).filter(Boolean),
       rotateIntervalMs: rMs,
       transitionMs: tMs,
       transitionMode: draft.transitionMode === "slide" ? "slide" : "fade",
@@ -207,6 +246,39 @@ export default function ChurchChannelSection() {
     setDraft((d) => (d ? { ...d, slides: [] } : d));
   };
 
+  const appendInstagramFromFiles = async (fileList) => {
+    if (!fileList?.length || !draft) return;
+    const files = Array.from(fileList);
+    try {
+      const urls = await Promise.all(files.map((f) => imageFileToStorableUrl(f)));
+      setDraft((d) =>
+        d
+          ? {
+              ...d,
+              instagramSlides: [
+                ...(d.instagramSlides || []).filter(Boolean),
+                ...urls,
+              ],
+            }
+          : d,
+      );
+    } catch (err) {
+      toast.error(err?.message || "Não foi possível carregar as imagens.");
+    }
+  };
+
+  const removeInstagramSlideAt = (index) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const next = (d.instagramSlides || []).filter((_, i) => i !== index);
+      return { ...d, instagramSlides: next };
+    });
+  };
+
+  const clearInstagramSlides = () => {
+    setDraft((d) => (d ? { ...d, instagramSlides: [] } : d));
+  };
+
   const href =
     url && /^https?:\/\//i.test(url.trim())
       ? url.trim()
@@ -214,7 +286,15 @@ export default function ChurchChannelSection() {
         ? `https://${url.trim()}`
         : DEFAULT_CHANNEL_URL;
 
+  const instaHref =
+    instagramUrl && /^https?:\/\//i.test(instagramUrl.trim())
+      ? instagramUrl.trim()
+      : instagramUrl.trim()
+        ? `https://${instagramUrl.trim()}`
+        : DEFAULT_INSTAGRAM_URL;
+
   const hasSlides = slides.length > 0;
+  const hasInstaSlides = instagramSlides.length > 0;
   const solidHeader = !sectionBgUrl;
 
   return (
@@ -234,12 +314,6 @@ export default function ChurchChannelSection() {
               <span className="text-accent font-semibold text-sm tracking-[0.12em] uppercase">
                 {sectionTag}
               </span>
-              <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground mt-3 leading-tight tracking-tight">
-                {sectionTitle}
-              </h2>
-              <p className="mt-3 text-sm text-muted-foreground sm:text-base">
-                {sectionSubtitle}
-              </p>
             </div>
             {canEditHome && (
               <div className="flex flex-wrap gap-2 justify-end">
@@ -251,53 +325,106 @@ export default function ChurchChannelSection() {
                   onClick={openEditor}
                 >
                   <Pencil className="w-4 h-4" />
-                  Editar canal
+                  Editar — Online
                 </Button>
               </div>
             )}
           </div>
 
-          <div className="relative min-h-[min(48vh,480px)] w-full overflow-hidden rounded-lg border border-border/80 bg-muted/20 shadow-card">
-            {hasSlides ? (
-              <>
-                <div className="absolute inset-0 z-0">
-                  <BackgroundSlideshow
-                    urls={slides}
-                    rotateIntervalMs={rotateIntervalMs}
-                    transitionMs={transitionMs}
-                    transitionMode={transitionMode}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Card YouTube */}
+            <div className="relative min-h-[min(44vh,440px)] w-full overflow-hidden rounded-lg border border-border/80 bg-muted/20 shadow-card">
+              {hasSlides ? (
+                <>
+                  <div className="absolute inset-0 z-0">
+                    <BackgroundSlideshow
+                      urls={slides}
+                      rotateIntervalMs={rotateIntervalMs}
+                      transitionMs={transitionMs}
+                      transitionMode={transitionMode}
+                    />
+                  </div>
+                  <div className={imageScrimFlat} aria-hidden />
+                  <div className={imageScrimBottom} aria-hidden />
+                </>
+              ) : (
+                <>
+                  <div
+                    className="absolute inset-0 z-0 bg-gradient-to-br from-card to-muted/80"
+                    aria-hidden
                   />
+                  <div
+                    className="pointer-events-none absolute bottom-0 left-0 right-0 z-[1] h-[55%] min-h-[140px] bg-gradient-to-t from-black/22 via-black/8 to-transparent"
+                    aria-hidden
+                  />
+                </>
+              )}
+              <div className="absolute inset-0 z-[2] flex flex-col justify-end p-6">
+                <h3 className="text-white font-display text-2xl font-semibold leading-tight [text-shadow:0_2px_10px_rgba(0,0,0,0.45)]">
+                  {sectionTitle}
+                </h3>
+                <p className="mt-2 text-white/90 text-sm sm:text-base max-w-prose [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]">
+                  {sectionSubtitle}
+                </p>
+                <div className="mt-4 inline-flex w-fit rounded-xl bg-accent text-accent-foreground px-5 py-2.5 text-sm font-semibold">
+                  Abrir YouTube
                 </div>
-                <div className={imageScrimFlat} aria-hidden />
-                <div className={imageScrimBottom} aria-hidden />
-              </>
-            ) : (
-              <>
-                <div
-                  className="absolute inset-0 z-0 bg-gradient-to-br from-card to-muted/80"
-                  aria-hidden
-                />
-                <div
-                  className="pointer-events-none absolute bottom-0 left-0 right-0 z-[1] h-[55%] min-h-[140px] bg-gradient-to-t from-black/22 via-black/8 to-transparent"
-                  aria-hidden
-                />
-                <div className="absolute inset-0 z-[2] flex items-center justify-center">
-                  <p className="max-w-md px-4 text-center text-sm text-muted-foreground">
-                    {canEditHome
-                      ? "Adicione imagens em «Editar canal» para o fundo deste bloco."
-                      : "Canal da igreja."}
-                  </p>
-                </div>
-              </>
-            )}
+              </div>
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute inset-0 z-10 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                aria-label="Abrir YouTube. Abre num novo separador."
+              />
+            </div>
 
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="absolute inset-0 z-10 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              aria-label="Aceder ao canal no YouTube. Abre num novo separador."
-            />
+            {/* Card Instagram */}
+            <div className="relative min-h-[min(44vh,440px)] w-full overflow-hidden rounded-lg border border-border/80 bg-muted/20 shadow-card">
+              {hasInstaSlides ? (
+                <>
+                  <div className="absolute inset-0 z-0">
+                    <BackgroundSlideshow
+                      urls={instagramSlides}
+                      rotateIntervalMs={rotateIntervalMs}
+                      transitionMs={transitionMs}
+                      transitionMode={transitionMode}
+                    />
+                  </div>
+                  <div className={imageScrimFlat} aria-hidden />
+                  <div className={imageScrimBottom} aria-hidden />
+                </>
+              ) : (
+                <>
+                  <div
+                    className="absolute inset-0 z-0 bg-gradient-to-br from-card to-muted/80"
+                    aria-hidden
+                  />
+                  <div
+                    className="pointer-events-none absolute bottom-0 left-0 right-0 z-[1] h-[55%] min-h-[140px] bg-gradient-to-t from-black/22 via-black/8 to-transparent"
+                    aria-hidden
+                  />
+                </>
+              )}
+              <div className="absolute inset-0 z-[2] flex flex-col justify-end p-6">
+                <h3 className="text-white font-display text-2xl font-semibold leading-tight [text-shadow:0_2px_10px_rgba(0,0,0,0.45)]">
+                  {instagramTitle}
+                </h3>
+                <p className="mt-2 text-white/90 text-sm sm:text-base max-w-prose [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]">
+                  {instagramSubtitle}
+                </p>
+                <div className="mt-4 inline-flex w-fit rounded-xl bg-accent text-accent-foreground px-5 py-2.5 text-sm font-semibold">
+                  Abrir Instagram
+                </div>
+              </div>
+              <a
+                href={instaHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute inset-0 z-10 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                aria-label="Abrir Instagram. Abre num novo separador."
+              />
+            </div>
           </div>
         </div>
       </HomeSectionBackdrop>
@@ -362,6 +489,113 @@ export default function ChurchChannelSection() {
                 />
               </div>
 
+              <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-foreground">
+                  Instagram (card à direita)
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="ig-title">Título</Label>
+                  <Input
+                    id="ig-title"
+                    value={draft.instagramTitle || ""}
+                    onChange={(e) =>
+                      setDraft((d) =>
+                        d ? { ...d, instagramTitle: e.target.value } : d,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ig-sub">Subtítulo</Label>
+                  <Input
+                    id="ig-sub"
+                    value={draft.instagramSubtitle || ""}
+                    onChange={(e) =>
+                      setDraft((d) =>
+                        d ? { ...d, instagramSubtitle: e.target.value } : d,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ig-url">URL (Instagram)</Label>
+                  <Input
+                    id="ig-url"
+                    type="url"
+                    placeholder="https://www.instagram.com/..."
+                    value={draft.instagramUrl || ""}
+                    onChange={(e) =>
+                      setDraft((d) =>
+                        d ? { ...d, instagramUrl: e.target.value } : d,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2 rounded-lg border border-border bg-background/50 p-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    Imagens de fundo do card do Instagram (opcional).
+                  </p>
+                  <input
+                    ref={instaMultiRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/*"
+                    multiple
+                    className="hidden"
+                    title={IMAGE_UPLOAD_RECOMMENDATION}
+                    onChange={(e) => {
+                      void appendInstagramFromFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => instaMultiRef.current?.click()}
+                      title={`Editar — Imagens (Instagram). ${IMAGE_UPLOAD_RECOMMENDATION}`}
+                    >
+                      <ImagePlus className="w-4 h-4 mr-2" />
+                      Adicionar imagens
+                    </Button>
+                    {(draft.instagramSlides || []).length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearInstagramSlides}
+                      >
+                        Limpar todas
+                      </Button>
+                    ) : null}
+                  </div>
+                  {(draft.instagramSlides || []).length > 0 ? (
+                    <ul className="max-h-32 space-y-2 overflow-y-auto rounded-lg border p-2">
+                      {(draft.instagramSlides || []).map((src, i) => (
+                        <li
+                          key={`${i}-${String(src).slice(0, 40)}`}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <span className="flex-1 truncate text-muted-foreground">
+                            Imagem {i + 1}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 shrink-0 gap-1 px-2"
+                            onClick={() => removeInstagramSlideAt(i)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Remover
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
+
               <div className="space-y-2 rounded-lg border border-border bg-muted/25 p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-foreground">
                   Imagens de fundo
@@ -376,6 +610,7 @@ export default function ChurchChannelSection() {
                   accept="image/png,image/jpeg,image/webp,image/*"
                   multiple
                   className="hidden"
+                  title={IMAGE_UPLOAD_RECOMMENDATION}
                   onChange={(e) => {
                     void appendFromFiles(e.target.files);
                     e.target.value = "";
@@ -387,6 +622,7 @@ export default function ChurchChannelSection() {
                     variant="outline"
                     size="sm"
                     onClick={() => multiRef.current?.click()}
+                    title={`Editar — Imagens (YouTube). ${IMAGE_UPLOAD_RECOMMENDATION}`}
                   >
                     <ImagePlus className="w-4 h-4 mr-2" />
                     Adicionar imagens

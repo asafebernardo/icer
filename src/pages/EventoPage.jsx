@@ -157,23 +157,23 @@ export default function EventoPage() {
             className="relative"
           />
         </div>
-        <div className="max-w-4xl mx-auto relative z-10">
+        <div className="max-w-4xl mx-auto relative z-10 text-white">
           <Link
             to="/Agenda"
-            className="mb-6 inline-flex items-center gap-1.5 text-sm text-primary-foreground/85 transition-colors hover:text-primary-foreground"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm text-white/90 transition-colors hover:text-white"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar para a agenda
           </Link>
           {evento.categoria && (
-            <span className="mb-4 inline-block rounded-full bg-primary-foreground/20 px-3 py-1 text-xs font-bold text-primary-foreground">
+            <span className="mb-4 inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
               {categoriaLabels[evento.categoria] || evento.categoria}
             </span>
           )}
-          <h1 className="text-3xl font-bold leading-tight text-primary-foreground sm:text-4xl lg:text-5xl">
+          <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
             {evento.titulo}
           </h1>
           {date && (
-            <p className="mt-3 text-lg text-primary-foreground/85">
+            <p className="mt-3 text-lg text-white/90">
               {format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
             </p>
           )}

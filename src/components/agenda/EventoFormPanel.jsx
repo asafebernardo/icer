@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import html2canvas from "html2canvas";
 import { toast } from "@/components/ui/use-toast";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,14 @@ import {
 } from "@/components/ui/dialog";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { buildEventoApiPayload, normalizeEventoDate } from "@/lib/eventoPayload";
+import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
+import { isServerAuthEnabled } from "@/lib/serverAuth";
+import {
+  PUBLIC_WORKSPACE_QUERY_KEY,
+  fetchPublicWorkspaceJson,
+  mergeRemoteAgendaSugestoes,
+  putAgendaSugestoesRemote,
+} from "@/lib/publicWorkspace";
 
 /** Abre o seletor nativo de data/hora (Firefox e outros). */
 function openNativePicker(e) {
@@ -101,7 +110,7 @@ const LOCAIS_PADRAO = ["Sede local", "Outros"];
 
 const SUGESTOES_KEY = "agenda_sugestoes";
 
-function loadSugestoes() {
+function loadSugestoesLocal() {
   try {
     const raw = localStorage.getItem(SUGESTOES_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
@@ -117,7 +126,7 @@ function loadSugestoes() {
   }
 }
 
-function saveSugestoes(s) {
+function saveSugestoesLocal(s) {
   localStorage.setItem(SUGESTOES_KEY, JSON.stringify(s));
 }
 
@@ -134,6 +143,7 @@ function ComboSugestao({
   const [inputVal, setInputVal] = useState(value || "");
   const [showDrop, setShowDrop] = useState(false);
   const [newItem, setNewItem] = useState("");
+  const wrapRef = useRef(null);
 
   useEffect(() => {
     setInputVal(value || "");
@@ -159,7 +169,16 @@ function ComboSugestao({
   };
 
   return (
-    <div className="relative">
+    <div
+      ref={wrapRef}
+      className="relative"
+      onFocusCapture={() => setShowDrop(true)}
+      onBlurCapture={(e) => {
+        const next = e.relatedTarget;
+        if (wrapRef.current && next && wrapRef.current.contains(next)) return;
+        setShowDrop(false);
+      }}
+    >
       <Label>
         {label}
         {required && " *"}
@@ -171,8 +190,6 @@ function ComboSugestao({
             setInputVal(e.target.value);
             onChange(e.target.value);
           }}
-          onFocus={() => setShowDrop(true)}
-          onBlur={() => setTimeout(() => setShowDrop(false), 200)}
           placeholder={`${label}...`}
         />
         {showDrop && (
@@ -208,7 +225,6 @@ function ComboSugestao({
                 className="h-7 text-xs"
                 placeholder="Adicionar opção..."
                 value={newItem}
-                onMouseDown={(e) => e.stopPropagation()}
                 onChange={(e) => setNewItem(e.target.value)}
                 onKeyDown={(e) =>
                   e.key === "Enter" && (e.preventDefault(), addSugestao())
@@ -320,6 +336,9 @@ const empty = {
   destaque: false,
   programacao: [],
   cor_barra: "auto",
+  tem_programacao: false,
+  programacao_text_color: "#ffffff",
+  programacao_banner_url: "",
 };
 
 /**
@@ -335,13 +354,37 @@ export default function EventoFormPanel({
   onSaved,
 }) {
   const [form, setForm] = useState(empty);
-  const [sugestoes, setSugestoes] = useState(loadSugestoes);
+  const [sugestoes, setSugestoes] = useState(loadSugestoesLocal);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [imgError, setImgError] = useState("");
+  const [uploadingProgBanner, setUploadingProgBanner] = useState(false);
+  const [progBannerError, setProgBannerError] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const imgRef = useRef();
+  const progBannerRef = useRef();
   const previewBlobRef = useRef(null);
+  const previewProgBannerBlobRef = useRef(null);
   const queryClient = useQueryClient();
+  const exportRef = useRef(null);
+  const [step, setStep] = useState("dados"); // "dados" | "programacao"
+
+  const useRemoteWs = isServerAuthEnabled();
+  const { data: publicWs } = useQuery({
+    queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+    queryFn: fetchPublicWorkspaceJson,
+    enabled: useRemoteWs,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!useRemoteWs || publicWs == null) return;
+    hydrateMemberRegistryFromPublicWorkspace(publicWs);
+    if (publicWs.agenda_sugestoes && typeof publicWs.agenda_sugestoes === "object") {
+      setSugestoes(
+        mergeRemoteAgendaSugestoes(DEFAULT_SUGESTOES, publicWs.agenda_sugestoes),
+      );
+    }
+  }, [useRemoteWs, publicWs]);
 
   const revokePreviewBlob = () => {
     if (previewBlobRef.current) {
@@ -350,8 +393,18 @@ export default function EventoFormPanel({
     }
   };
 
+  const revokeProgBannerPreviewBlob = () => {
+    if (previewProgBannerBlobRef.current) {
+      URL.revokeObjectURL(previewProgBannerBlobRef.current);
+      previewProgBannerBlobRef.current = null;
+    }
+  };
+
   useEffect(() => {
-    return () => revokePreviewBlob();
+    return () => {
+      revokePreviewBlob();
+      revokeProgBannerPreviewBlob();
+    };
   }, []);
 
   const handleImageUpload = async (e) => {
@@ -405,9 +458,62 @@ export default function EventoFormPanel({
     set("imagem_url", "");
   };
 
+  const handleProgramacaoBannerUpload = async (e) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setProgBannerError("Selecione um ficheiro de imagem (JPEG, PNG, WebP, etc.).");
+      return;
+    }
+
+    setProgBannerError("");
+    setUploadingProgBanner(true);
+
+    revokeProgBannerPreviewBlob();
+    const blobUrl = URL.createObjectURL(file);
+    previewProgBannerBlobRef.current = blobUrl;
+    set("programacao_banner_url", blobUrl);
+
+    try {
+      const { file_url: url } = await uploadImageFile(file);
+      revokeProgBannerPreviewBlob();
+      set("programacao_banner_url", url);
+    } catch (err) {
+      if (isLocalImageUploadEnabled()) {
+        console.warn("[Evento] uploadImageFile (banner programação):", err);
+        setProgBannerError("Não foi possível processar a imagem.");
+      } else {
+        console.warn("[Evento] UploadFile (banner programação):", err);
+        void (async () => {
+          try {
+            const compressed = await imageFileToCompressedDataUrl(file);
+            revokeProgBannerPreviewBlob();
+            set("programacao_banner_url", compressed);
+            setProgBannerError(
+              "Não foi possível enviar ao servidor; a imagem foi incorporada localmente (comprimida). Guarde o evento.",
+            );
+          } catch {
+            setProgBannerError("Não foi possível processar a imagem.");
+          }
+        })();
+      }
+    } finally {
+      setUploadingProgBanner(false);
+    }
+  };
+
+  const clearProgramacaoBanner = () => {
+    revokeProgBannerPreviewBlob();
+    setProgBannerError("");
+    set("programacao_banner_url", "");
+  };
+
   useEffect(() => {
     if (!evento) {
       setForm({ ...empty, programacao: [] });
+      setStep("dados");
       return;
     }
     const merged = {
@@ -416,10 +522,50 @@ export default function EventoFormPanel({
       data: normalizeEventoDate(evento.data),
       programacao: Array.isArray(evento.programacao) ? evento.programacao : [],
     };
+    merged.tem_programacao =
+      Boolean(merged.tem_programacao) ||
+      (Array.isArray(merged.programacao) && merged.programacao.length > 0);
     setForm(merged);
+    setStep("dados");
   }, [evento, open]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const hasProgramacao = Boolean(form.tem_programacao);
+  const hasAnyProgramItem = (Array.isArray(form.programacao) ? form.programacao : []).some(
+    (d) => Array.isArray(d?.itens) && d.itens.some((it) => String(it?.titulo || "").trim()),
+  );
+
+  const downloadProgramacao = async (format) => {
+    const el = exportRef.current;
+    if (!el) return;
+    try {
+      const canvas = await html2canvas(el, {
+        backgroundColor: "#0b0b0f",
+        scale: 1,
+        width: 1280,
+        height: 720,
+        windowWidth: 1280,
+        windowHeight: 720,
+        useCORS: true,
+      });
+      const mime = format === "jpg" ? "image/jpeg" : "image/png";
+      const ext = format === "jpg" ? "jpg" : "png";
+      const dataUrl =
+        mime === "image/jpeg" ? canvas.toDataURL(mime, 0.92) : canvas.toDataURL(mime);
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `programacao-${String(form.titulo || "evento").trim() || "evento"}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      toast({
+        title: "Não foi possível baixar a programação",
+        description: String(err?.message || "Erro ao gerar imagem."),
+        variant: "destructive",
+      });
+    }
+  };
 
   const addDia = () => {
     const next = Array.isArray(form.programacao) ? [...form.programacao] : [];
@@ -491,7 +637,24 @@ export default function EventoFormPanel({
   const updateSugestoes = (campo, lista) => {
     const updated = { ...sugestoes, [campo]: lista };
     setSugestoes(updated);
-    saveSugestoes(updated);
+    if (useRemoteWs) {
+      void (async () => {
+        try {
+          await putAgendaSugestoesRemote(updated);
+          await queryClient.invalidateQueries({
+            queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+          });
+        } catch (e) {
+          toast({
+            title: "Não foi possível guardar sugestões",
+            description: String(e?.message || "Erro ao sincronizar com o servidor."),
+            variant: "destructive",
+          });
+        }
+      })();
+    } else {
+      saveSugestoesLocal(updated);
+    }
   };
 
   const save = useMutation({
@@ -569,6 +732,67 @@ export default function EventoFormPanel({
         </DialogHeader>
 
       <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[min(70vh,720px)]">
+        {/* Etapas */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "text-xs font-semibold px-2 py-1 rounded-md border",
+                step === "dados"
+                  ? "bg-background text-foreground border-border"
+                  : "bg-muted/40 text-muted-foreground border-border/60",
+              )}
+            >
+              1) Dados
+            </span>
+            <span
+              className={cn(
+                "text-xs font-semibold px-2 py-1 rounded-md border",
+                step === "programacao"
+                  ? "bg-background text-foreground border-border"
+                  : "bg-muted/40 text-muted-foreground border-border/60",
+              )}
+            >
+              2) Programação
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 bg-muted rounded-xl p-1">
+            <button
+              type="button"
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+                !hasProgramacao
+                  ? "bg-background text-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              aria-pressed={!hasProgramacao}
+              onClick={() => {
+                set("tem_programacao", false);
+                set("programacao", []);
+                setStep("dados");
+              }}
+            >
+              Sem programação
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+                hasProgramacao
+                  ? "bg-background text-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              aria-pressed={hasProgramacao}
+              onClick={() => set("tem_programacao", true)}
+            >
+              Com programação
+            </button>
+          </div>
+        </div>
+
+        {step === "dados" ? (
+          <>
         <ComboSugestao
           label="Título"
           required
@@ -761,154 +985,6 @@ export default function EventoFormPanel({
           />
         </div>
 
-        <div className="border border-border rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-foreground">Programação</p>
-              <p className="text-xs text-muted-foreground">
-                Por dia, ícone por horário e blocos agrupados (manhã, tarde,
-                noite).
-              </p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={addDia}>
-              <Plus className="w-4 h-4 mr-2" /> Adicionar dia
-            </Button>
-          </div>
-
-          {Array.isArray(form.programacao) && form.programacao.length > 0 ? (
-            <div className="space-y-4">
-              {form.programacao.map((dia) => (
-                <div key={dia.id} className="rounded-xl border border-border p-3">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={dia.titulo || ""}
-                      onChange={(e) =>
-                        updateDia(dia.id, { titulo: e.target.value })
-                      }
-                      placeholder="Título do dia (ex.: Sexta, Sábado...)"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive shrink-0"
-                      onClick={() => removeDia(dia.id)}
-                      title="Remover dia"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  <div className="mt-3 space-y-4">
-                    {PROGRAM_PERIOD_ORDER.map((period) => {
-                      const buckets = groupProgramItensByPeriod(dia.itens);
-                      const rowItems = buckets[period.key];
-                      if (!rowItems.length) return null;
-                      return (
-                        <div key={`${dia.id}-${period.key}`} className="space-y-2">
-                          <p
-                            className={`text-[10px] font-bold uppercase tracking-wide pb-1.5 ${period.headingClass}`}
-                          >
-                            {period.label}
-                          </p>
-                          {rowItems.map((it) => (
-                            <div
-                              key={it.id}
-                              className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-2"
-                            >
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <Select
-                                  value={it.icone || "Clock"}
-                                  onValueChange={(v) =>
-                                    updateItem(dia.id, it.id, { icone: v })
-                                  }
-                                >
-                                  <SelectTrigger
-                                    className="h-9 w-10 shrink-0 px-0 justify-center"
-                                    title="Ícone do horário"
-                                    aria-label="Ícone do horário"
-                                  >
-                                    <ProgramIcon
-                                      name={it.icone || "Clock"}
-                                      className="h-4 w-4"
-                                    />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {PROGRAM_ICON_OPTIONS.map((opt) => (
-                                      <SelectItem
-                                        key={opt.value}
-                                        value={opt.value}
-                                      >
-                                        <span className="flex items-center gap-2">
-                                          <opt.Icon className="h-4 w-4 shrink-0" />
-                                          {opt.label}
-                                        </span>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <Input
-                                  type="time"
-                                  className={cn(
-                                    nativePickerInputClass,
-                                    "h-9 w-[7.25rem] shrink-0",
-                                  )}
-                                  value={it.hora || ""}
-                                  onChange={(e) =>
-                                    updateItem(dia.id, it.id, {
-                                      hora: e.target.value,
-                                    })
-                                  }
-                                  onClick={openNativePicker}
-                                  aria-label="Hora"
-                                />
-                              </div>
-                              <Input
-                                className="min-w-[10rem] flex-1"
-                                value={it.titulo || ""}
-                                onChange={(e) =>
-                                  updateItem(dia.id, it.id, {
-                                    titulo: e.target.value,
-                                  })
-                                }
-                                placeholder="Atividade (ex.: Abertura, Louvor...)"
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive shrink-0"
-                                onClick={() => removeItem(dia.id, it.id)}
-                                title="Remover item"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => addItem(dia.id)}
-                    >
-                      <Plus className="w-4 h-4" /> Adicionar horário
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Nenhum dia adicionado ainda.
-            </p>
-          )}
-        </div>
-
         <div className="flex items-center gap-3 bg-accent/5 p-3 rounded-lg border border-accent/10">
           <Star className="w-4 h-4 text-accent fill-accent shrink-0" />
           <div className="flex-1 min-w-0">
@@ -924,6 +1000,395 @@ export default function EventoFormPanel({
             onCheckedChange={(v) => set("destaque", v)}
           />
         </div>
+          </>
+        ) : null}
+
+        {step === "programacao" && hasProgramacao ? (
+          <>
+            <div className="border border-border rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-foreground">Programação</p>
+                  <p className="text-xs text-muted-foreground">
+                    Por dia, ícone por horário e blocos agrupados (manhã, tarde,
+                    noite).
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addDia}>
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar dia
+                </Button>
+              </div>
+
+              {Array.isArray(form.programacao) && form.programacao.length > 0 ? (
+                <div className="space-y-4">
+                  {form.programacao.map((dia) => (
+                    <div key={dia.id} className="rounded-xl border border-border p-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={dia.titulo || ""}
+                          onChange={(e) =>
+                            updateDia(dia.id, { titulo: e.target.value })
+                          }
+                          placeholder="Título do dia (ex.: Sexta, Sábado...)"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive shrink-0"
+                          onClick={() => removeDia(dia.id)}
+                          title="Remover dia"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="mt-3 space-y-4">
+                        {PROGRAM_PERIOD_ORDER.map((period) => {
+                          const buckets = groupProgramItensByPeriod(dia.itens);
+                          const rowItems = buckets[period.key];
+                          if (!rowItems.length) return null;
+                          return (
+                            <div key={`${dia.id}-${period.key}`} className="space-y-2">
+                              <p
+                                className={`text-[10px] font-bold uppercase tracking-wide pb-1.5 ${period.headingClass}`}
+                              >
+                                {period.label}
+                              </p>
+                              {rowItems.map((it) => (
+                                <div
+                                  key={it.id}
+                                  className="flex flex-wrap items-center gap-2 rounded-lg border border-border/60 bg-muted/20 p-2"
+                                >
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <Select
+                                      value={it.icone || "Clock"}
+                                      onValueChange={(v) =>
+                                        updateItem(dia.id, it.id, { icone: v })
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        className="h-9 w-10 shrink-0 px-0 justify-center"
+                                        title="Ícone do horário"
+                                        aria-label="Ícone do horário"
+                                      >
+                                        <ProgramIcon
+                                          name={it.icone || "Clock"}
+                                          className="h-4 w-4"
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {PROGRAM_ICON_OPTIONS.map((opt) => (
+                                          <SelectItem
+                                            key={opt.value}
+                                            value={opt.value}
+                                          >
+                                            <span className="flex items-center gap-2">
+                                              <opt.Icon className="h-4 w-4 shrink-0" />
+                                              {opt.label}
+                                            </span>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      type="time"
+                                      className={cn(
+                                        nativePickerInputClass,
+                                        "h-9 w-[7.25rem] shrink-0",
+                                      )}
+                                      value={it.hora || ""}
+                                      onChange={(e) =>
+                                        updateItem(dia.id, it.id, {
+                                          hora: e.target.value,
+                                        })
+                                      }
+                                      onClick={openNativePicker}
+                                      aria-label="Hora"
+                                    />
+                                  </div>
+                                  <Input
+                                    className="min-w-[10rem] flex-1"
+                                    value={it.titulo || ""}
+                                    onChange={(e) =>
+                                      updateItem(dia.id, it.id, {
+                                        titulo: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Atividade (ex.: Abertura, Louvor...)"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive shrink-0"
+                                    onClick={() => removeItem(dia.id, it.id)}
+                                    title="Remover item"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => addItem(dia.id)}
+                        >
+                          <Plus className="w-4 h-4" /> Adicionar horário
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum dia adicionado ainda.
+                </p>
+              )}
+            </div>
+
+            {/* Exportar programação */}
+            {hasAnyProgramItem ? (
+              <div className="border border-border rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      Baixar programação (1280×720)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Gere uma imagem pronta para postar (PNG ou JPG).
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadProgramacao("png")}
+                    >
+                      Baixar PNG
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadProgramacao("jpg")}
+                    >
+                      Baixar JPG
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="prog-text-color">Cor do texto</Label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Input
+                        id="prog-text-color"
+                        type="color"
+                        className="h-10 w-16 px-1 py-1"
+                        value={form.programacao_text_color || "#ffffff"}
+                        onChange={(e) => set("programacao_text_color", e.target.value)}
+                        aria-label="Cor do texto"
+                      />
+                      <Input
+                        type="text"
+                        value={form.programacao_text_color || "#ffffff"}
+                        onChange={(e) => set("programacao_text_color", e.target.value)}
+                        placeholder="#ffffff"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Imagem no topo</Label>
+                    <input
+                      ref={progBannerRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleProgramacaoBannerUpload}
+                    />
+                    <div className="mt-1 flex items-center gap-3 flex-wrap">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => progBannerRef.current?.click()}
+                        disabled={uploadingProgBanner}
+                        className="gap-2"
+                      >
+                        <ImagePlus className="w-4 h-4" />
+                        {uploadingProgBanner
+                          ? "Enviando..."
+                          : form.programacao_banner_url
+                            ? "Trocar imagem"
+                            : "Adicionar imagem"}
+                      </Button>
+                      {form.programacao_banner_url && (
+                        <>
+                          <img
+                            src={form.programacao_banner_url}
+                            alt="Pré-visualização do topo da programação"
+                            className="h-20 w-32 object-cover rounded-lg border border-border bg-muted"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={clearProgramacaoBanner}
+                          >
+                            Remover imagem
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {progBannerError && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
+                        {progBannerError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Render invisível para export */}
+                <div className="sr-only" aria-hidden>
+                  <div
+                    ref={exportRef}
+                    style={{
+                      width: 1280,
+                      height: 720,
+                      background: "#0b0b0f",
+                      color: form.programacao_text_color || "#ffffff",
+                      position: "relative",
+                      overflow: "hidden",
+                      fontFamily:
+                        "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
+                    }}
+                  >
+                    {/* Topo */}
+                    <div style={{ position: "relative", height: 180 }}>
+                      {form.programacao_banner_url ? (
+                        <img
+                          src={form.programacao_banner_url}
+                          alt=""
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                          crossOrigin="anonymous"
+                        />
+                      ) : null}
+                      <div
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background:
+                            "linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.85))",
+                        }}
+                      />
+                      <div style={{ position: "relative", padding: "34px 42px" }}>
+                        <div style={{ fontSize: 42, fontWeight: 900, lineHeight: 1.05 }}>
+                          {String(form.titulo || "").trim()}
+                        </div>
+                        {String(form.data || "").trim() ? (
+                          <div
+                            style={{
+                              marginTop: 10,
+                              fontSize: 20,
+                              fontWeight: 700,
+                              opacity: 0.92,
+                            }}
+                          >
+                            {String(form.data || "").trim()}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Colunas por dia */}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: 18,
+                        padding: "22px 26px 26px",
+                        height: 540,
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {(Array.isArray(form.programacao) ? form.programacao : [])
+                        .slice(0, 3)
+                        .map((dia) => (
+                          <div
+                            key={dia.id}
+                            style={{
+                              border: "1px solid rgba(255,255,255,0.14)",
+                              borderRadius: 18,
+                              padding: 18,
+                              background: "rgba(255,255,255,0.03)",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
+                              {String(dia.titulo || "").trim() || "Dia"}
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                              {(Array.isArray(dia.itens) ? dia.itens : [])
+                                .filter((it) => String(it?.titulo || "").trim())
+                                .slice(0, 10)
+                                .map((it) => (
+                                  <div
+                                    key={it.id}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 10,
+                                      padding: "10px 12px",
+                                      borderRadius: 14,
+                                      background: "rgba(0,0,0,0.22)",
+                                      border: "1px solid rgba(255,255,255,0.08)",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: 78,
+                                        fontWeight: 900,
+                                        fontSize: 14,
+                                        opacity: 0.95,
+                                      }}
+                                    >
+                                      {String(it.hora || "").trim() || "--:--"}
+                                    </div>
+                                    <div style={{ fontSize: 16, fontWeight: 700, flex: 1 }}>
+                                      {String(it.titulo || "").trim()}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Para baixar a programação, cadastre ao menos 1 item (horário + título).
+              </p>
+            )}
+          </>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 flex-col-reverse sm:flex-row sm:justify-between gap-3 px-6 py-4 border-t border-border bg-muted/20 relative z-10">
@@ -949,14 +1414,36 @@ export default function EventoFormPanel({
           <Button type="button" variant="outline" onClick={() => onCancel?.()}>
             Cancelar
           </Button>
-          <Button
-            type="button"
-            variant="success"
-            onClick={() => save.mutate(form)}
-            disabled={!isValid || save.isPending}
-          >
-            {save.isPending ? "A salvar…" : "Salvar"}
-          </Button>
+          {step === "programacao" && hasProgramacao ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep("dados")}
+              disabled={save.isPending}
+            >
+              Voltar
+            </Button>
+          ) : null}
+
+          {step === "dados" && hasProgramacao ? (
+            <Button
+              type="button"
+              variant="success"
+              onClick={() => setStep("programacao")}
+              disabled={!isValid || save.isPending}
+            >
+              Avançar
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="success"
+              onClick={() => save.mutate(form)}
+              disabled={!isValid || save.isPending}
+            >
+              {save.isPending ? "A salvar…" : "Salvar"}
+            </Button>
+          )}
         </div>
       </div>
       </DialogContent>

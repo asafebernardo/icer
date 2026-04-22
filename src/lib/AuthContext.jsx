@@ -20,6 +20,13 @@ import {
   clearSessionUser,
 } from "@/lib/sessionIntegrity";
 import LoginModal from "@/components/auth/LoginModal";
+import { queryClientInstance } from "@/lib/query-client";
+import {
+  PUBLIC_WORKSPACE_QUERY_KEY,
+  fetchPublicWorkspaceJson,
+  shouldUseRemotePublicWorkspace,
+} from "@/lib/publicWorkspace";
+import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 
 const AuthContext = createContext(null);
 
@@ -45,6 +52,17 @@ export function AuthProvider({ children }) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("icer-user-session"));
     }
+  }, []);
+
+  useEffect(() => {
+    if (!shouldUseRemotePublicWorkspace()) return;
+    void queryClientInstance
+      .fetchQuery({
+        queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+        queryFn: fetchPublicWorkspaceJson,
+      })
+      .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -96,6 +114,13 @@ export function AuthProvider({ children }) {
     if (!result.ok) return result;
     setUser(getUser());
     if (isServerAuthEnabled()) {
+      void queryClientInstance
+        .fetchQuery({
+          queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+          queryFn: fetchPublicWorkspaceJson,
+        })
+        .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+        .catch(() => {});
       try {
         const mr = await fetch("/api/auth/menu-effective", {
           credentials: "include",
@@ -164,5 +189,9 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth deve ser usado dentro de <AuthProvider>.");
+  }
+  return ctx;
 }

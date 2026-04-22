@@ -243,3 +243,7 @@ export async function imageFileToStorableUrl(file) {
     return imageFileToCompressedDataUrl(file);
   }
 }
+
+// Tooltip padrão (usar em todos os uploads de imagem).
+export const IMAGE_UPLOAD_RECOMMENDATION =
+  "Recomendado: JPG/WebP/PNG • até 2 MB • 1920 px no lado maior (mín. 1280 px).";

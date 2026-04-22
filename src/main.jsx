@@ -11,10 +11,12 @@ import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
 
 purgeLegacyDemoStorage();
 
+// Tema (claro/escuro) é por navegador.
 const savedTheme = localStorage.getItem("church-theme");
 if (savedTheme === "dark") {
   document.documentElement.classList.add("dark");
 }
+
 const initialCfg = getSiteConfig();
 applySiteColorPalette(initialCfg.colorPalette || "azul");
 syncDocumentBrandingFromSiteConfig(initialCfg);

@@ -189,7 +189,7 @@ export default function MaterialCategoriasManager({ open, onOpenChange }) {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
-                        title="Editar nome"
+                        title="Editar — Nome da categoria"
                         onClick={() => startEdit(r)}
                       >
                         <Pencil className="w-3.5 h-3.5" />
