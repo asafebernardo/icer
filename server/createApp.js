@@ -58,6 +58,22 @@ export function createApplication(db, options = {}) {
 
   fs.mkdirSync(uploadDir, { recursive: true });
 
+  /**
+   * Multer grava `storage_path` absoluto; se o projeto mudou de pasta ou `ICER_UPLOAD_DIR`,
+   * o caminho antigo deixa de existir mas o ficheiro pode estar em `uploadDir` com o mesmo nome.
+   */
+  function resolveUploadedDiskPath(row) {
+    const legacy = row?.storage_path != null ? String(row.storage_path).trim() : "";
+    if (legacy && fs.existsSync(legacy)) return legacy;
+    const base =
+      legacy && path.basename(legacy) !== "." && path.basename(legacy) !== ".."
+        ? path.basename(legacy)
+        : "";
+    if (!base) return null;
+    const candidate = path.join(uploadDir, base);
+    return fs.existsSync(candidate) ? candidate : null;
+  }
+
   const loginRateState = new Map();
   const LOGIN_WINDOW_MS = 15 * 60 * 1000;
   const LOGIN_MAX = 40;
@@ -985,7 +1001,8 @@ export function createApplication(db, options = {}) {
         return;
       }
     }
-    if (!fs.existsSync(row.storage_path)) {
+    const diskPath = resolveUploadedDiskPath(row);
+    if (!diskPath) {
       res.status(404).json({ message: "file_missing" });
       return;
     }
@@ -995,7 +1012,7 @@ export function createApplication(db, options = {}) {
       `inline; filename=\"${String(row.original_name || "file").replaceAll('"', "")}\"`,
     );
     res.setHeader("Cache-Control", "public, max-age=86400");
-    fs.createReadStream(row.storage_path).pipe(res);
+    fs.createReadStream(diskPath).pipe(res);
   });
 
   const proxyTarget = enableUpstreamProxy
