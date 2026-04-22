@@ -19,7 +19,13 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
-import { effectiveMenuPermissions } from "./menuPermissions.js";
+import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
+import {
+  getPublicWorkspace,
+  mergePublicWorkspaceAdmin,
+  setAgendaSugestoesEditor,
+  appendDismissedDestaque,
+} from "./publicWorkspace.js";
 import { createDataRouter } from "./dataRoutes.js";
 import { nextSeq } from "./sequences.js";
 import {
@@ -55,6 +61,26 @@ export function createApplication(db, options = {}) {
   const loginRateState = new Map();
   const LOGIN_WINDOW_MS = 15 * 60 * 1000;
   const LOGIN_MAX = 40;
+
+  const dismissDestaqueRate = new Map();
+  const DISMISS_WINDOW_MS = 15 * 60 * 1000;
+  const DISMISS_MAX = 120;
+
+  function rateLimitDismissDestaque(req, res, next) {
+    const ip = String(req.ip || req.socket?.remoteAddress || "unknown");
+    const now = Date.now();
+    let e = dismissDestaqueRate.get(ip);
+    if (!e || now > e.resetAt) {
+      e = { count: 0, resetAt: now + DISMISS_WINDOW_MS };
+      dismissDestaqueRate.set(ip, e);
+    }
+    e.count += 1;
+    if (e.count > DISMISS_MAX) {
+      res.status(429).json({ message: "too_many_requests" });
+      return;
+    }
+    next();
+  }
 
   const SESSION_TTL_KEY = "session_ttl_minutes";
   const SESSION_TTL_ALLOWED = new Set([10, 30, 60, 120, 300]);
@@ -127,6 +153,13 @@ export function createApplication(db, options = {}) {
     res.json(cfg);
   });
 
+  /** Estado partilhado do site (sugestões da agenda, paletas, destaque visto, etc.) — não depende de sessão para leitura. */
+  app.get("/api/public-workspace", async (_req, res) => {
+    const ws = await getPublicWorkspace(db);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(ws);
+  });
+
   app.use(async (req, _res, next) => {
     try {
       const token = req.cookies?.[getCookieName()];
@@ -164,6 +197,73 @@ export function createApplication(db, options = {}) {
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true, config: next });
   });
+
+  app.put("/api/admin/public-workspace", requireAuth, requireAdmin, async (req, res) => {
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : null;
+    if (!body) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const next = await mergePublicWorkspaceAdmin(db, body);
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "public_workspace.admin_merge",
+      details: { keys: Object.keys(body).slice(0, 30) },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json(next);
+  });
+
+  app.post(
+    "/api/public-workspace/dismiss-destaque",
+    rateLimitDismissDestaque,
+    async (req, res) => {
+      const parsed = z
+        .object({ id: z.string().regex(/^\d{1,18}$/) })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ message: "invalid_request" });
+        return;
+      }
+      const next = await appendDismissedDestaque(db, parsed.data.id);
+      res.setHeader("Cache-Control", "no-store");
+      res.json(next);
+    },
+  );
+
+  app.put(
+    "/api/public-workspace/agenda-sugestoes",
+    requireAuth,
+    async (req, res, next) => {
+      if (!(await menuActionAllowed(db, req.user, "eventos", "edit"))) {
+        res.status(403).json({ message: "forbidden" });
+        return;
+      }
+      next();
+    },
+    async (req, res) => {
+      const body = req.body && typeof req.body === "object" ? req.body : null;
+      const raw = body?.agenda_sugestoes;
+      if (!raw || typeof raw !== "object") {
+        res.status(400).json({ message: "invalid_request" });
+        return;
+      }
+      const next = await setAgendaSugestoesEditor(db, raw);
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "public_workspace.agenda_sugestoes",
+        details: {},
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.json(next);
+    },
+  );
 
   const loginMw = loginRateLimit ? rateLimitLogin : (_req, _res, next) => next();
 
@@ -238,6 +338,11 @@ export function createApplication(db, options = {}) {
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
+    const loginStamp = nowIso();
+    await db.collection("users").updateOne(
+      { id: row.id },
+      { $set: { last_login_at: loginStamp } },
+    );
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
     setSessionCookie(res, token);
@@ -381,6 +486,7 @@ export function createApplication(db, options = {}) {
             created_at: 1,
             updated_at: 1,
             invited_at: 1,
+            last_login_at: 1,
           },
         },
       )

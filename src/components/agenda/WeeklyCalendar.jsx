@@ -188,7 +188,6 @@ export default function WeeklyCalendar({ weekDays, eventos, onEventClick }) {
               iconWrap,
               labelText,
               rowBgEmpty,
-              rowBgWithEvents,
               gridLine,
               emptyDash,
             } = meta;
@@ -232,7 +231,7 @@ export default function WeeklyCalendar({ weekDays, eventos, onEventClick }) {
                       "p-1.5 min-h-[88px] align-top",
                       gridLine,
                       dayIdx === 6 && "border-r-0",
-                      isEmpty ? rowBgEmpty : rowBgWithEvents,
+                      rowBgEmpty,
                       today &&
                         "ring-1 ring-inset ring-accent/45 dark:ring-accent/35",
                     )}

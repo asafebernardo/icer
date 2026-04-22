@@ -27,7 +27,7 @@ import {
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
-import { imageFileToStorableUrl } from "@/lib/uploadImage";
+import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, isAdminUser, logout as authLogout, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -47,7 +47,7 @@ export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
-  const { openLoginModal } = useAuth();
+  const { navigateToLogin } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const logoInputRef = useRef(null);
 
@@ -116,7 +116,7 @@ export default function Navbar() {
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  title="Enviar logo (recomendado: PNG com fundo transparente)"
+                  title={`Editar — Logo do site. ${IMAGE_UPLOAD_RECOMMENDATION}`}
                   onClick={() => logoInputRef.current?.click()}
                 >
                   <ImagePlus className="w-4 h-4" />
@@ -222,7 +222,7 @@ export default function Navbar() {
                 variant="ghost"
                 size="sm"
                 className="hidden sm:inline-flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground min-h-[40px] px-3"
-                onClick={() => openLoginModal()}
+                onClick={() => navigateToLogin()}
               >
                 <User className="w-4 h-4" />
                 <span className="text-sm font-medium">Entrar</span>
@@ -306,7 +306,7 @@ export default function Navbar() {
                           type="button"
                           onClick={() => {
                             setOpen(false);
-                            openLoginModal();
+                            navigateToLogin();
                           }}
                           className="w-full min-h-[48px] flex items-center gap-2 px-4 py-3 text-[15px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80"
                         >

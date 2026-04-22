@@ -135,27 +135,22 @@ export default function Agenda() {
                 </button>
               </Link>
             </div>
-            {canCreateEvento ? (
-              <Button asChild className="gap-2 w-fit">
-                <Link to="/Eventos">
-                  <Plus className="w-4 h-4" /> Cadastrar evento
-                </Link>
-              </Button>
-            ) : null}
           </div>
 
-          <p className="text-sm text-muted-foreground mb-6 max-w-2xl">
-            A agenda só usa a{" "}
-            <span className="font-medium text-foreground">data</span> de cada
-            evento para posicioná-lo no calendário.{" "}
-            <Link
-              to="/Eventos"
-              className="text-accent font-medium underline-offset-4 hover:underline"
-            >
-              Cadastre e edite eventos na página Eventos
-            </Link>
-            .
-          </p>
+          {canCreateEvento ? (
+            <p className="text-sm text-muted-foreground mb-6 max-w-2xl">
+              A agenda só usa a{" "}
+              <span className="font-medium text-foreground">data</span> de cada
+              evento para posicioná-lo no calendário.{" "}
+              <Link
+                to="/Eventos"
+                className="text-accent font-medium underline-offset-4 hover:underline"
+              >
+                Cadastre e edite eventos na página Eventos
+              </Link>
+              .
+            </p>
+          ) : null}
 
           <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
             <div className="flex items-center gap-3">

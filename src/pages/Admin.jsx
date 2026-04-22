@@ -42,6 +42,8 @@ import {
 import { getPageBackgroundUrl } from "@/lib/usePageBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
+import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { fetchPublicWorkspaceJson, putAdminPublicWorkspace } from "@/lib/publicWorkspace";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -351,6 +353,22 @@ function TabSite() {
   const logoRef = useRef();
 
   useEffect(() => {
+    if (!isServerAuthEnabled()) return;
+    let cancelled = false;
+    fetchPublicWorkspaceJson()
+      .then((w) => {
+        if (cancelled || !w) return;
+        if (typeof w.member_menu_palettes === "object") {
+          setMenuConfig(w.member_menu_palettes);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -465,10 +483,18 @@ function TabSite() {
     else setLoginFormBgUrl("");
   };
 
-  const handleToggleMenu = (key) => {
+  const handleToggleMenu = async (key) => {
     const updated = { ...menuConfig, [key]: !menuConfig[key] };
     setMenuConfig(updated);
-    localStorage.setItem("icer_member_menus", JSON.stringify(updated));
+    if (isServerAuthEnabled()) {
+      try {
+        await putAdminPublicWorkspace({ member_menu_palettes: updated });
+      } catch (e) {
+        toast.error(e?.message || "Erro ao guardar visibilidade dos menus.");
+      }
+    } else {
+      localStorage.setItem("icer_member_menus", JSON.stringify(updated));
+    }
   };
 
   const {
