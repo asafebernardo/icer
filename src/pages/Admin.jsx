@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
 import { isAdminUser, getUser } from "@/lib/auth";
 import {
+  DEFAULT_SITE_LOGO_URL,
   getSiteConfig,
   refreshPublicSiteConfig,
   savePublicSiteConfigAdmin,
@@ -554,7 +555,8 @@ function TabSite() {
               Logo do Site
             </h2>
             <p className="text-sm text-muted-foreground">
-              Substitua a logo padrão por uma imagem personalizada
+              Sem imagem enviada, usa-se a logo por defeito do site. Carregue uma
+              imagem para personalizar.
             </p>
           </div>
         </div>
@@ -566,13 +568,11 @@ function TabSite() {
             className="hidden"
             onChange={handleLogoUpload}
           />
-          {logoUrl && (
-            <img
-              src={logoUrl}
-              alt="Logo atual"
-              className="h-12 w-auto rounded-lg border border-border object-contain"
-            />
-          )}
+          <img
+            src={logoUrl || DEFAULT_SITE_LOGO_URL}
+            alt="Pré-visualização da logo"
+            className="h-12 w-auto rounded-lg border border-border object-contain"
+          />
           <Button
             variant="outline"
             onClick={() => logoRef.current.click()}

@@ -31,9 +31,24 @@ export const DEFAULT_INSTAGRAM_SECTION_SUBTITLE =
   "Acompanhe novidades e avisos rápidos no nosso perfil.";
 export const DEFAULT_INSTAGRAM_URL = "https://www.instagram.com";
 
-/** Chaves em `siteConfig` para fundos legados / canal (não expostos na UI) */
+/** Cartões YouTube + Instagram na home (após «Sobre nós») — `siteConfig` */
+export const DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG = "Online";
+export const DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE = "Redes sociais";
+export const DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE =
+  "Acompanhe cultos em vídeo, novidades e avisos nos nossos canais oficiais.";
+
+export const DEFAULT_HOME_YOUTUBE_CARD_TITLE = "Nosso canal no YouTube";
+export const DEFAULT_HOME_YOUTUBE_CARD_TEXT =
+  "Acompanhe cultos, mensagens e estudos em vídeo.";
+export const DEFAULT_HOME_YOUTUBE_CARD_URL = DEFAULT_CHANNEL_URL;
+
+export const DEFAULT_HOME_INSTAGRAM_CARD_TITLE = "Instagram";
+export const DEFAULT_HOME_INSTAGRAM_CARD_TEXT =
+  "Acompanhe novidades e avisos rápidos no nosso perfil.";
+export const DEFAULT_HOME_INSTAGRAM_CARD_URL = DEFAULT_INSTAGRAM_URL;
+
+/** Chaves em `siteConfig` para fundos por secção (home) */
 export const SECTION_BG_KEYS = {
   welcome: "sectionBgWelcome",
-  channel: "sectionBgChannel",
   serviceTimes: "sectionBgServiceTimes",
 };

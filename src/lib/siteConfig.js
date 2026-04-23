@@ -7,6 +7,9 @@ const SERVER_CACHE_KEY = "icer_site_config_server_cache";
 /** Ícone da aba quando não há logo personalizada (alinhado ao fallback da navbar). */
 export const DEFAULT_SITE_FAVICON = "/favicon.svg";
 
+/** Logo da navbar/rodapé quando `logoUrl` está vazio — ficheiro estático em `public/`. */
+export const DEFAULT_SITE_LOGO_URL = "/logo-default.png";
+
 const FAVICON_LINK_ID = "icer-site-favicon";
 const APPLE_TOUCH_ID = "icer-site-apple-touch-icon";
 
@@ -27,8 +30,8 @@ export function syncDocumentBrandingFromSiteConfig(config) {
   if (typeof document === "undefined") return;
   const raw =
     config && typeof config.logoUrl === "string" ? config.logoUrl.trim() : "";
-  const href = raw || DEFAULT_SITE_FAVICON;
-  const type = raw ? faviconMimeForUrl(raw) : "image/svg+xml";
+  const href = raw || DEFAULT_SITE_LOGO_URL;
+  const type = faviconMimeForUrl(href);
 
   let icon = document.getElementById(FAVICON_LINK_ID);
   if (!icon) {

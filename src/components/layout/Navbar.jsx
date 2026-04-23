@@ -97,8 +97,6 @@ export default function Navbar() {
             >
               <SiteLogoMark
                 imgClassName="h-9 w-auto max-h-10 max-w-[120px] sm:max-w-[200px] object-contain object-left group-hover:opacity-90 transition-opacity rounded-md"
-                fallbackClassName="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/85 flex items-center justify-center shrink-0 shadow-soft group-hover:scale-[1.03] transition-transform duration-200"
-                iconClassName="w-4 h-4 text-primary-foreground"
               />
               <div className="flex flex-col min-w-0 leading-tight">
                 <span className="font-display text-base sm:text-lg font-semibold text-foreground tracking-tight truncate">
@@ -144,8 +142,8 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Desktop Nav */}
-          <div className="hidden lg:flex items-center gap-1">
+          {/* Desktop: navegação */}
+          <div className="hidden lg:flex items-center gap-1 shrink-0">
             {BASE_LINKS.map((link) => {
               const active = location.pathname === link.path;
               return (

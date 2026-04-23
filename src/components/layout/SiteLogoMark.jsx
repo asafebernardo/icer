@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { Church } from "lucide-react";
 
-import { getSiteConfig } from "@/lib/siteConfig";
+import { getSiteConfig, DEFAULT_SITE_LOGO_URL } from "@/lib/siteConfig";
 
 export function useSiteLogoUrl() {
   const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
@@ -16,29 +15,18 @@ export function useSiteLogoUrl() {
 }
 
 /**
- * Marca visual (imagem enviada ou ícone padrão) — mesma fonte em navbar e rodapé.
+ * Marca visual — imagem personalizada (`logoUrl`) ou logo por defeito em `public/`.
  */
-export default function SiteLogoMark({
-  imgClassName,
-  fallbackClassName,
-  iconClassName,
-}) {
-  const logoUrl = useSiteLogoUrl();
-
-  if (logoUrl) {
-    return (
-      <img
-        src={logoUrl}
-        alt="ICER Chapecó"
-        className={imgClassName}
-        decoding="async"
-      />
-    );
-  }
+export default function SiteLogoMark({ imgClassName }) {
+  const stored = useSiteLogoUrl()?.trim();
+  const src = stored || DEFAULT_SITE_LOGO_URL;
 
   return (
-    <div className={fallbackClassName}>
-      <Church className={iconClassName} />
-    </div>
+    <img
+      src={src}
+      alt="ICER Chapecó — Bíblia com cruz"
+      className={imgClassName}
+      decoding="async"
+    />
   );
 }

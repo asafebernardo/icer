@@ -17,8 +17,11 @@ import {
   setSiteConfig,
 } from "@/lib/siteConfig";
 import SiteLogoMark from "@/components/layout/SiteLogoMark";
+import SiteSocialLinks from "@/components/layout/SiteSocialLinks";
+import { hasAnyResolvedSocialLinks } from "@/lib/socialLinks";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_CONFIG = {
   footerDescricao:
@@ -107,10 +110,20 @@ export default function Footer() {
   const user = useSyncedAuthUser();
   const canEditHome = canMenuAction(user, MENU.HOME, "edit");
   const [cfg, setCfg] = useState(DEFAULT_CONFIG);
+  const [showSocialCol, setShowSocialCol] = useState(() =>
+    hasAnyResolvedSocialLinks(getSiteConfig()),
+  );
 
   useEffect(() => {
     const saved = getSiteConfig();
     setCfg({ ...DEFAULT_CONFIG, ...saved });
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setShowSocialCol(hasAnyResolvedSocialLinks(getSiteConfig()));
+    sync();
+    window.addEventListener("icer-site-config", sync);
+    return () => window.removeEventListener("icer-site-config", sync);
   }, []);
 
   const update = (key, value) => {
@@ -149,7 +162,12 @@ export default function Footer() {
         aria-hidden
       />
       <div className="container-page relative py-14 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-14">
+        <div
+          className={cn(
+            "grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-14",
+            showSocialCol ? "lg:grid-cols-5" : "lg:grid-cols-4",
+          )}
+        >
           {/* Brand */}
           <div className="space-y-4">
             <Link
@@ -158,8 +176,6 @@ export default function Footer() {
             >
               <SiteLogoMark
                 imgClassName="h-9 w-auto max-h-10 max-w-[120px] sm:max-w-[200px] object-contain object-left shrink-0 rounded-md group-hover:opacity-90 transition-opacity"
-                fallbackClassName="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/85 flex items-center justify-center shrink-0 shadow-soft ring-1 ring-primary/15 group-hover:scale-[1.02] transition-transform duration-200"
-                iconClassName="w-4 h-4 text-primary-foreground"
               />
               <div className="min-w-0 pt-0.5">
                 <span className="font-display text-lg font-semibold tracking-tight block">
@@ -245,6 +261,12 @@ export default function Footer() {
               </div>
             </div>
           </div>
+
+          {showSocialCol ? (
+            <div className="space-y-4 md:col-span-2 lg:col-span-1">
+              <SiteSocialLinks variant="footer" />
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-14 pt-10 border-t border-border text-center">
