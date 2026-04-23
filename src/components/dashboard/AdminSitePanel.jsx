@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -17,6 +20,8 @@ import {
   Lock,
   Palette,
   RefreshCw,
+  LayoutGrid,
+  Share2,
   Trash2,
   Users,
 } from "lucide-react";
@@ -24,6 +29,7 @@ import { toast } from "sonner";
 
 import { uploadImageFile } from "@/lib/uploadImage";
 import {
+  DEFAULT_SITE_LOGO_URL,
   getSiteConfig,
   refreshPublicSiteConfig,
   savePublicSiteConfigAdmin,
@@ -35,6 +41,17 @@ import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
 import { useAuth } from "@/lib/AuthContext";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { fetchPublicWorkspaceJson, putAdminPublicWorkspace } from "@/lib/publicWorkspace";
+import {
+  DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
+  DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
+  DEFAULT_HOME_INSTAGRAM_CARD_URL,
+  DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
+  DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG,
+  DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE,
+  DEFAULT_HOME_YOUTUBE_CARD_TEXT,
+  DEFAULT_HOME_YOUTUBE_CARD_TITLE,
+  DEFAULT_HOME_YOUTUBE_CARD_URL,
+} from "@/lib/homeContentDefaults";
 
 const MEMBER_MENUS = [
   { key: "galeria", label: "Galeria de Fotos" },
@@ -83,6 +100,162 @@ export default function AdminSitePanel() {
   const [purgingLocal, setPurgingLocal] = useState(false);
   const logoRef = useRef();
 
+  const [socialYoutube, setSocialYoutube] = useState(() => {
+    const c = getSiteConfig();
+    return Object.prototype.hasOwnProperty.call(c, "socialYoutubeUrl")
+      ? String(c.socialYoutubeUrl ?? "")
+      : String(c.channelUrl ?? "");
+  });
+  const [socialInstagram, setSocialInstagram] = useState(() => {
+    const c = getSiteConfig();
+    return Object.prototype.hasOwnProperty.call(c, "socialInstagramUrl")
+      ? String(c.socialInstagramUrl ?? "")
+      : String(c.instagramUrl ?? "");
+  });
+  const [socialFacebook, setSocialFacebook] = useState(() =>
+    String(getSiteConfig().socialFacebookUrl ?? ""),
+  );
+  const [socialWhatsapp, setSocialWhatsapp] = useState(() =>
+    String(getSiteConfig().socialWhatsappUrl ?? ""),
+  );
+  const [savingSocial, setSavingSocial] = useState(false);
+
+  const cfgOwn = (c, k) => Object.prototype.hasOwnProperty.call(c, k);
+
+  const [homeYtTitle, setHomeYtTitle] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeYoutubeCardTitle")
+      ? String(c.homeYoutubeCardTitle ?? "").trim()
+      : DEFAULT_HOME_YOUTUBE_CARD_TITLE;
+  });
+  const [homeYtText, setHomeYtText] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeYoutubeCardText")
+      ? String(c.homeYoutubeCardText ?? "").trim()
+      : DEFAULT_HOME_YOUTUBE_CARD_TEXT;
+  });
+  const [homeYtUrl, setHomeYtUrl] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeYoutubeCardUrl")
+      ? String(c.homeYoutubeCardUrl ?? "").trim()
+      : DEFAULT_HOME_YOUTUBE_CARD_URL;
+  });
+  const [homeIgTitle, setHomeIgTitle] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeInstagramCardTitle")
+      ? String(c.homeInstagramCardTitle ?? "").trim()
+      : DEFAULT_HOME_INSTAGRAM_CARD_TITLE;
+  });
+  const [homeIgText, setHomeIgText] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeInstagramCardText")
+      ? String(c.homeInstagramCardText ?? "").trim()
+      : DEFAULT_HOME_INSTAGRAM_CARD_TEXT;
+  });
+  const [homeIgUrl, setHomeIgUrl] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeInstagramCardUrl")
+      ? String(c.homeInstagramCardUrl ?? "").trim()
+      : DEFAULT_HOME_INSTAGRAM_CARD_URL;
+  });
+  const [savingHomeCards, setSavingHomeCards] = useState(false);
+  const [homeSocialSectionTag, setHomeSocialSectionTag] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeSocialCardsSectionTag")
+      ? String(c.homeSocialCardsSectionTag ?? "").trim()
+      : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG;
+  });
+  const [homeSocialSectionTitle, setHomeSocialSectionTitle] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "homeSocialCardsSectionTitle")
+      ? String(c.homeSocialCardsSectionTitle ?? "").trim()
+      : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE;
+  });
+  const [homeSocialSectionSubtitle, setHomeSocialSectionSubtitle] = useState(
+    () => {
+      const c = getSiteConfig();
+      return cfgOwn(c, "homeSocialCardsSectionSubtitle")
+        ? String(c.homeSocialCardsSectionSubtitle ?? "").trim()
+        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE;
+    },
+  );
+
+  const loadHomeCardFieldsFromConfig = () => {
+    const c = getSiteConfig();
+    setHomeSocialSectionTag(
+      cfgOwn(c, "homeSocialCardsSectionTag")
+        ? String(c.homeSocialCardsSectionTag ?? "").trim()
+        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG,
+    );
+    setHomeSocialSectionTitle(
+      cfgOwn(c, "homeSocialCardsSectionTitle")
+        ? String(c.homeSocialCardsSectionTitle ?? "").trim()
+        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE,
+    );
+    setHomeSocialSectionSubtitle(
+      cfgOwn(c, "homeSocialCardsSectionSubtitle")
+        ? String(c.homeSocialCardsSectionSubtitle ?? "").trim()
+        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
+    );
+    setHomeYtTitle(
+      cfgOwn(c, "homeYoutubeCardTitle")
+        ? String(c.homeYoutubeCardTitle ?? "").trim()
+        : DEFAULT_HOME_YOUTUBE_CARD_TITLE,
+    );
+    setHomeYtText(
+      cfgOwn(c, "homeYoutubeCardText")
+        ? String(c.homeYoutubeCardText ?? "").trim()
+        : DEFAULT_HOME_YOUTUBE_CARD_TEXT,
+    );
+    setHomeYtUrl(
+      cfgOwn(c, "homeYoutubeCardUrl")
+        ? String(c.homeYoutubeCardUrl ?? "").trim()
+        : DEFAULT_HOME_YOUTUBE_CARD_URL,
+    );
+    setHomeIgTitle(
+      cfgOwn(c, "homeInstagramCardTitle")
+        ? String(c.homeInstagramCardTitle ?? "").trim()
+        : DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
+    );
+    setHomeIgText(
+      cfgOwn(c, "homeInstagramCardText")
+        ? String(c.homeInstagramCardText ?? "").trim()
+        : DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
+    );
+    setHomeIgUrl(
+      cfgOwn(c, "homeInstagramCardUrl")
+        ? String(c.homeInstagramCardUrl ?? "").trim()
+        : DEFAULT_HOME_INSTAGRAM_CARD_URL,
+    );
+  };
+
+  const loadSocialFieldsFromConfig = () => {
+    const c = getSiteConfig();
+    setSocialYoutube(
+      Object.prototype.hasOwnProperty.call(c, "socialYoutubeUrl")
+        ? String(c.socialYoutubeUrl ?? "")
+        : String(c.channelUrl ?? ""),
+    );
+    setSocialInstagram(
+      Object.prototype.hasOwnProperty.call(c, "socialInstagramUrl")
+        ? String(c.socialInstagramUrl ?? "")
+        : String(c.instagramUrl ?? ""),
+    );
+    setSocialFacebook(String(c.socialFacebookUrl ?? ""));
+    setSocialWhatsapp(String(c.socialWhatsappUrl ?? ""));
+  };
+
+  useEffect(() => {
+    loadSocialFieldsFromConfig();
+    loadHomeCardFieldsFromConfig();
+    const onCfg = () => {
+      loadSocialFieldsFromConfig();
+      loadHomeCardFieldsFromConfig();
+    };
+    window.addEventListener("icer-site-config", onCfg);
+    return () => window.removeEventListener("icer-site-config", onCfg);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -105,6 +278,47 @@ export default function AdminSitePanel() {
       cancelled = true;
     };
   }, []);
+
+  const saveSocialLinks = async () => {
+    setSavingSocial(true);
+    try {
+      await savePublicSiteConfigAdmin({
+        socialYoutubeUrl: socialYoutube.trim(),
+        socialInstagramUrl: socialInstagram.trim(),
+        socialFacebookUrl: socialFacebook.trim(),
+        socialWhatsappUrl: socialWhatsapp.trim(),
+      });
+      await refreshPublicSiteConfig();
+      toast.success("Redes sociais atualizadas.");
+    } catch (e) {
+      toast.error(e?.message || "Não foi possível guardar as redes sociais.");
+    } finally {
+      setSavingSocial(false);
+    }
+  };
+
+  const saveHomeSocialCards = async () => {
+    setSavingHomeCards(true);
+    try {
+      await savePublicSiteConfigAdmin({
+        homeSocialCardsSectionTag: homeSocialSectionTag.trim(),
+        homeSocialCardsSectionTitle: homeSocialSectionTitle.trim(),
+        homeSocialCardsSectionSubtitle: homeSocialSectionSubtitle.trim(),
+        homeYoutubeCardTitle: homeYtTitle.trim(),
+        homeYoutubeCardText: homeYtText.trim(),
+        homeYoutubeCardUrl: homeYtUrl.trim(),
+        homeInstagramCardTitle: homeIgTitle.trim(),
+        homeInstagramCardText: homeIgText.trim(),
+        homeInstagramCardUrl: homeIgUrl.trim(),
+      });
+      await refreshPublicSiteConfig();
+      toast.success("Cartões da home atualizados.");
+    } catch (e) {
+      toast.error(e?.message || "Não foi possível guardar os cartões da home.");
+    } finally {
+      setSavingHomeCards(false);
+    }
+  };
 
   const saveSessionTtl = async () => {
     setSavingSessionTtl(true);
@@ -266,7 +480,8 @@ export default function AdminSitePanel() {
           <div>
             <h2 className="font-semibold text-foreground text-lg">Logo do Site</h2>
             <p className="text-sm text-muted-foreground">
-              Substitua a logo padrão por uma imagem personalizada
+              Sem imagem enviada, usa-se a logo por defeito do site. Carregue uma
+              imagem para personalizar.
             </p>
           </div>
         </div>
@@ -278,13 +493,11 @@ export default function AdminSitePanel() {
             className="hidden"
             onChange={handleLogoUpload}
           />
-          {logoUrl && (
-            <img
-              src={logoUrl}
-              alt="Logo atual"
-              className="h-12 w-auto rounded-lg border border-border object-contain"
-            />
-          )}
+          <img
+            src={logoUrl || DEFAULT_SITE_LOGO_URL}
+            alt="Pré-visualização da logo"
+            className="h-12 w-auto rounded-lg border border-border object-contain"
+          />
           <Button
             variant="outline"
             onClick={() => logoRef.current.click()}
@@ -309,6 +522,211 @@ export default function AdminSitePanel() {
               Remover
             </Button>
           )}
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.03 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <Share2 className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">Redes sociais</h2>
+            <p className="text-sm text-muted-foreground">
+              Ícones no rodapé. WhatsApp: número com DDI/DDD ou link{" "}
+              <span className="whitespace-nowrap">wa.me</span>. Os cartões da página
+              inicial (YouTube e Instagram) editam-se na secção seguinte.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="admin-social-yt">YouTube</Label>
+            <Input
+              id="admin-social-yt"
+              type="url"
+              placeholder="https://www.youtube.com/@…"
+              value={socialYoutube}
+              onChange={(e) => setSocialYoutube(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-social-ig">Instagram</Label>
+            <Input
+              id="admin-social-ig"
+              type="url"
+              placeholder="https://www.instagram.com/…"
+              value={socialInstagram}
+              onChange={(e) => setSocialInstagram(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-social-fb">Facebook</Label>
+            <Input
+              id="admin-social-fb"
+              type="url"
+              placeholder="https://www.facebook.com/…"
+              value={socialFacebook}
+              onChange={(e) => setSocialFacebook(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-social-wa">WhatsApp</Label>
+            <Input
+              id="admin-social-wa"
+              type="text"
+              placeholder="5549999999999 ou https://wa.me/…"
+              value={socialWhatsapp}
+              onChange={(e) => setSocialWhatsapp(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={saveSocialLinks}
+            disabled={savingSocial}
+            className="gap-2"
+          >
+            {savingSocial ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+            Guardar redes
+          </Button>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.045 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <LayoutGrid className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">
+              Cartões na página inicial
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Dois cartões com as cores de cada rede, logo após «Sobre nós». Deixe o
+              URL vazio para ocultar um cartão.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 mb-8">
+          <div className="space-y-2">
+            <Label htmlFor="home-social-section-tag">Etiqueta (linha pequena acima)</Label>
+            <Input
+              id="home-social-section-tag"
+              value={homeSocialSectionTag}
+              onChange={(e) => setHomeSocialSectionTag(e.target.value)}
+              placeholder={DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG}
+            />
+            <p className="text-xs text-muted-foreground">
+              Como «Nossos cultos» na secção de horários.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="home-social-section-title">Título da secção</Label>
+            <Input
+              id="home-social-section-title"
+              value={homeSocialSectionTitle}
+              onChange={(e) => setHomeSocialSectionTitle(e.target.value)}
+              placeholder={DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE}
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="home-social-section-subtitle">Texto de apoio</Label>
+            <Textarea
+              id="home-social-section-subtitle"
+              rows={2}
+              value={homeSocialSectionSubtitle}
+              onChange={(e) => setHomeSocialSectionSubtitle(e.target.value)}
+              placeholder={DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE}
+            />
+            <p className="text-xs text-muted-foreground">
+              Parágrafo abaixo do traço colorido, como em horários de funcionamento.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-8 lg:grid-cols-2">
+          <div className="space-y-4 rounded-xl border border-border/80 p-4 bg-muted/20">
+            <p className="text-sm font-semibold text-foreground">YouTube</p>
+            <div className="space-y-2">
+              <Label htmlFor="home-yt-title">Título</Label>
+              <Input
+                id="home-yt-title"
+                value={homeYtTitle}
+                onChange={(e) => setHomeYtTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="home-yt-text">Texto</Label>
+              <Textarea
+                id="home-yt-text"
+                rows={3}
+                value={homeYtText}
+                onChange={(e) => setHomeYtText(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="home-yt-url">Link</Label>
+              <Input
+                id="home-yt-url"
+                type="url"
+                placeholder="https://www.youtube.com/@…"
+                value={homeYtUrl}
+                onChange={(e) => setHomeYtUrl(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-4 rounded-xl border border-border/80 p-4 bg-muted/20">
+            <p className="text-sm font-semibold text-foreground">Instagram</p>
+            <div className="space-y-2">
+              <Label htmlFor="home-ig-title">Título</Label>
+              <Input
+                id="home-ig-title"
+                value={homeIgTitle}
+                onChange={(e) => setHomeIgTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="home-ig-text">Texto</Label>
+              <Textarea
+                id="home-ig-text"
+                rows={3}
+                value={homeIgText}
+                onChange={(e) => setHomeIgText(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="home-ig-url">Link</Label>
+              <Input
+                id="home-ig-url"
+                type="url"
+                placeholder="https://www.instagram.com/…"
+                value={homeIgUrl}
+                onChange={(e) => setHomeIgUrl(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={saveHomeSocialCards}
+            disabled={savingHomeCards}
+            className="gap-2"
+          >
+            {savingHomeCards ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+            Guardar cartões da home
+          </Button>
         </div>
       </motion.div>
 
