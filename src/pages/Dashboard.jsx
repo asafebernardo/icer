@@ -5,6 +5,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Collapsible,
   CollapsibleContent,
@@ -17,6 +18,11 @@ import {
   ChevronDown,
   Clock,
   User,
+  Settings,
+  Globe,
+  FileText,
+  ShieldAlert,
+  Server,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
@@ -24,6 +30,7 @@ import ProfileSettings from "@/components/dashboard/ProfileSettings";
 import ServerUsersPanel from "@/components/dashboard/ServerUsersPanel";
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
+import LoginBlocksPanel from "@/components/dashboard/LoginBlocksPanel";
 import { api } from "@/api/client";
 import * as auth from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -397,78 +404,92 @@ export default function Dashboard() {
           <span className="text-foreground">{user.email}</span>
         </div>
 
-        {isAdmin && (
-          <div className="flex gap-2 mb-6 flex-wrap">
-            <Button
-              type="button"
-              variant={activeTab === "profile" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveTab("profile")}
-            >
-              A minha conta
-            </Button>
-            <Button
-              type="button"
-              variant={activeTab === "members" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveTab("members")}
-            >
-              Membros
-            </Button>
-            <Button
-              type="button"
-              variant={activeTab === "server-users" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveTab("server-users")}
-              disabled={!canUseAdminTabs}
-              title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
-            >
-              Contas servidor
-            </Button>
-            <Button
-              type="button"
-              variant={activeTab === "site" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveTab("site")}
-              disabled={!canUseAdminTabs}
-              title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
-            >
-              Site
-            </Button>
-            <Button
-              type="button"
-              variant={activeTab === "audit-log" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveTab("audit-log")}
-              disabled={!canUseAdminTabs}
-              title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
-            >
-              Logs
-            </Button>
-          </div>
-        )}
+        {isAdmin ? (
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <div className="mb-6 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">
+                Conta
+              </div>
+              <TabsList className="flex flex-wrap h-auto">
+                <TabsTrigger value="profile" className="gap-2">
+                  <Settings className="w-4 h-4" />
+                  Minha conta
+                </TabsTrigger>
+                <TabsTrigger value="members" className="gap-2">
+                  <Users className="w-4 h-4" />
+                  Membros
+                </TabsTrigger>
+              </TabsList>
+              <div className="text-xs font-medium text-muted-foreground pt-2">
+                Administração
+              </div>
+              <TabsList className="flex flex-wrap h-auto">
+                <TabsTrigger
+                  value="site"
+                  className="gap-2"
+                  disabled={!canUseAdminTabs}
+                  title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+                >
+                  <Globe className="w-4 h-4" />
+                  Site
+                </TabsTrigger>
+                <TabsTrigger
+                  value="server-users"
+                  className="gap-2"
+                  disabled={!canUseAdminTabs}
+                  title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+                >
+                  <Server className="w-4 h-4" />
+                  Contas
+                </TabsTrigger>
+                <TabsTrigger
+                  value="login-blocks"
+                  className="gap-2"
+                  disabled={!canUseAdminTabs}
+                  title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  Bloqueios
+                </TabsTrigger>
+                <TabsTrigger
+                  value="audit-log"
+                  className="gap-2"
+                  disabled={!canUseAdminTabs}
+                  title={!canUseAdminTabs ? "Apenas admin (servidor)" : undefined}
+                >
+                  <FileText className="w-4 h-4" />
+                  Logs
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-        {(!isAdmin || activeTab === "profile") && (
+            <TabsContent value="profile">
+              <ProfileSettings user={user} />
+            </TabsContent>
+            <TabsContent value="members">
+              <TabMembros
+                user={user}
+                users={users}
+                loadingUsers={isLoading}
+                refetch={refetch}
+              />
+            </TabsContent>
+            <TabsContent value="server-users">
+              {canUseAdminTabs ? <ServerUsersPanel /> : <LockedTabNotice />}
+            </TabsContent>
+            <TabsContent value="site">
+              {canUseAdminTabs ? <AdminSitePanel /> : <LockedTabNotice />}
+            </TabsContent>
+            <TabsContent value="audit-log">
+              {canUseAdminTabs ? <GlobalAuditLogPanel /> : <LockedTabNotice />}
+            </TabsContent>
+            <TabsContent value="login-blocks">
+              {canUseAdminTabs ? <LoginBlocksPanel /> : <LockedTabNotice />}
+            </TabsContent>
+          </Tabs>
+        ) : (
           <ProfileSettings user={user} />
         )}
-
-        {isAdmin && activeTab === "members" && (
-          <TabMembros
-            user={user}
-            users={users}
-            loadingUsers={isLoading}
-            refetch={refetch}
-          />
-        )}
-
-        {activeTab === "server-users" &&
-          (canUseAdminTabs ? <ServerUsersPanel /> : <LockedTabNotice />)}
-
-        {activeTab === "site" &&
-          (canUseAdminTabs ? <AdminSitePanel /> : <LockedTabNotice />)}
-
-        {activeTab === "audit-log" &&
-          (canUseAdminTabs ? <GlobalAuditLogPanel /> : <LockedTabNotice />)}
       </div>
     </div>
   );

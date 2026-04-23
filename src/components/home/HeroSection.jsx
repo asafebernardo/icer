@@ -63,6 +63,7 @@ export default function HeroSection() {
   const [heroTextOpen, setHeroTextOpen] = useState(false);
   const [draftEyebrow, setDraftEyebrow] = useState("");
   const [draftHeroTitle, setDraftHeroTitle] = useState("");
+  const didCountRef = useRef(false);
 
   // Ajusta altura do hero para acompanhar o aspect ratio da imagem.
   const [heroAspect, setHeroAspect] = useState(16 / 9);
@@ -95,6 +96,22 @@ export default function HeroSection() {
       cancelled = true;
     };
   }, [slides]);
+
+  useEffect(() => {
+    if (didCountRef.current) return;
+    didCountRef.current = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/metrics/home-views", {
+          method: "POST",
+          credentials: "include",
+        });
+        if (!r.ok) return;
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const c = getSiteConfig();
