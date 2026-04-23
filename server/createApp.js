@@ -78,6 +78,69 @@ export function createApplication(db, options = {}) {
   const LOGIN_WINDOW_MS = 15 * 60 * 1000;
   const LOGIN_MAX = 40;
 
+  // Bloqueio por tentativas falhadas (por IP e por utilizador/email).
+  // Regras:
+  // - 3 falhas na janela → bloqueio temporário
+  // - 9 falhas na janela → "fora do ar" para esse utilizador/IP (bloqueio mais longo)
+  const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
+  const LOGIN_FAIL_LOCK_3_MS = 15 * 60 * 1000;
+  const LOGIN_FAIL_LOCK_9_MS = 24 * 60 * 60 * 1000;
+  const LOGIN_FAIL_COLLECTION = "auth_login_failures_v1";
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function readLoginBlocks(keys) {
+    if (!keys || keys.length === 0) return [];
+    const now = nowIso();
+    return await db
+      .collection(LOGIN_FAIL_COLLECTION)
+      .find({ key: { $in: keys }, locked_until: { $gt: now } })
+      .project({ _id: 0, key: 1, locked_until: 1, hard: 1, count: 1 })
+      .toArray();
+  }
+
+  async function bumpLoginFailure(keys, { hard = false } = {}) {
+    const nowTs = Date.now();
+    const now = nowIso();
+    for (const key of keys) {
+      if (!key) continue;
+      const cur = await db
+        .collection(LOGIN_FAIL_COLLECTION)
+        .findOne({ key }, { projection: { _id: 0, key: 1, count: 1, first_fail_ts: 1 } });
+      const freshWindow =
+        !cur?.first_fail_ts || !Number.isFinite(cur.first_fail_ts)
+          ? true
+          : nowTs - cur.first_fail_ts > LOGIN_FAIL_WINDOW_MS;
+      const nextCount = freshWindow ? 1 : Number(cur.count || 0) + 1;
+      const first_fail_ts = freshWindow ? nowTs : cur.first_fail_ts;
+      const $set = {
+        key,
+        count: nextCount,
+        first_fail_ts,
+        last_fail_at: now,
+        updated_at: now,
+      };
+      let locked_until = null;
+      let nextHard = hard === true;
+      if (nextCount >= 9) {
+        locked_until = new Date(nowTs + LOGIN_FAIL_LOCK_9_MS).toISOString();
+        nextHard = true;
+      } else if (nextCount >= 3) {
+        locked_until = new Date(nowTs + LOGIN_FAIL_LOCK_3_MS).toISOString();
+      }
+      if (locked_until) $set.locked_until = locked_until;
+      $set.hard = nextHard;
+      await db
+        .collection(LOGIN_FAIL_COLLECTION)
+        .updateOne({ key }, { $set }, { upsert: true });
+    }
+  }
+
+  async function clearLoginFailures(keys) {
+    if (!keys || keys.length === 0) return;
+    await db.collection(LOGIN_FAIL_COLLECTION).deleteMany({ key: { $in: keys } });
+  }
+
   const dismissDestaqueRate = new Map();
   const DISMISS_WINDOW_MS = 15 * 60 * 1000;
   const DISMISS_MAX = 120;
@@ -102,6 +165,8 @@ export function createApplication(db, options = {}) {
   const SESSION_TTL_ALLOWED = new Set([10, 30, 60, 120, 300]);
   const SESSION_TTL_DEFAULT = 120;
   const SITE_CONFIG_KEY = "site_config_public_v1";
+  const HOME_VIEWS_KEY = "metric_home_views_v1";
+  const HOME_VIEWS_BY_IP_COLLECTION = "metric_home_views_by_ip_v1";
 
   async function getPublicSiteConfig() {
     const row = await db.collection("app_kv").findOne({ key: SITE_CONFIG_KEY });
@@ -167,6 +232,33 @@ export function createApplication(db, options = {}) {
     const cfg = await getPublicSiteConfig();
     res.setHeader("Cache-Control", "no-store");
     res.json(cfg);
+  });
+
+  // Métrica pública: registra visita na Home (por IP).
+  // Mantém também um total global (HOME_VIEWS_KEY) para referência.
+  app.post("/api/metrics/home-views", async (req, res) => {
+    const now = nowIso();
+    const ip = String(clientIp(req) || "unknown").slice(0, 128);
+    await db.collection("app_kv").updateOne(
+      { key: HOME_VIEWS_KEY },
+      {
+        $inc: { "value.count": 1 },
+        $setOnInsert: { key: HOME_VIEWS_KEY },
+        $set: { updated_at: now },
+      },
+      { upsert: true },
+    );
+    await db.collection(HOME_VIEWS_BY_IP_COLLECTION).updateOne(
+      { ip },
+      {
+        $inc: { count: 1 },
+        $set: { last_seen_at: now, updated_at: now },
+        $setOnInsert: { ip, created_at: now },
+      },
+      { upsert: true },
+    );
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true });
   });
 
   /** Estado partilhado do site (sugestões da agenda, paletas, destaque visto, etc.) — não depende de sessão para leitura. */
@@ -294,6 +386,22 @@ export function createApplication(db, options = {}) {
       return;
     }
     const email = parsed.data.email.toLowerCase().trim();
+    const ipKey = `ip:${clientIp(req)}`;
+    const userKey = `user:${email}`;
+    const blockRows = await readLoginBlocks([ipKey, userKey]);
+    if (blockRows && blockRows.length > 0) {
+      const hard = blockRows.some((b) => b.hard === true);
+      const until =
+        blockRows
+          .map((b) => b.locked_until)
+          .filter(Boolean)
+          .sort()
+          .at(-1) || null;
+      res
+        .status(hard ? 503 : 423)
+        .json({ message: hard ? "login_unavailable" : "login_temporarily_blocked", locked_until: until });
+      return;
+    }
     const row = await db.collection("users").findOne(
       { email },
       {
@@ -317,6 +425,8 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
+      await bumpLoginFailure([ipKey, userKey]);
+      await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
@@ -351,9 +461,12 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
+      await bumpLoginFailure([ipKey, userKey]);
+      await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
+    await clearLoginFailures([ipKey, userKey]);
     const loginStamp = nowIso();
     await db.collection("users").updateOne(
       { id: row.id },
@@ -511,9 +624,61 @@ export function createApplication(db, options = {}) {
     res.json(users);
   });
 
+  app.get("/api/admin/metrics/home-views", requireAdmin, async (req, res) => {
+    const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 200));
+    const skip = Math.max(0, Math.min(100000, Number(req.query.skip) || 0));
+    const q = req.query.q != null ? String(req.query.q).trim() : "";
+
+    const match = {};
+    if (q) {
+      match.ip = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    }
+
+    const [totalViewsRow, uniqueIps, rows] = await Promise.all([
+      db.collection("app_kv").findOne({ key: HOME_VIEWS_KEY }),
+      db.collection(HOME_VIEWS_BY_IP_COLLECTION).countDocuments(match),
+      db
+        .collection(HOME_VIEWS_BY_IP_COLLECTION)
+        .find(match, { projection: { _id: 0, ip: 1, count: 1, last_seen_at: 1, created_at: 1 } })
+        .sort({ last_seen_at: -1, count: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+    ]);
+
+    const totalViews = Number(totalViewsRow?.value?.count ?? 0);
+    res.json({
+      total_views: Number.isFinite(totalViews) && totalViews >= 0 ? totalViews : 0,
+      unique_ips: uniqueIps,
+      rows,
+      limit,
+      skip,
+    });
+  });
+
   app.get("/api/admin/session-ttl", requireAdmin, async (_req, res) => {
     const ttl_minutes = await getSessionTtlMinutes();
     res.json({ ttl_minutes });
+  });
+
+  app.get("/api/admin/login-blocks", requireAdmin, async (_req, res) => {
+    const now = nowIso();
+    const rows = await db
+      .collection(LOGIN_FAIL_COLLECTION)
+      .find({ locked_until: { $gt: now } })
+      .project({
+        _id: 0,
+        key: 1,
+        count: 1,
+        hard: 1,
+        locked_until: 1,
+        last_fail_at: 1,
+        updated_at: 1,
+      })
+      .sort({ hard: -1, locked_until: -1 })
+      .limit(500)
+      .toArray();
+    res.json({ rows });
   });
 
   app.put("/api/admin/session-ttl", requireAdmin, async (req, res) => {

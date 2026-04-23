@@ -281,7 +281,7 @@ export default function EventoPage() {
                       <User className="w-4 h-4 text-accent" />
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Pastor</p>
+                      <p className="text-xs text-muted-foreground">Presbítero</p>
                       <p className="text-sm font-semibold text-foreground">
                         {evento.pastor}
                       </p>

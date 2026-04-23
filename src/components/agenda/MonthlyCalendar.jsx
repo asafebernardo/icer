@@ -20,6 +20,7 @@ export default function MonthlyCalendar({
   eventos,
   onEventClick,
   onDayClick,
+  showPreletorCards = false,
 }) {
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
@@ -106,9 +107,20 @@ export default function MonthlyCalendar({
                       className={`h-1 w-full ${eventCardBarClass(ev, categoriaColors)}`}
                     />
                     <div className="px-1 py-1">
-                      <span className="text-[10px] font-semibold text-foreground line-clamp-2 leading-tight block">
-                        {ev.titulo}
-                      </span>
+                      {showPreletorCards ? (
+                        <>
+                          <span className="text-[10px] font-semibold text-foreground line-clamp-1 leading-tight block">
+                            {ev.titulo}
+                          </span>
+                          <span className="text-[10px] font-medium text-muted-foreground line-clamp-1 leading-tight block">
+                            {String(ev.preletor || "").trim() || "—"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-foreground line-clamp-2 leading-tight block">
+                          {ev.titulo}
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}

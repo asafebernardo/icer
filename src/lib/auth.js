@@ -130,6 +130,12 @@ function mapServerLoginError(e) {
   if (code === "too_many_requests") {
     return "Demasiadas tentativas. Aguarde alguns minutos e tente novamente.";
   }
+  if (code === "login_temporarily_blocked") {
+    return "Muitas tentativas incorretas. Aguarde alguns minutos e tente novamente.";
+  }
+  if (code === "login_unavailable") {
+    return "Acesso temporariamente indisponível para esta conta/rede por excesso de tentativas. Tente novamente mais tarde.";
+  }
   if (code && code !== "Error") return code;
   return "Não foi possível iniciar sessão.";
 }
@@ -168,7 +174,15 @@ export async function login(email, senha) {
     return { ok: true };
   } catch (e) {
     const status = /** @type {Error & { status?: number }} */ (e)?.status;
-    if (status === 401 || status === 400) {
+    if (
+      status === 400 ||
+      status === 401 ||
+      status === 403 ||
+      status === 409 ||
+      status === 423 ||
+      status === 429 ||
+      status === 503
+    ) {
       return {
         ok: false,
         message: mapServerLoginError(

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { format, parseISO, isValid } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +55,38 @@ import {
   DEFAULT_HOME_YOUTUBE_CARD_URL,
 } from "@/lib/homeContentDefaults";
 
+async function fetchHomeViewsAdmin(params) {
+  const sp = new URLSearchParams();
+  sp.set("limit", String(params.limit || 200));
+  sp.set("skip", String(params.skip || 0));
+  if (params.q && String(params.q).trim()) sp.set("q", String(params.q).trim());
+  const r = await fetch(`/api/admin/metrics/home-views?${sp.toString()}`, {
+    credentials: "include",
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t;
+    try {
+      msg = JSON.parse(t).message || t;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || r.statusText);
+  }
+  return r.json();
+}
+
+function formatTs(iso) {
+  if (!iso) return "—";
+  try {
+    const d = typeof iso === "string" ? parseISO(iso) : new Date(iso);
+    if (!isValid(d)) return "—";
+    return format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+  } catch {
+    return "—";
+  }
+}
+
 const MEMBER_MENUS = [
   { key: "galeria", label: "Galeria de Fotos" },
   { key: "materiais_tab", label: "Materiais (na aba Recursos)" },
@@ -99,6 +133,20 @@ export default function AdminSitePanel() {
   const [savingSessionTtl, setSavingSessionTtl] = useState(false);
   const [purgingLocal, setPurgingLocal] = useState(false);
   const logoRef = useRef();
+  const [homeViewsSearch, setHomeViewsSearch] = useState("");
+  const [homeViewsApplied, setHomeViewsApplied] = useState({ q: "", skip: 0, limit: 200 });
+
+  const {
+    data: homeViewsData,
+    isLoading: homeViewsLoading,
+    error: homeViewsError,
+    refetch: refetchHomeViews,
+    isFetching: homeViewsFetching,
+  } = useQuery({
+    queryKey: ["admin-home-views", homeViewsApplied],
+    queryFn: () => fetchHomeViewsAdmin(homeViewsApplied),
+    enabled: isServerAuthEnabled() && user?._authSource === "server",
+  });
 
   const [socialYoutube, setSocialYoutube] = useState(() => {
     const c = getSiteConfig();
@@ -594,7 +642,7 @@ export default function AdminSitePanel() {
             className="gap-2"
           >
             {savingSocial ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-            Guardar redes
+            Salvar
           </Button>
         </div>
       </motion.div>
@@ -725,7 +773,7 @@ export default function AdminSitePanel() {
             className="gap-2"
           >
             {savingHomeCards ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-            Guardar cartões da home
+            Salvar
           </Button>
         </div>
       </motion.div>
@@ -776,6 +824,116 @@ export default function AdminSitePanel() {
             Salvar
           </Button>
         </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.065 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+              <Users className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground text-lg">
+                Acessos na Home (por IP)
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Total:{" "}
+                <strong className="text-foreground">
+                  {homeViewsData?.total_views ?? 0}
+                </strong>{" "}
+                · IPs únicos:{" "}
+                <strong className="text-foreground">
+                  {homeViewsData?.unique_ips ?? 0}
+                </strong>
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => refetchHomeViews()}
+            disabled={homeViewsFetching}
+            title="Atualizar"
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${homeViewsFetching ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2 mb-4">
+          <div className="space-y-2">
+            <Label htmlFor="home-views-search">Buscar IP</Label>
+            <Input
+              id="home-views-search"
+              value={homeViewsSearch}
+              onChange={(e) => setHomeViewsSearch(e.target.value)}
+              placeholder="Ex.: 191.23.0.1"
+              className="h-9 w-64"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9"
+            onClick={() =>
+              setHomeViewsApplied({ q: homeViewsSearch.trim(), skip: 0, limit: 200 })
+            }
+          >
+            Filtrar
+          </Button>
+        </div>
+
+        {homeViewsError && (
+          <p className="text-sm text-destructive mb-4">
+            {homeViewsError.message || "Erro ao carregar acessos."}
+          </p>
+        )}
+
+        {homeViewsLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-14 rounded-xl" />
+            ))}
+          </div>
+        ) : (homeViewsData?.rows || []).length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-10">
+            Nenhum acesso registrado ainda.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-sm min-w-[520px]">
+              <thead>
+                <tr className="bg-muted/50 border-b border-border">
+                  <th className="text-left font-medium p-3">IP</th>
+                  <th className="text-center font-medium p-3 w-28">Acessos</th>
+                  <th className="text-left font-medium p-3 w-44">Último acesso</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(homeViewsData?.rows || []).map((r) => (
+                  <tr
+                    key={r.ip}
+                    className="border-b border-border/60 last:border-0"
+                  >
+                    <td className="p-3 text-foreground">{r.ip}</td>
+                    <td className="p-3 text-center tabular-nums">
+                      {typeof r.count === "number" ? r.count : "—"}
+                    </td>
+                    <td className="p-3 text-muted-foreground">
+                      {formatTs(r.last_seen_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
 
       <motion.div

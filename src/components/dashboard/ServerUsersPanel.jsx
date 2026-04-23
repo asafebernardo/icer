@@ -81,6 +81,8 @@ export default function ServerUsersPanel() {
   const [msg, setMsg] = useState(null);
   const [resetId, setResetId] = useState(null);
   const [resetPass, setResetPass] = useState("");
+  const [roleEditById, setRoleEditById] = useState({});
+  const [roleBusyById, setRoleBusyById] = useState({});
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityUserId, setActivityUserId] = useState(null);
   const [activityUserLabel, setActivityUserLabel] = useState("");
@@ -193,6 +195,39 @@ export default function ServerUsersPanel() {
     }
   };
 
+  const handleUpdateRole = async (id, nextRole) => {
+    const r = String(nextRole || "").trim();
+    if (r !== "admin" && r !== "user") return;
+    setRoleBusyById((m) => ({ ...m, [id]: true }));
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: r }),
+      });
+      const t = await res.text();
+      let data = {};
+      try {
+        data = t ? JSON.parse(t) : {};
+      } catch {
+        data = { message: t };
+      }
+      if (!res.ok) throw new Error(data.message || res.statusText);
+      setMsg({ type: "ok", text: "Tipo de conta atualizado." });
+      setRoleEditById((m) => ({ ...m, [id]: r }));
+      await qc.invalidateQueries({ queryKey: ["server-admin-users"] });
+    } catch (e) {
+      setMsg({
+        type: "err",
+        text: e?.message || "Não foi possível atualizar o tipo de conta.",
+      });
+    } finally {
+      setRoleBusyById((m) => ({ ...m, [id]: false }));
+    }
+  };
+
   return (
     <div className="space-y-8">
       <motion.div
@@ -265,6 +300,51 @@ export default function ServerUsersPanel() {
                   </p>
                 </div>
                 <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="w-full sm:w-56">
+                      <Select
+                        value={
+                          roleEditById[u.id] ??
+                          (u.role === "admin" ? "admin" : "user")
+                        }
+                        onValueChange={(v) =>
+                          setRoleEditById((m) => ({ ...m, [u.id]: v }))
+                        }
+                        disabled={!!roleBusyById[u.id] || resetId === u.id}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Tipo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">Utilizador</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        !!roleBusyById[u.id] ||
+                        (roleEditById[u.id] ?? (u.role === "admin" ? "admin" : "user")) ===
+                          (u.role === "admin" ? "admin" : "user")
+                      }
+                      onClick={() =>
+                        handleUpdateRole(
+                          u.id,
+                          roleEditById[u.id] ?? (u.role === "admin" ? "admin" : "user"),
+                        )
+                      }
+                    >
+                      {roleBusyById[u.id] ? (
+                        <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <Shield className="w-4 h-4 mr-1" />
+                      )}
+                      Atualizar tipo
+                    </Button>
+                  </div>
                   {resetId === u.id ? (
                     <div className="flex flex-col gap-2 w-full sm:w-64">
                       <Input
@@ -280,7 +360,7 @@ export default function ServerUsersPanel() {
                           disabled={busy}
                         >
                           <KeyRound className="w-4 h-4 mr-1" />
-                          Guardar
+                          Salvar
                         </Button>
                         <Button
                           size="sm"

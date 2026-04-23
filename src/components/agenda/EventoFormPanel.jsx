@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import html2canvas from "html2canvas";
@@ -19,6 +19,7 @@ import { X, Plus, ImagePlus, Star, Palette } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { EVENT_CARD_COLOR_OPTIONS } from "@/lib/eventCardColors";
+import { EVENTO_CATEGORIAS } from "@/lib/eventoFormOptions";
 import {
   imageFileToCompressedDataUrl,
   isLocalImageUploadEnabled,
@@ -43,6 +44,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { buildEventoApiPayload, normalizeEventoDate } from "@/lib/eventoPayload";
 import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { listEventosMerged } from "@/lib/eventosQuery";
 import {
   PUBLIC_WORKSPACE_QUERY_KEY,
   fetchPublicWorkspaceJson,
@@ -74,17 +76,6 @@ const nativePickerInputClass = cn(
   "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0",
 );
 
-const categorias = [
-  { value: "culto", label: "Culto" },
-  { value: "estudo", label: "Estudo" },
-  { value: "jovens", label: "Jovens" },
-  { value: "mulheres", label: "Mulheres" },
-  { value: "homens", label: "Homens" },
-  { value: "criancas", label: "Crianças" },
-  { value: "especial", label: "Especial" },
-  { value: "conferencia", label: "Conferência" },
-];
-
 const DEFAULT_SUGESTOES = {
   titulo: [
     "Ceia + EBD",
@@ -99,11 +90,11 @@ const DEFAULT_SUGESTOES = {
   ],
   preletor: ["Asafe", "Joneri", "Juninho"],
   pastor: ["Joneri", "Sandro"],
-  categoria: categorias.map((c) => c.value),
+  categoria: EVENTO_CATEGORIAS.map((c) => c.value),
 };
 
 const CATEGORIA_LABEL_BY_SLUG = Object.fromEntries(
-  categorias.map((c) => [c.value, c.label]),
+  EVENTO_CATEGORIAS.map((c) => [c.value, c.label]),
 );
 
 const LOCAIS_PADRAO = ["Sede local", "Outros"];
@@ -352,6 +343,7 @@ export default function EventoFormPanel({
   onCancel,
   onDeleted,
   onSaved,
+  existingEventos = [],
 }) {
   const [form, setForm] = useState(empty);
   const [sugestoes, setSugestoes] = useState(loadSugestoesLocal);
@@ -367,6 +359,7 @@ export default function EventoFormPanel({
   const queryClient = useQueryClient();
   const exportRef = useRef(null);
   const [step, setStep] = useState("dados"); // "dados" | "programacao"
+  const [conflictError, setConflictError] = useState("");
 
   const useRemoteWs = isServerAuthEnabled();
   const { data: publicWs } = useQuery({
@@ -375,6 +368,18 @@ export default function EventoFormPanel({
     enabled: useRemoteWs,
     staleTime: 60_000,
   });
+
+  const { data: fetchedEventos = [] } = useQuery({
+    queryKey: ["eventos"],
+    queryFn: listEventosMerged,
+    enabled: open && (!Array.isArray(existingEventos) || existingEventos.length === 0),
+    staleTime: 15_000,
+  });
+
+  const effectiveEventos =
+    Array.isArray(existingEventos) && existingEventos.length > 0
+      ? existingEventos
+      : fetchedEventos;
 
   useEffect(() => {
     if (!useRemoteWs || publicWs == null) return;
@@ -710,6 +715,37 @@ export default function EventoFormPanel({
     String(form.categoria || "").trim() &&
     String(form.local || "").trim();
 
+  const conflictInfo = useMemo(() => {
+    const date = normalizeEventoDate(form.data);
+    const h = String(form.horario || "").trim();
+    const cat = String(form.categoria || "").trim();
+    if (!date || !h || !cat) return { hasConflict: false, sample: null };
+    const curId = evento?.id != null ? String(evento.id) : null;
+    const match = (Array.isArray(effectiveEventos) ? effectiveEventos : []).find((e) => {
+      const id = e?.id != null ? String(e.id) : null;
+      if (curId && id && id === curId) return false;
+      const ed = normalizeEventoDate(e?.data);
+      const eh = String(e?.horario || "").trim();
+      const ec = String(e?.categoria || "").trim();
+      return ed === date && eh === h && ec === cat;
+    });
+    return { hasConflict: Boolean(match), sample: match || null };
+  }, [effectiveEventos, form.data, form.horario, form.categoria, evento?.id]);
+
+  useEffect(() => {
+    if (!open) {
+      setConflictError("");
+      return;
+    }
+    if (!conflictInfo.hasConflict) {
+      setConflictError("");
+      return;
+    }
+    setConflictError(
+      "Já existe um evento cadastrado com a mesma data, horário e categoria. Ajuste antes de salvar.",
+    );
+  }, [open, conflictInfo.hasConflict]);
+
   const handleDialogOpenChange = (next) => {
     if (!next) onCancel?.();
   };
@@ -916,7 +952,7 @@ export default function EventoFormPanel({
         />
 
         <ComboSugestao
-          label="Pastor"
+          label="Presbítero"
           value={form.pastor}
           onChange={(v) => set("pastor", v)}
           sugestoes={sugestoes.pastor}
@@ -1438,13 +1474,26 @@ export default function EventoFormPanel({
             <Button
               type="button"
               variant="success"
-              onClick={() => save.mutate(form)}
-              disabled={!isValid || save.isPending}
+              onClick={() => {
+                if (conflictInfo.hasConflict) {
+                  setConflictError(
+                    "Não foi possível salvar: já existe um evento com a mesma data, horário e categoria.",
+                  );
+                  return;
+                }
+                save.mutate(form);
+              }}
+              disabled={!isValid || save.isPending || conflictInfo.hasConflict}
             >
               {save.isPending ? "A salvar…" : "Salvar"}
             </Button>
           )}
         </div>
+        {conflictError ? (
+          <p className="mt-2 text-xs text-destructive sm:ml-auto sm:text-right max-w-[34rem]">
+            {conflictError}
+          </p>
+        ) : null}
       </div>
       </DialogContent>
     </Dialog>
