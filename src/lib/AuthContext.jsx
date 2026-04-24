@@ -78,6 +78,8 @@ export function AuthProvider({ children }) {
             role: u.role,
             funcao: u.funcao ?? "",
             avatar_url: u.avatar_url ? String(u.avatar_url) : "",
+            totp_enabled: u.totp_enabled === true,
+            totp_grace_started_at: u.totp_grace_started_at || null,
             _authSource: "server",
           });
           setServerMenuEffective(null);

@@ -407,6 +407,14 @@ export async function updateUserProfile(fields) {
         full_name: u.full_name,
         role: u.role,
         avatar_url: u.avatar_url ? String(u.avatar_url) : "",
+        totp_enabled:
+          typeof u.totp_enabled === "boolean"
+            ? u.totp_enabled
+            : cur.totp_enabled,
+        totp_grace_started_at:
+          u.totp_grace_started_at !== undefined
+            ? u.totp_grace_started_at || null
+            : cur.totp_grace_started_at,
         _authSource: "server",
       };
       persistSessionUser(next);

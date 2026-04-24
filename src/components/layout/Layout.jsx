@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
+import AdminActiveSessionsFab from "@/components/admin/AdminActiveSessionsFab";
 
 export default function Layout() {
   return (
@@ -19,6 +20,7 @@ export default function Layout() {
         </div>
       </main>
       <Footer />
+      <AdminActiveSessionsFab />
     </div>
   );
 }

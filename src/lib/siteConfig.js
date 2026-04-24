@@ -1,7 +1,7 @@
 // Configurações visuais do site.
 // IMPORTANTE: o objetivo é que sejam públicas (persistidas no servidor),
 // com cache local apenas para inicialização mais rápida.
-import { withCsrfHeader } from "@/lib/csrf";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
 
 const KEY = "icer_site_config";
 const SERVER_CACHE_KEY = "icer_site_config_server_cache";
@@ -120,7 +120,10 @@ export async function savePublicSiteConfigAdmin(updates) {
   const r = await fetch("/api/admin/site-config", {
     method: "PUT",
     credentials: "include",
-    headers: withCsrfHeader({ "Content-Type": "application/json", Accept: "application/json" }),
+    headers: await withCsrfHeaderAsync({
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
     body: JSON.stringify(updates || {}),
   });
   const text = await r.text();

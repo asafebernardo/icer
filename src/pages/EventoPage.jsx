@@ -264,9 +264,18 @@ export default function EventoPage() {
                 )}
                 {evento.preletor && (
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                      <Mic2 className="w-4 h-4 text-accent" />
-                    </div>
+                    {evento.preletor_avatar_url ? (
+                      <img
+                        src={evento.preletor_avatar_url}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover border border-border bg-muted shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        <Mic2 className="w-4 h-4 text-accent" />
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground">Preletor</p>
                       <p className="text-sm font-semibold text-foreground">
