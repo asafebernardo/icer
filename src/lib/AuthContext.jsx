@@ -14,6 +14,7 @@ import {
   logout as authLogout,
   updateUserProfile as authUpdateUserProfile,
   isServerAuthEnabled,
+  isDemoAdminSession,
   setServerMenuEffective,
 } from "@/lib/auth";
 import {
@@ -84,7 +85,9 @@ export function AuthProvider({ children }) {
           await ensureCsrfCookieClient();
         } else if (r.status === 401) {
           const cur = getUser();
-          if (cur?._authSource === "server") {
+          // Qualquer espelho local que não seja sessão demo: se o servidor não reconhece sessão, limpar.
+          // Inclui registos antigos sem `_authSource` (antes do campo existir).
+          if (cur && !isDemoAdminSession(cur)) {
             clearSessionUser();
             setServerMenuEffective(null);
           }
@@ -144,6 +147,11 @@ export function AuthProvider({ children }) {
       document.removeEventListener("visibilitychange", schedule);
     };
   }, [validateServerSession]);
+
+  useEffect(() => {
+    if (!isServerAuthEnabled()) return;
+    void validateServerSession();
+  }, [location.pathname, validateServerSession]);
 
   const login = useCallback(async (email, senha) => {
     const result = await authLogin(email, senha);
