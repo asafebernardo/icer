@@ -83,6 +83,8 @@ export function AuthProvider({ children }) {
               _authSource: "server",
             });
             setServerMenuEffective(null);
+            const { ensureCsrfCookieClient } = await import("@/lib/csrf");
+            await ensureCsrfCookieClient();
           } else {
             const cur = getUser();
             if (cur?._authSource === "server") {

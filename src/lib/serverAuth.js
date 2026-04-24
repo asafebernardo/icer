@@ -16,7 +16,8 @@ export async function fetchJson(path, opts = {}) {
     headers["Content-Type"] = "application/json";
   }
   if (opts.method && !/^get$/i.test(String(opts.method))) {
-    const { withCsrfHeader } = await import("@/lib/csrf");
+    const { withCsrfHeader, ensureCsrfCookieClient } = await import("@/lib/csrf");
+    await ensureCsrfCookieClient();
     Object.assign(headers, withCsrfHeader(headers));
   }
   const res = await fetch(`/api${path}`, {

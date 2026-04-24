@@ -39,6 +39,7 @@ import {
   passwordPolicyErrorMessagePt,
   isAccountPasswordPolicyCode,
 } from "@/lib/passwordPolicy";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
 
 function mapPanelApiErrorMessage(msg) {
   const m = String(msg || "");
@@ -147,7 +148,7 @@ export default function ServerUsersPanel() {
       const r = await fetch("/api/admin/users", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           full_name: fullName.trim(),
@@ -194,7 +195,7 @@ export default function ServerUsersPanel() {
       const r = await fetch(`/api/admin/users/${id}`, {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
         body: JSON.stringify({ password: resetPass }),
       });
       const t = await r.text();
@@ -229,6 +230,7 @@ export default function ServerUsersPanel() {
       const r = await fetch(`/api/admin/users/${deleteTarget.id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: await withCsrfHeaderAsync(),
       });
       const t = await r.text();
       let data = {};
