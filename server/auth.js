@@ -79,7 +79,19 @@ export async function getSessionUser(db, token) {
   if (!s) return null;
   const u = await db.collection("users").findOne(
     { id: s.user_id },
-    { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, funcao: 1 } },
+    {
+      projection: {
+        _id: 0,
+        id: 1,
+        email: 1,
+        full_name: 1,
+        role: 1,
+        funcao: 1,
+        avatar_url: 1,
+        totp_enabled: 1,
+        totp_grace_started_at: 1,
+      },
+    },
   );
   return u || null;
 }

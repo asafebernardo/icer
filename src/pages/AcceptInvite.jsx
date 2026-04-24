@@ -5,7 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PageHeader from "@/components/shared/PageHeader";
+import PasswordRevealInput from "@/components/shared/PasswordRevealInput";
 import { fetchJson } from "@/lib/serverAuth";
+import {
+  validateAccountPassword,
+  accountPasswordPolicyHint,
+  passwordPolicyErrorMessagePt,
+  isAccountPasswordPolicyCode,
+} from "@/lib/passwordPolicy";
 
 function useQueryParam(name) {
   const location = useLocation();
@@ -32,8 +39,8 @@ export default function AcceptInvite() {
         .object({
           token: z.string().min(10),
           full_name: z.string().optional(),
-          password: z.string().min(10),
-          password2: z.string().min(10),
+          password: z.string().min(1),
+          password2: z.string().min(1),
         })
         .refine((v) => v.password === v.password2, {
           message: "As palavras-passe não coincidem.",
@@ -55,6 +62,11 @@ export default function AcceptInvite() {
       setError(parsed.error.issues?.[0]?.message || "Dados inválidos.");
       return;
     }
+    const policy = validateAccountPassword(parsed.data.password);
+    if (!policy.ok) {
+      setError(passwordPolicyErrorMessagePt(policy.code));
+      return;
+    }
     setIsSubmitting(true);
     try {
       await fetchJson("/auth/accept-invite", {
@@ -73,6 +85,8 @@ export default function AcceptInvite() {
         setError("Convite inválido ou expirado.");
       } else if (msg === "password_already_set") {
         setError("Este convite já foi usado.");
+      } else if (isAccountPasswordPolicyCode(msg)) {
+        setError(passwordPolicyErrorMessagePt(msg));
       } else {
         setError(msg || "Não foi possível cadastrar a palavra-passe.");
       }
@@ -111,20 +125,23 @@ export default function AcceptInvite() {
                     autoComplete="name"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  {accountPasswordPolicyHint()}
+                </p>
                 <div className="space-y-2">
-                  <Label>Nova palavra-passe</Label>
-                  <Input
-                    type="password"
+                  <Label htmlFor="invite-pw">Nova palavra-passe</Label>
+                  <PasswordRevealInput
+                    id="invite-pw"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 10 caracteres"
+                    placeholder="Defina a palavra-passe"
                     autoComplete="new-password"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Confirmar palavra-passe</Label>
-                  <Input
-                    type="password"
+                  <Label htmlFor="invite-pw2">Confirmar palavra-passe</Label>
+                  <PasswordRevealInput
+                    id="invite-pw2"
                     value={password2}
                     onChange={(e) => setPassword2(e.target.value)}
                     placeholder="Repita a palavra-passe"

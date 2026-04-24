@@ -46,13 +46,11 @@ import { fetchPublicWorkspaceJson, putAdminPublicWorkspace } from "@/lib/publicW
 import {
   DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
   DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
-  DEFAULT_HOME_INSTAGRAM_CARD_URL,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE,
   DEFAULT_HOME_YOUTUBE_CARD_TEXT,
   DEFAULT_HOME_YOUTUBE_CARD_TITLE,
-  DEFAULT_HOME_YOUTUBE_CARD_URL,
 } from "@/lib/homeContentDefaults";
 
 async function fetchHomeViewsAdmin(params) {
@@ -182,12 +180,6 @@ export default function AdminSitePanel() {
       ? String(c.homeYoutubeCardText ?? "").trim()
       : DEFAULT_HOME_YOUTUBE_CARD_TEXT;
   });
-  const [homeYtUrl, setHomeYtUrl] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeYoutubeCardUrl")
-      ? String(c.homeYoutubeCardUrl ?? "").trim()
-      : DEFAULT_HOME_YOUTUBE_CARD_URL;
-  });
   const [homeIgTitle, setHomeIgTitle] = useState(() => {
     const c = getSiteConfig();
     return cfgOwn(c, "homeInstagramCardTitle")
@@ -199,12 +191,6 @@ export default function AdminSitePanel() {
     return cfgOwn(c, "homeInstagramCardText")
       ? String(c.homeInstagramCardText ?? "").trim()
       : DEFAULT_HOME_INSTAGRAM_CARD_TEXT;
-  });
-  const [homeIgUrl, setHomeIgUrl] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeInstagramCardUrl")
-      ? String(c.homeInstagramCardUrl ?? "").trim()
-      : DEFAULT_HOME_INSTAGRAM_CARD_URL;
   });
   const [savingHomeCards, setSavingHomeCards] = useState(false);
   const [homeSocialSectionTag, setHomeSocialSectionTag] = useState(() => {
@@ -255,11 +241,6 @@ export default function AdminSitePanel() {
         ? String(c.homeYoutubeCardText ?? "").trim()
         : DEFAULT_HOME_YOUTUBE_CARD_TEXT,
     );
-    setHomeYtUrl(
-      cfgOwn(c, "homeYoutubeCardUrl")
-        ? String(c.homeYoutubeCardUrl ?? "").trim()
-        : DEFAULT_HOME_YOUTUBE_CARD_URL,
-    );
     setHomeIgTitle(
       cfgOwn(c, "homeInstagramCardTitle")
         ? String(c.homeInstagramCardTitle ?? "").trim()
@@ -269,11 +250,6 @@ export default function AdminSitePanel() {
       cfgOwn(c, "homeInstagramCardText")
         ? String(c.homeInstagramCardText ?? "").trim()
         : DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
-    );
-    setHomeIgUrl(
-      cfgOwn(c, "homeInstagramCardUrl")
-        ? String(c.homeInstagramCardUrl ?? "").trim()
-        : DEFAULT_HOME_INSTAGRAM_CARD_URL,
     );
   };
 
@@ -354,10 +330,8 @@ export default function AdminSitePanel() {
         homeSocialCardsSectionSubtitle: homeSocialSectionSubtitle.trim(),
         homeYoutubeCardTitle: homeYtTitle.trim(),
         homeYoutubeCardText: homeYtText.trim(),
-        homeYoutubeCardUrl: homeYtUrl.trim(),
         homeInstagramCardTitle: homeIgTitle.trim(),
         homeInstagramCardText: homeIgText.trim(),
-        homeInstagramCardUrl: homeIgUrl.trim(),
       });
       await refreshPublicSiteConfig();
       toast.success("Cartões da home atualizados.");
@@ -728,10 +702,14 @@ export default function AdminSitePanel() {
               <Input
                 id="home-yt-url"
                 type="url"
-                placeholder="https://www.youtube.com/@…"
-                value={homeYtUrl}
-                onChange={(e) => setHomeYtUrl(e.target.value)}
+                placeholder="(usa o link definido em Redes sociais)"
+                value={socialYoutube}
+                disabled
               />
+              <p className="text-xs text-muted-foreground">
+                Para alterar o link do cartão e do rodapé, edite em{" "}
+                <span className="font-medium text-foreground">Redes sociais</span>.
+              </p>
             </div>
           </div>
           <div className="space-y-4 rounded-xl border border-border/80 p-4 bg-muted/20">
@@ -758,10 +736,14 @@ export default function AdminSitePanel() {
               <Input
                 id="home-ig-url"
                 type="url"
-                placeholder="https://www.instagram.com/…"
-                value={homeIgUrl}
-                onChange={(e) => setHomeIgUrl(e.target.value)}
+                placeholder="(usa o link definido em Redes sociais)"
+                value={socialInstagram}
+                disabled
               />
+              <p className="text-xs text-muted-foreground">
+                Para alterar o link do cartão e do rodapé, edite em{" "}
+                <span className="font-medium text-foreground">Redes sociais</span>.
+              </p>
             </div>
           </div>
         </div>

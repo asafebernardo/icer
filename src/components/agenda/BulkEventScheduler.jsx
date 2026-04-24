@@ -43,6 +43,15 @@ import {
 import MonthlyCalendar from "@/components/agenda/MonthlyCalendar";
 import { toast } from "sonner";
 
+function randomBatchId() {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  } catch {
+    /* ignore */
+  }
+  return `bulk_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
 const WEEKDAYS = [
   { value: "0", label: "Domingo" },
   { value: "1", label: "Segunda-feira" },
@@ -685,6 +694,9 @@ export default function BulkEventScheduler({
     }
     setCreating(true);
     setCreatedCount(0);
+    const batchId = randomBatchId();
+    /** @type {number[]} */
+    const createdIds = [];
     try {
       for (let i = 0; i < dates.length; i += 1) {
         const d = dates[i];
@@ -702,8 +714,29 @@ export default function BulkEventScheduler({
           pastor: String(people.presbitero || "").trim(), // campo da API continua `pastor`
         });
         // eslint-disable-next-line no-await-in-loop
-        await api.entities.Evento.create(payload);
+        const created = await api.entities.Evento.create({
+          ...payload,
+          bulk_batch_id: batchId,
+        });
+        if (created?.id != null) createdIds.push(Number(created.id));
         setCreatedCount(i + 1);
+      }
+      try {
+        await fetch("/api/admin/eventos/bulk-runs", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            batch_id: batchId,
+            titulo: titulo.trim(),
+            categoria,
+            range_start: startDate,
+            range_end: endDate,
+            created_event_ids: createdIds,
+          }),
+        });
+      } catch {
+        // Se falhar o registro da rotina, não bloqueia a criação dos eventos.
       }
       toast.success(`Criados ${dates.length} eventos.`);
       onDone?.();

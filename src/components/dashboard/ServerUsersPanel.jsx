@@ -6,13 +6,6 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -21,11 +14,37 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, RefreshCw, Shield, KeyRound, ScrollText } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from "@/lib/AuthContext";
+import { Users, RefreshCw, Shield, KeyRound, ScrollText, Trash2 } from "lucide-react";
 import {
   labelForAction,
   formatAuditDetails,
 } from "@/lib/auditLogLabels";
+import { formatAdminUserDeleteError } from "@/lib/adminUserDeleteMessages";
+import UserAvatar from "@/components/shared/UserAvatar";
+import PasswordRevealInput from "@/components/shared/PasswordRevealInput";
+import {
+  validateAccountPassword,
+  accountPasswordPolicyHint,
+  passwordPolicyErrorMessagePt,
+  isAccountPasswordPolicyCode,
+} from "@/lib/passwordPolicy";
+
+function mapPanelApiErrorMessage(msg) {
+  const m = String(msg || "");
+  if (isAccountPasswordPolicyCode(m)) return passwordPolicyErrorMessagePt(m);
+  return m;
+}
 
 function formatTs(iso) {
   if (!iso) return "—";
@@ -72,20 +91,20 @@ async function fetchUserAuditLog(userId) {
 }
 
 export default function ServerUsersPanel() {
+  const { user: sessionUser } = useAuth();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("user");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
   const [resetId, setResetId] = useState(null);
   const [resetPass, setResetPass] = useState("");
-  const [roleEditById, setRoleEditById] = useState({});
-  const [roleBusyById, setRoleBusyById] = useState({});
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityUserId, setActivityUserId] = useState(null);
   const [activityUserLabel, setActivityUserLabel] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const { data: users = [], isLoading, refetch, error } = useQuery({
     queryKey: ["server-admin-users"],
@@ -108,10 +127,18 @@ export default function ServerUsersPanel() {
 
   const handleCreate = async () => {
     setMsg(null);
-    if (!email.trim() || !fullName.trim() || password.length < 10) {
+    if (!email.trim() || !fullName.trim()) {
       setMsg({
         type: "err",
-        text: "Preencha e-mail, nome e palavra-passe (mín. 10 caracteres).",
+        text: "Preencha e-mail e nome.",
+      });
+      return;
+    }
+    const pwCheck = validateAccountPassword(password);
+    if (!pwCheck.ok) {
+      setMsg({
+        type: "err",
+        text: passwordPolicyErrorMessagePt(pwCheck.code),
       });
       return;
     }
@@ -124,7 +151,6 @@ export default function ServerUsersPanel() {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           full_name: fullName.trim(),
-          role,
           password,
         }),
       });
@@ -136,13 +162,12 @@ export default function ServerUsersPanel() {
         data = { message: t };
       }
       if (!r.ok) {
-        throw new Error(data.message || r.statusText);
+        throw new Error(mapPanelApiErrorMessage(data.message) || r.statusText);
       }
       setEmail("");
       setFullName("");
       setPassword("");
-      setRole("user");
-      setMsg({ type: "ok", text: "Utilizador criado." });
+      setMsg({ type: "ok", text: "Administrador criado." });
       await qc.invalidateQueries({ queryKey: ["server-admin-users"] });
     } catch (e) {
       setMsg({
@@ -155,10 +180,11 @@ export default function ServerUsersPanel() {
   };
 
   const handleResetPassword = async (id) => {
-    if (!resetPass || resetPass.length < 10) {
+    const resetCheck = validateAccountPassword(resetPass);
+    if (!resetCheck.ok) {
       setMsg({
         type: "err",
-        text: "Nova palavra-passe com pelo menos 10 caracteres.",
+        text: passwordPolicyErrorMessagePt(resetCheck.code),
       });
       return;
     }
@@ -179,7 +205,7 @@ export default function ServerUsersPanel() {
         data = { message: t };
       }
       if (!r.ok) {
-        throw new Error(data.message || r.statusText);
+        throw new Error(mapPanelApiErrorMessage(data.message) || r.statusText);
       }
       setResetId(null);
       setResetPass("");
@@ -195,36 +221,35 @@ export default function ServerUsersPanel() {
     }
   };
 
-  const handleUpdateRole = async (id, nextRole) => {
-    const r = String(nextRole || "").trim();
-    if (r !== "admin" && r !== "user") return;
-    setRoleBusyById((m) => ({ ...m, [id]: true }));
+  const handleConfirmDelete = async () => {
+    if (deleteTarget == null) return;
+    setDeleteBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/admin/users/${id}`, {
-        method: "PUT",
+      const r = await fetch(`/api/admin/users/${deleteTarget.id}`, {
+        method: "DELETE",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: r }),
       });
-      const t = await res.text();
+      const t = await r.text();
       let data = {};
       try {
         data = t ? JSON.parse(t) : {};
       } catch {
         data = { message: t };
       }
-      if (!res.ok) throw new Error(data.message || res.statusText);
-      setMsg({ type: "ok", text: "Tipo de conta atualizado." });
-      setRoleEditById((m) => ({ ...m, [id]: r }));
+      if (!r.ok) {
+        throw new Error(formatAdminUserDeleteError(data.message || t));
+      }
+      setDeleteTarget(null);
+      setMsg({ type: "ok", text: "Conta eliminada." });
       await qc.invalidateQueries({ queryKey: ["server-admin-users"] });
     } catch (e) {
       setMsg({
         type: "err",
-        text: e?.message || "Não foi possível atualizar o tipo de conta.",
+        text: e?.message || "Não foi possível eliminar a conta.",
       });
     } finally {
-      setRoleBusyById((m) => ({ ...m, [id]: false }));
+      setDeleteBusy(false);
     }
   };
 
@@ -243,11 +268,11 @@ export default function ServerUsersPanel() {
             </div>
             <div>
               <h2 className="font-semibold text-foreground text-lg">
-                Contas no servidor
+                Contas no servidor (MongoDB)
               </h2>
               <p className="text-sm text-muted-foreground">
-                Utilizadores no servidor (MongoDB + sessão). Apenas
-                administradores.
+                Todas as contas são administradores. Criar, redefinir
+                palavra-passe ou eliminar utilizadores.
               </p>
             </div>
           </div>
@@ -274,22 +299,25 @@ export default function ServerUsersPanel() {
           </p>
         ) : (
           <div className="space-y-3">
-            {users.map((u) => (
+            {users.map((u) => {
+              const isSelf =
+                sessionUser?.id != null && Number(sessionUser.id) === Number(u.id);
+              return (
               <div
                 key={u.id}
                 className="border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
-                <div className="min-w-0 space-y-1">
+                <div className="min-w-0 flex gap-3">
+                  <UserAvatar user={u} className="h-10 w-10 shrink-0" />
+                  <div className="min-w-0 space-y-1 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-foreground truncate">
                       {u.full_name || "—"}
                     </span>
-                    {u.role === "admin" && (
-                      <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-1">
-                        <Shield className="w-3 h-3" />
-                        Admin
-                      </span>
-                    )}
+                    <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      Admin
+                    </span>
                   </div>
                   <p className="text-sm text-muted-foreground truncate">
                     {u.email}
@@ -298,60 +326,16 @@ export default function ServerUsersPanel() {
                     Criado: {formatTs(u.created_at)} · Atualizado:{" "}
                     {formatTs(u.updated_at)}
                   </p>
+                  </div>
                 </div>
                 <div className="flex flex-col sm:items-end gap-2 shrink-0">
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <div className="w-full sm:w-56">
-                      <Select
-                        value={
-                          roleEditById[u.id] ??
-                          (u.role === "admin" ? "admin" : "user")
-                        }
-                        onValueChange={(v) =>
-                          setRoleEditById((m) => ({ ...m, [u.id]: v }))
-                        }
-                        disabled={!!roleBusyById[u.id] || resetId === u.id}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Tipo..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">Utilizador</SelectItem>
-                          <SelectItem value="admin">Administrador</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={
-                        !!roleBusyById[u.id] ||
-                        (roleEditById[u.id] ?? (u.role === "admin" ? "admin" : "user")) ===
-                          (u.role === "admin" ? "admin" : "user")
-                      }
-                      onClick={() =>
-                        handleUpdateRole(
-                          u.id,
-                          roleEditById[u.id] ?? (u.role === "admin" ? "admin" : "user"),
-                        )
-                      }
-                    >
-                      {roleBusyById[u.id] ? (
-                        <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                      ) : (
-                        <Shield className="w-4 h-4 mr-1" />
-                      )}
-                      Atualizar tipo
-                    </Button>
-                  </div>
                   {resetId === u.id ? (
                     <div className="flex flex-col gap-2 w-full sm:w-64">
-                      <Input
-                        type="password"
-                        placeholder="Nova palavra-passe (mín. 10)"
+                      <PasswordRevealInput
+                        placeholder="Nova palavra-passe"
                         value={resetPass}
                         onChange={(e) => setResetPass(e.target.value)}
+                        autoComplete="new-password"
                       />
                       <div className="flex gap-2">
                         <Button
@@ -400,11 +384,32 @@ export default function ServerUsersPanel() {
                       >
                         Redefinir palavra-passe
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                        disabled={isSelf}
+                        title={
+                          isSelf
+                            ? "Não pode eliminar a sua própria sessão aqui"
+                            : "Eliminar conta do site"
+                        }
+                        onClick={() =>
+                          setDeleteTarget({
+                            id: u.id,
+                            label: u.full_name || u.email || `ID ${u.id}`,
+                          })
+                        }
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Eliminar conta
+                      </Button>
                     </div>
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </motion.div>
@@ -500,6 +505,40 @@ export default function ServerUsersPanel() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar conta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isto remove o utilizador{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget?.label || "—"}
+              </span>{" "}
+              da base de dados e invalida as sessões dele. Esta ação não pode
+              ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDelete();
+              }}
+            >
+              {deleteBusy ? "A eliminar…" : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -510,8 +549,7 @@ export default function ServerUsersPanel() {
           Novo utilizador
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          A palavra-passe inicial deve ter pelo menos 10 caracteres (requisito do
-          servidor).
+          {accountPasswordPolicyHint()}
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
@@ -534,25 +572,13 @@ export default function ServerUsersPanel() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Função</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user">Utilizador</SelectItem>
-                <SelectItem value="admin">Administrador</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="srv-pass">Palavra-passe inicial</Label>
-            <Input
+            <PasswordRevealInput
               id="srv-pass"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 10 caracteres"
+              autoComplete="new-password"
+              placeholder="Cumprir requisitos acima"
             />
           </div>
         </div>

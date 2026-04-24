@@ -15,7 +15,6 @@ import {
   Moon,
   X,
   User,
-  Shield,
   LogOut,
   ImagePlus,
   Trash2,
@@ -29,11 +28,12 @@ import {
 } from "@/lib/siteConfig";
 import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, isAdminUser, logout as authLogout, MENU } from "@/lib/auth";
+import { canMenuAction, logout as authLogout, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import SiteLogoMark, {
   useSiteLogoUrl,
 } from "@/components/layout/SiteLogoMark";
+import UserAvatar from "@/components/shared/UserAvatar";
 
 // Menus base (sempre visíveis)
 const BASE_LINKS = [
@@ -54,7 +54,6 @@ export default function Navbar() {
   const isLoggedIn = !!sessionUser;
   const user = sessionUser;
   const canEditLogo = canMenuAction(sessionUser, MENU.HOME, "edit");
-  const showDashboardAdminIcon = isAdminUser(sessionUser);
   const logoUrl = useSiteLogoUrl();
 
   return (
@@ -191,7 +190,7 @@ export default function Navbar() {
                       size="sm"
                       className="flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground min-h-[40px] px-3"
                     >
-                      <User className="w-4 h-4" />
+                      <UserAvatar user={user} className="h-8 w-8" />
                       <span className="text-sm font-medium max-w-[120px] truncate">
                         {user?.full_name || user?.email}
                       </span>
@@ -200,7 +199,7 @@ export default function Navbar() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <Link to="/Dashboard" className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
+                        <UserAvatar user={user} className="h-7 w-7" />
                         <span>Minha Área</span>
                       </Link>
                     </DropdownMenuItem>
@@ -281,11 +280,7 @@ export default function Navbar() {
                             onClick={() => setOpen(false)}
                             className="w-full min-h-[48px] flex items-center gap-2 px-4 py-3 text-[15px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80"
                           >
-                            {showDashboardAdminIcon ? (
-                              <Shield className="w-4 h-4" />
-                            ) : (
-                              <User className="w-4 h-4" />
-                            )}
+                            <UserAvatar user={user} className="h-8 w-8" />
                             Minha Área
                           </Link>
                           <button

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Plus, ImagePlus, Star, Palette } from "lucide-react";
+import { X, Plus, ImagePlus, Palette } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { EVENT_CARD_COLOR_OPTIONS } from "@/lib/eventCardColors";
@@ -768,6 +768,17 @@ export default function EventoFormPanel({
         </DialogHeader>
 
       <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[min(70vh,720px)]">
+        {/* Destaque na home (discreto, no topo) */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-2">
+          <p className="text-sm font-semibold text-foreground">
+            Destacar evento
+          </p>
+          <Switch
+            checked={form.destaque}
+            onCheckedChange={(v) => set("destaque", v)}
+          />
+        </div>
+
         {/* Etapas */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -1021,21 +1032,7 @@ export default function EventoFormPanel({
           />
         </div>
 
-        <div className="flex items-center gap-3 bg-accent/5 p-3 rounded-lg border border-accent/10">
-          <Star className="w-4 h-4 text-accent fill-accent shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground">
-              Destaque na home
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Mostrar este evento em destaque
-            </p>
-          </div>
-          <Switch
-            checked={form.destaque}
-            onCheckedChange={(v) => set("destaque", v)}
-          />
-        </div>
+        {/* Destaque na home: movido para o topo do formulário */}
           </>
         ) : null}
 

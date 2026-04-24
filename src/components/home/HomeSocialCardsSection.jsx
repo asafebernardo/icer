@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Instagram, Youtube } from "lucide-react";
 import { getSiteConfig } from "@/lib/siteConfig";
-import { normalizeHttpUrl } from "@/lib/socialLinks";
+import { normalizeHttpUrl, resolveSocialLinksFromConfig } from "@/lib/socialLinks";
 import {
   DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
   DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
-  DEFAULT_HOME_INSTAGRAM_CARD_URL,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE,
   DEFAULT_HOME_YOUTUBE_CARD_TEXT,
   DEFAULT_HOME_YOUTUBE_CARD_TITLE,
-  DEFAULT_HOME_YOUTUBE_CARD_URL,
 } from "@/lib/homeContentDefaults";
 
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -35,6 +33,7 @@ function pickCardUrl(c, key, defaultUrl) {
 
 function readCards(cfg) {
   const c = cfg && typeof cfg === "object" ? cfg : {};
+  const social = resolveSocialLinksFromConfig(c);
   return {
     sectionTag: pickStr(
       c,
@@ -52,12 +51,14 @@ function readCards(cfg) {
       DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
     ),
     youtube: {
-      url: pickCardUrl(c, "homeYoutubeCardUrl", DEFAULT_HOME_YOUTUBE_CARD_URL),
+      // Unificado: por omissão usa o link global de redes sociais (rodapé).
+      // Compat: se não houver social.youtube, usa a chave legada do cartão (se existir).
+      url: social.youtube || pickCardUrl(c, "homeYoutubeCardUrl", ""),
       title: pickStr(c, "homeYoutubeCardTitle", DEFAULT_HOME_YOUTUBE_CARD_TITLE),
       text: pickStr(c, "homeYoutubeCardText", DEFAULT_HOME_YOUTUBE_CARD_TEXT),
     },
     instagram: {
-      url: pickCardUrl(c, "homeInstagramCardUrl", DEFAULT_HOME_INSTAGRAM_CARD_URL),
+      url: social.instagram || pickCardUrl(c, "homeInstagramCardUrl", ""),
       title: pickStr(
         c,
         "homeInstagramCardTitle",

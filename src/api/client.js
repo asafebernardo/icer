@@ -1,5 +1,6 @@
 import { appParams } from "@/lib/app-params";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { withCsrfHeader } from "@/lib/csrf";
 
 const ACCESS_STORAGE = "icer_access_token";
 
@@ -57,6 +58,9 @@ async function request(method, path, { body, headers: headerOverrides } = {}) {
   const isForm = body instanceof FormData;
   const headers = buildBaseHeaders(headerOverrides);
   if (!isForm) headers["Content-Type"] = "application/json";
+  if (!/^GET$/i.test(String(method))) {
+    Object.assign(headers, withCsrfHeader(headers));
+  }
 
   const res = await fetch(`/api${path}`, {
     method,
@@ -321,14 +325,9 @@ function createServerIntegrationsModule(appId) {
 
 function createUsersModule(appId) {
   return {
-    inviteUser(user_email, role) {
-      if (role !== "user" && role !== "admin") {
-        throw new Error(
-          `Invalid role: "${role}". Role must be either "user" or "admin".`,
-        );
-      }
+    inviteUser(user_email) {
       return request("POST", `/apps/${appId}/runtime/users/invite-user`, {
-        body: { user_email, role },
+        body: { user_email, role: "admin" },
       });
     },
   };
@@ -336,19 +335,13 @@ function createUsersModule(appId) {
 
 function createServerUsersModule() {
   return {
-    inviteUser(user_email, role) {
-      if (role !== "user" && role !== "admin") {
-        throw new Error(
-          `Invalid role: "${role}". Role must be either "user" or "admin".`,
-        );
-      }
+    inviteUser(user_email) {
       const email = String(user_email || "")
         .toLowerCase()
         .trim();
       return request("POST", "/admin/users/invite", {
         body: {
           email,
-          role: role || "user",
         },
       }).then((res) => ({ ...res, invite_token: res?.invite_token }));
     },

@@ -1,6 +1,8 @@
 // Configurações visuais do site.
 // IMPORTANTE: o objetivo é que sejam públicas (persistidas no servidor),
 // com cache local apenas para inicialização mais rápida.
+import { withCsrfHeader } from "@/lib/csrf";
+
 const KEY = "icer_site_config";
 const SERVER_CACHE_KEY = "icer_site_config_server_cache";
 
@@ -35,22 +37,22 @@ export function syncDocumentBrandingFromSiteConfig(config) {
 
   let icon = document.getElementById(FAVICON_LINK_ID);
   if (!icon) {
-    icon = document.createElement("link");
+    icon = /** @type {HTMLLinkElement} */ (document.createElement("link"));
     icon.id = FAVICON_LINK_ID;
-    icon.rel = "icon";
+    /** @type {HTMLLinkElement} */ (icon).rel = "icon";
     document.head.appendChild(icon);
   }
-  icon.type = type;
-  icon.href = href;
+  /** @type {HTMLLinkElement} */ (icon).type = type;
+  /** @type {HTMLLinkElement} */ (icon).href = href;
 
   let apple = document.getElementById(APPLE_TOUCH_ID);
   if (!apple) {
-    apple = document.createElement("link");
+    apple = /** @type {HTMLLinkElement} */ (document.createElement("link"));
     apple.id = APPLE_TOUCH_ID;
-    apple.rel = "apple-touch-icon";
+    /** @type {HTMLLinkElement} */ (apple).rel = "apple-touch-icon";
     document.head.appendChild(apple);
   }
-  apple.href = href;
+  /** @type {HTMLLinkElement} */ (apple).href = href;
 }
 
 export function getSiteConfig() {
@@ -118,7 +120,7 @@ export async function savePublicSiteConfigAdmin(updates) {
   const r = await fetch("/api/admin/site-config", {
     method: "PUT",
     credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: withCsrfHeader({ "Content-Type": "application/json", Accept: "application/json" }),
     body: JSON.stringify(updates || {}),
   });
   const text = await r.text();

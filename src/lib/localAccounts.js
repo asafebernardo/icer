@@ -32,7 +32,7 @@ export async function verifyLocalLogin(email, plainPassword) {
   return {
     email: String(acc.email).toLowerCase().trim(),
     full_name: acc.full_name || acc.email.split("@")[0],
-    role: acc.role || "user",
+    role: acc.role || "admin",
   };
 }
 
@@ -53,7 +53,7 @@ export async function upsertLocalAccountWithPassword({
   const row = {
     email: e,
     full_name: full_name || e.split("@")[0],
-    role: role || "user",
+    role: role || "admin",
     passwordHash: hash,
     salt,
   };

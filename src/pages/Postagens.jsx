@@ -495,7 +495,14 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
     try {
       const next = [...anexos];
       for (const file of files) {
-        const { file_url } = await uploadIntegrationFile(file);
+        const mime = String(file?.type || "");
+        const isVisual = mime.startsWith("image/") || mime.startsWith("video/");
+        if (!isVisual) {
+          throw new Error(
+            "Em postagens, só é permitido enviar imagens e vídeos.",
+          );
+        }
+        const { file_url } = await uploadIntegrationFile(file, { purpose: "post_media" });
         if (file_url) {
           next.push({
             url: file_url,
@@ -506,8 +513,11 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
         }
       }
       setAnexos(next);
-    } catch {
-      setError("Não foi possível enviar uma ou mais imagens. Tente novamente.");
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Não foi possível enviar um ou mais ficheiros. Tente novamente.",
+      );
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -604,7 +614,7 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
 
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label>Arquivos (qualquer tipo, quantos quiser)</Label>
+              <Label>Arquivos (apenas imagens e vídeos)</Label>
               <label
                 className={`flex items-center gap-2 cursor-pointer border-2 border-dashed border-border rounded-xl p-4 hover:border-accent/50 ${uploading ? "opacity-50 pointer-events-none" : ""}`}
               >
@@ -614,7 +624,7 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
                 </span>
                 <input
                   type="file"
-                  accept="*/*"
+                  accept="image/*,video/*"
                   multiple
                   className="hidden"
                   onChange={handleAddMedia}

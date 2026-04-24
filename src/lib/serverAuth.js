@@ -15,6 +15,10 @@ export async function fetchJson(path, opts = {}) {
   if (body && !(body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
+  if (opts.method && !/^get$/i.test(String(opts.method))) {
+    const { withCsrfHeader } = await import("@/lib/csrf");
+    Object.assign(headers, withCsrfHeader(headers));
+  }
   const res = await fetch(`/api${path}`, {
     credentials: "include",
     ...opts,

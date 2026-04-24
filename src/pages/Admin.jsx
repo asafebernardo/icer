@@ -50,6 +50,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
+import UserAvatar from "@/components/shared/UserAvatar";
 
 const MEMBER_MENUS = [
   { key: "galeria", label: "Galeria de Fotos" },
@@ -80,22 +81,14 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [inviteLink, setInviteLink] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [updatingRole, setUpdatingRole] = useState({});
   const [togglingDisabled, setTogglingDisabled] = useState({});
   const [deletingUser, setDeletingUser] = useState({});
   const queryClient = useQueryClient();
 
-  const handleRoleChange = async (userId, newRole) => {
-    setUpdatingRole((r) => ({ ...r, [userId]: true }));
-    await api.entities.User.update(userId, { role: newRole });
-    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-    setUpdatingRole((r) => ({ ...r, [userId]: false }));
-  };
-
   const handleInvite = async () => {
     if (!inviteEmail.trim()) return;
     setInviteLoading(true);
-    const r = await api.users.inviteUser(inviteEmail.trim(), "user");
+    const r = await api.users.inviteUser(inviteEmail.trim());
     const token = r?.invite_token;
     const link = token
       ? `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`
@@ -240,11 +233,7 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
                 className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-semibold text-primary">
-                      {(u.full_name || u.email || "?")[0].toUpperCase()}
-                    </span>
-                  </div>
+                  <UserAvatar user={u} className="h-9 w-9 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
                       {u.full_name || "—"}
@@ -260,29 +249,10 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
-                  {updatingRole[u.id] ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
-                  ) : (
-                    <Select
-                      value={u.role || "user"}
-                      onValueChange={(val) =>
-                        val !== u.role && handleRoleChange(u.id, val)
-                      }
-                      disabled={u.id === user?.id}
-                    >
-                      <SelectTrigger className="h-8 w-28 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="user">Membro</SelectItem>
-                        <SelectItem value="admin">
-                          <span className="flex items-center gap-1">
-                            <Shield className="w-3 h-3" /> Admin
-                          </span>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    Admin
+                  </span>
 
                   <Button
                     type="button"
