@@ -28,7 +28,7 @@ import {
 } from "@/lib/siteConfig";
 import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, logout as authLogout, MENU } from "@/lib/auth";
+import { canMenuAction, logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import SiteLogoMark, {
   useSiteLogoUrl,
@@ -55,6 +55,7 @@ export default function Navbar() {
   const user = sessionUser;
   const canEditLogo = canMenuAction(sessionUser, MENU.HOME, "edit");
   const logoUrl = useSiteLogoUrl();
+  const dashboardLinkLabel = isAdminUser(sessionUser) ? "Configurações" : "Minha área";
 
   return (
     <nav
@@ -200,7 +201,7 @@ export default function Navbar() {
                     <DropdownMenuItem asChild>
                       <Link to="/Dashboard" className="flex items-center gap-2">
                         <UserAvatar user={user} className="h-7 w-7" />
-                        <span>Minha Área</span>
+                        <span>{dashboardLinkLabel}</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -281,7 +282,7 @@ export default function Navbar() {
                             className="w-full min-h-[48px] flex items-center gap-2 px-4 py-3 text-[15px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80"
                           >
                             <UserAvatar user={user} className="h-8 w-8" />
-                            Minha Área
+                            {dashboardLinkLabel}
                           </Link>
                           <button
                             type="button"

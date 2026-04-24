@@ -233,7 +233,7 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
                 className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <UserAvatar user={u} className="h-9 w-9 shrink-0" />
+                  <UserAvatar user={u} className="h-9 w-9 shrink-0" showTwoFactorBadge={false} />
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
                       {u.full_name || "—"}
@@ -465,46 +465,6 @@ function TabSite() {
       }
     } else {
       localStorage.setItem("icer_member_menus", JSON.stringify(updated));
-    }
-  };
-
-  const {
-    data: activeSessions = [],
-    isLoading: loadingSessions,
-    refetch: refetchSessions,
-  } = useQuery({
-    queryKey: ["admin-active-sessions"],
-    queryFn: async () => {
-      const r = await fetch("/api/admin/sessions/active", {
-        credentials: "include",
-      });
-      if (!r.ok) throw new Error("Erro ao carregar sessões.");
-      return r.json();
-    },
-  });
-
-  const [kickingUser, setKickingUser] = useState({});
-  const kickUser = async (userId) => {
-    setKickingUser((m) => ({ ...m, [userId]: true }));
-    try {
-      const r = await fetch(`/api/admin/sessions/active/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const text = await r.text();
-      let parsed = null;
-      try {
-        parsed = text ? JSON.parse(text) : null;
-      } catch {
-        parsed = null;
-      }
-      if (!r.ok) throw new Error(parsed?.message || "Não foi possível derrubar.");
-      toast.success("Sessão derrubada.");
-      refetchSessions();
-    } catch (e) {
-      toast.error(e?.message || "Erro ao derrubar sessão.");
-    } finally {
-      setKickingUser((m) => ({ ...m, [userId]: false }));
     }
   };
 
@@ -853,88 +813,6 @@ function TabSite() {
           A paleta é guardada neste navegador (localStorage) com as permissões
           de menus.
         </p>
-      </motion.div>
-
-      {/* Sessões ativas */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.09 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground text-lg">
-                Usuários logados agora
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {Array.isArray(activeSessions) ? activeSessions.length : 0} sessão(ões)
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => refetchSessions()}
-            disabled={loadingSessions}
-            title="Atualizar"
-          >
-            <RefreshCw className={`w-4 h-4 ${loadingSessions ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
-
-        {loadingSessions ? (
-          <div className="space-y-3">
-            {Array(3)
-              .fill(0)
-              .map((_, i) => (
-                <Skeleton key={i} className="h-14 rounded-xl" />
-              ))}
-          </div>
-        ) : !Array.isArray(activeSessions) || activeSessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-6">
-            Nenhuma sessão ativa.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {activeSessions.map((s) => (
-              <div
-                key={s.token_hash}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {s.user_full_name || "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {s.user_email || `user_id=${s.user_id}`}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    expira: {String(s.expires_at).replace("T", " ").replace("Z", "")}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  disabled={kickingUser[s.user_id] === true || s.user_id === user?.id}
-                  onClick={() => kickUser(s.user_id)}
-                >
-                  {kickingUser[s.user_id] ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "Derrubar"
-                  )}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
       </motion.div>
 
       {/* Limpeza de usuários locais antigos */}

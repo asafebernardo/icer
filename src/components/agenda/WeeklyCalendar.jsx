@@ -115,9 +115,19 @@ function EventoCard({ evento, idx, onSelect, periodKey, showPreletorCards }) {
           {evento.titulo}
         </p>
         {showPreletorCards ? (
-          <p className="mt-0.5 text-[10px] font-medium text-muted-foreground leading-snug line-clamp-1">
-            {String(evento.preletor || "").trim() || "—"}
-          </p>
+          <div className="mt-1 flex items-center gap-1.5 min-w-0">
+            {evento.preletor_avatar_url ? (
+              <img
+                src={evento.preletor_avatar_url}
+                alt=""
+                className="h-4 w-4 rounded-full object-cover border border-border/70 shrink-0"
+                loading="lazy"
+              />
+            ) : null}
+            <p className="text-[10px] font-medium text-muted-foreground leading-snug line-clamp-1 min-w-0">
+              {String(evento.preletor || "").trim() || "—"}
+            </p>
+          </div>
         ) : null}
       </div>
     </motion.button>

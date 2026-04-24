@@ -1,8 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { HardDrive, Loader2, Download, AlertTriangle } from "lucide-react";
+import { HardDrive, Loader2, Download, AlertTriangle, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
+
+const WEEKDAYS_PT = [
+  { v: 0, label: "Domingo" },
+  { v: 1, label: "Segunda-feira" },
+  { v: 2, label: "Terça-feira" },
+  { v: 3, label: "Quarta-feira" },
+  { v: 4, label: "Quinta-feira" },
+  { v: 5, label: "Sexta-feira" },
+  { v: 6, label: "Sábado" },
+];
 
 function formatBytes(n) {
   const v = Number(n);
@@ -25,6 +45,13 @@ export default function BackupBetaPanel() {
   const [uploading, setUploading] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [error, setError] = useState(null);
+  const [schedLoading, setSchedLoading] = useState(true);
+  const [schedSaving, setSchedSaving] = useState(false);
+  const [schedEnabled, setSchedEnabled] = useState(false);
+  const [schedWeekday, setSchedWeekday] = useState(1);
+  const [schedTime, setSchedTime] = useState("03:00");
+  const [schedLastRun, setSchedLastRun] = useState(null);
+  const [schedLastMsg, setSchedLastMsg] = useState(null);
 
   const loadInfo = useCallback(async () => {
     setLoading(true);
@@ -53,6 +80,33 @@ export default function BackupBetaPanel() {
   useEffect(() => {
     void loadInfo();
   }, [loadInfo]);
+
+  const loadSchedule = useCallback(async () => {
+    setSchedLoading(true);
+    try {
+      const r = await fetch("/api/admin/backup/schedule", { credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || r.statusText);
+      setSchedEnabled(j.enabled === true);
+      const wd = Number(j.weekday);
+      setSchedWeekday(Number.isFinite(wd) && wd >= 0 && wd <= 6 ? wd : 1);
+      const h = Number(j.hour);
+      const m = Number(j.minute);
+      const hh = Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 3;
+      const mm = Number.isFinite(m) ? Math.min(59, Math.max(0, m)) : 0;
+      setSchedTime(`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+      setSchedLastRun(typeof j.last_run_at === "string" ? j.last_run_at : null);
+      setSchedLastMsg(typeof j.last_run_message === "string" ? j.last_run_message : null);
+    } catch {
+      /* ignore */
+    } finally {
+      setSchedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSchedule();
+  }, [loadSchedule]);
 
   useEffect(() => {
     (async () => {
@@ -99,6 +153,38 @@ export default function BackupBetaPanel() {
       toast.error(e?.message || "Falha ao gerar o backup.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const saveSchedule = async () => {
+    setSchedSaving(true);
+    try {
+      const parts = schedTime.split(":");
+      const hour = Math.min(23, Math.max(0, Number.parseInt(parts[0], 10) || 0));
+      const minute = Math.min(59, Math.max(0, Number.parseInt(parts[1], 10) || 0));
+      const headers = await withCsrfHeaderAsync({
+        "Content-Type": "application/json",
+      });
+      const r = await fetch("/api/admin/backup/schedule", {
+        method: "PUT",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({
+          enabled: schedEnabled,
+          weekday: schedWeekday,
+          hour,
+          minute,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || r.statusText);
+      setSchedLastRun(typeof j.last_run_at === "string" ? j.last_run_at : null);
+      setSchedLastMsg(typeof j.last_run_message === "string" ? j.last_run_message : null);
+      toast.success("Agendamento guardado.");
+    } catch (e) {
+      toast.error(e?.message || "Não foi possível guardar o agendamento.");
+    } finally {
+      setSchedSaving(false);
     }
   };
 
@@ -221,6 +307,106 @@ export default function BackupBetaPanel() {
             </div>
           </div>
         ) : null}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <CalendarClock className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">Rotina agendada (servidor)</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              O horário usa o fuso horário do servidor. Uma vez por semana, no dia e minuto
+              escolhidos, é gerado um ZIP (equivalente a «Descarregar ZIP»). Se na aba Google
+              estiver ativo «Enviar backups automaticamente» com conta e pasta configuradas,
+              o ficheiro também é enviado ao Drive.
+            </p>
+          </div>
+        </div>
+
+        {schedLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            A carregar agendamento…
+          </div>
+        ) : (
+          <div className="space-y-4 max-w-xl">
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/20 px-4 py-3">
+              <div>
+                <Label htmlFor="backup-sched-enabled" className="text-foreground font-medium">
+                  Agendamento ativo
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Corre no minuto definido.</p>
+              </div>
+              <Switch
+                id="backup-sched-enabled"
+                checked={schedEnabled}
+                onCheckedChange={setSchedEnabled}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Dia da semana</Label>
+                <Select
+                  value={String(schedWeekday)}
+                  onValueChange={(v) => setSchedWeekday(Number(v))}
+                  disabled={!schedEnabled}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEKDAYS_PT.map((d) => (
+                      <SelectItem key={d.v} value={String(d.v)}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="backup-sched-time">Hora (local do servidor)</Label>
+                <input
+                  id="backup-sched-time"
+                  type="time"
+                  value={schedTime}
+                  onChange={(e) => setSchedTime(e.target.value)}
+                  disabled={!schedEnabled}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+            </div>
+            {schedLastRun ? (
+              <p className="text-xs text-muted-foreground">
+                Última execução:{" "}
+                <span className="text-foreground font-mono">{schedLastRun.replace("T", " ")}</span>
+                {schedLastMsg ? (
+                  <>
+                    {" "}
+                    — <span className="text-foreground">{schedLastMsg}</span>
+                  </>
+                ) : null}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Ainda não houve execução agendada.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => void saveSchedule()} disabled={schedSaving}>
+                {schedSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Guardar agendamento
+              </Button>
+              <Button type="button" variant="outline" onClick={() => void loadSchedule()} disabled={schedLoading}>
+                Recarregar
+              </Button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

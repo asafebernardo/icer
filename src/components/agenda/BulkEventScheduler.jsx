@@ -42,6 +42,7 @@ import {
 } from "@/lib/publicWorkspace";
 import MonthlyCalendar from "@/components/agenda/MonthlyCalendar";
 import { toast } from "sonner";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
 
 function randomBatchId() {
   try {
@@ -725,7 +726,7 @@ export default function BulkEventScheduler({
         await fetch("/api/admin/eventos/bulk-runs", {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json" },
+          headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
           body: JSON.stringify({
             batch_id: batchId,
             titulo: titulo.trim(),

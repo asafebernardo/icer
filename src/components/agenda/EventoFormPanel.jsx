@@ -322,6 +322,7 @@ const empty = {
   local: "",
   categoria: "culto",
   preletor: "",
+  preletor_avatar_url: "",
   pastor: "",
   imagem_url: "",
   destaque: false,
@@ -349,12 +350,16 @@ export default function EventoFormPanel({
   const [sugestoes, setSugestoes] = useState(loadSugestoesLocal);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [imgError, setImgError] = useState("");
+  const [uploadingPreletorAvatar, setUploadingPreletorAvatar] = useState(false);
+  const [preletorAvatarError, setPreletorAvatarError] = useState("");
   const [uploadingProgBanner, setUploadingProgBanner] = useState(false);
   const [progBannerError, setProgBannerError] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const imgRef = useRef();
+  const preletorAvatarRef = useRef();
   const progBannerRef = useRef();
   const previewBlobRef = useRef(null);
+  const previewPreletorAvatarBlobRef = useRef(null);
   const previewProgBannerBlobRef = useRef(null);
   const queryClient = useQueryClient();
   const exportRef = useRef(null);
@@ -405,9 +410,17 @@ export default function EventoFormPanel({
     }
   };
 
+  const revokePreletorAvatarPreviewBlob = () => {
+    if (previewPreletorAvatarBlobRef.current) {
+      URL.revokeObjectURL(previewPreletorAvatarBlobRef.current);
+      previewPreletorAvatarBlobRef.current = null;
+    }
+  };
+
   useEffect(() => {
     return () => {
       revokePreviewBlob();
+      revokePreletorAvatarPreviewBlob();
       revokeProgBannerPreviewBlob();
     };
   }, []);
@@ -461,6 +474,57 @@ export default function EventoFormPanel({
     revokePreviewBlob();
     setImgError("");
     set("imagem_url", "");
+  };
+
+  const handlePreletorAvatarUpload = async (e) => {
+    const input = e.target;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPreletorAvatarError("Selecione um ficheiro de imagem (JPEG, PNG, WebP, etc.).");
+      return;
+    }
+    setPreletorAvatarError("");
+    setUploadingPreletorAvatar(true);
+
+    revokePreletorAvatarPreviewBlob();
+    const blobUrl = URL.createObjectURL(file);
+    previewPreletorAvatarBlobRef.current = blobUrl;
+    set("preletor_avatar_url", blobUrl);
+
+    try {
+      const { file_url: url } = await uploadImageFile(file);
+      revokePreletorAvatarPreviewBlob();
+      set("preletor_avatar_url", url);
+    } catch (err) {
+      if (isLocalImageUploadEnabled()) {
+        console.warn("[Evento] uploadImageFile (preletor avatar):", err);
+        setPreletorAvatarError("Não foi possível processar a imagem.");
+      } else {
+        console.warn("[Evento] UploadFile (preletor avatar):", err);
+        void (async () => {
+          try {
+            const compressed = await imageFileToCompressedDataUrl(file);
+            revokePreletorAvatarPreviewBlob();
+            set("preletor_avatar_url", compressed);
+            setPreletorAvatarError(
+              "Não foi possível enviar ao servidor; a imagem foi incorporada localmente (comprimida). Guarde o evento.",
+            );
+          } catch {
+            setPreletorAvatarError("Não foi possível processar a imagem.");
+          }
+        })();
+      }
+    } finally {
+      setUploadingPreletorAvatar(false);
+    }
+  };
+
+  const clearPreletorAvatar = () => {
+    revokePreletorAvatarPreviewBlob();
+    setPreletorAvatarError("");
+    set("preletor_avatar_url", "");
   };
 
   const handleProgramacaoBannerUpload = async (e) => {
@@ -961,6 +1025,61 @@ export default function EventoFormPanel({
           sugestoes={sugestoes.preletor}
           onSugestoesChange={(lista) => updateSugestoes("preletor", lista)}
         />
+
+        <div>
+          <Label>Foto do preletor (perfil)</Label>
+          <input
+            ref={preletorAvatarRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePreletorAvatarUpload}
+          />
+          <div className="mt-2 flex items-center gap-3 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => preletorAvatarRef.current?.click()}
+              disabled={uploadingPreletorAvatar}
+              className="gap-2"
+            >
+              <ImagePlus className="w-4 h-4" />
+              {uploadingPreletorAvatar
+                ? "Enviando..."
+                : form.preletor_avatar_url
+                  ? "Trocar foto"
+                  : "Adicionar foto"}
+            </Button>
+            {form.preletor_avatar_url ? (
+              <>
+                <img
+                  src={form.preletor_avatar_url}
+                  alt="Pré-visualização da foto do preletor"
+                  className="h-12 w-12 object-cover rounded-full border border-border bg-muted"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={clearPreletorAvatar}
+                >
+                  Remover
+                </Button>
+              </>
+            ) : null}
+          </div>
+          {preletorAvatarError ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
+              {preletorAvatarError}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Esta foto aparece no destaque e junto do nome do preletor.
+            </p>
+          )}
+        </div>
 
         <ComboSugestao
           label="Presbítero"
