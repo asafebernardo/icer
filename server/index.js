@@ -111,10 +111,20 @@ const enableUpstreamProxy = Boolean(
     process.env.VITE_APP_BASE_URL,
 );
 
+/** Sessão única por conta (predefinido: ativo). `ICER_ENFORCE_SINGLE_SESSION=false` permite vários logins. */
+function readBoolEnv(name, defaultValue = true) {
+  const v = process.env[name];
+  if (v === undefined || v === null || String(v).trim() === "") return defaultValue;
+  const s = String(v).trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(s)) return false;
+  return true;
+}
+
 const app = createApplication(db, {
   uploadDir: UPLOAD_DIR,
   enableUpstreamProxy,
   loginRateLimit: true,
+  enforceSingleSession: readBoolEnv("ICER_ENFORCE_SINGLE_SESSION", true),
 });
 
 /**

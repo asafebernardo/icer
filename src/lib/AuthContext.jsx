@@ -153,8 +153,8 @@ export function AuthProvider({ children }) {
     void validateServerSession();
   }, [location.pathname, validateServerSession]);
 
-  const login = useCallback(async (email, senha) => {
-    const result = await authLogin(email, senha);
+  const login = useCallback(async (email, senha, opts) => {
+    const result = await authLogin(email, senha, opts);
     if (!result.ok) return result;
     setUser(getUser());
     if (isServerAuthEnabled()) {

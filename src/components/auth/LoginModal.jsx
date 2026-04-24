@@ -34,6 +34,7 @@ export default function LoginModal() {
   const [twoFactorStep, setTwoFactorStep] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [sessionConflict, setSessionConflict] = useState(false);
   const [formBgUrl, setFormBgUrl] = useState(() =>
     getPageBackgroundUrl("login_form"),
   );
@@ -53,6 +54,7 @@ export default function LoginModal() {
       setTwoFactorStep(false);
       setShowPassword(false);
       setError("");
+      setSessionConflict(false);
     }
   }, [loginModalOpen]);
 
@@ -66,11 +68,14 @@ export default function LoginModal() {
           setTwoFactorToken(result.login_token);
           setTwoFactorStep(true);
           setError("");
+          setSessionConflict(false);
           return;
         }
+        setSessionConflict(result.sessionAlreadyActive === true);
         setError(result.message || "Login inválido.");
         return;
       }
+      setSessionConflict(false);
       closeLoginModal();
       navigate("/Dashboard");
       return;
@@ -143,6 +148,7 @@ export default function LoginModal() {
                   onChange={(e) => {
                     setEmail(e.target.value);
                     setError("");
+                    setSessionConflict(false);
                   }}
                   autoComplete="email"
                   className="border-input bg-background text-foreground placeholder:text-muted-foreground"
@@ -159,6 +165,7 @@ export default function LoginModal() {
                     onChange={(e) => {
                       setSenha(e.target.value);
                       setError("");
+                      setSessionConflict(false);
                     }}
                     autoComplete="current-password"
                     className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
@@ -217,6 +224,34 @@ export default function LoginModal() {
             >
               {error}
             </p>
+          ) : null}
+          {sessionConflict && !twoFactorStep ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full text-sm"
+              onClick={async () => {
+                setError("");
+                const result = await login(email, senha, { forceNewSession: true });
+                if (!result.ok) {
+                  if (result.twoFactorRequired && result.login_token) {
+                    setTwoFactorToken(result.login_token);
+                    setTwoFactorStep(true);
+                    setSessionConflict(false);
+                    setError("");
+                    return;
+                  }
+                  setSessionConflict(result.sessionAlreadyActive === true);
+                  setError(result.message || "Não foi possível iniciar sessão.");
+                  return;
+                }
+                setSessionConflict(false);
+                closeLoginModal();
+                navigate("/Dashboard");
+              }}
+            >
+              Encerrar a outra sessão e entrar
+            </Button>
           ) : null}
           <Button type="submit" className="mt-2 w-full font-semibold">
             Entrar

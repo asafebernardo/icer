@@ -504,6 +504,8 @@ export function createApplication(db, options = {}) {
     const schema = z.object({
       email: z.string().email(),
       password: z.string().min(1),
+      /** Com palavra-passe válida, apaga sessões existentes e inicia uma nova (só se `enforceSingleSession`). */
+      force_new_session: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -569,19 +571,6 @@ export function createApplication(db, options = {}) {
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
-    // Sessão única: bloqueia novo login se já existir sessão ativa.
-    // (Só libera quando expirar ou o utilizador fizer logout.)
-    if (enforceSingleSession) {
-      const now = nowIso();
-      const active = await db.collection("sessions").findOne({
-        user_id: row.id,
-        expires_at: { $gt: now },
-      });
-      if (active) {
-        res.status(409).json({ message: "session_already_active" });
-        return;
-      }
-    }
     const ok = await verifyPassword(row.password_hash, parsed.data.password);
     if (!ok) {
       await recordAudit(db, {
@@ -598,6 +587,32 @@ export function createApplication(db, options = {}) {
       return;
     }
     await clearLoginFailures([ipKey, userKey]);
+
+    // Sessão única: só depois de validar a palavra-passe (evita sondagem sem credenciais).
+    if (enforceSingleSession) {
+      const now = nowIso();
+      const active = await db.collection("sessions").findOne({
+        user_id: row.id,
+        expires_at: { $gt: now },
+      });
+      if (active) {
+        if (parsed.data.force_new_session === true) {
+          await db.collection("sessions").deleteMany({ user_id: row.id });
+          await recordAudit(db, {
+            userId: row.id,
+            actorUserId: row.id,
+            action: "auth.sessions_revoked_by_login",
+            details: { reason: "force_new_session" },
+            ip: clientIp(req),
+            ...auditCtx(req),
+          });
+        } else {
+          res.status(409).json({ message: "session_already_active" });
+          return;
+        }
+      }
+    }
+
     const loginStamp = nowIso();
     await db.collection("users").updateOne(
       { id: row.id },

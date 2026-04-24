@@ -94,10 +94,14 @@ function isDemoEmail(email) {
 
 export { isServerAuthEnabled };
 
-async function loginWithServer(email, senha) {
+async function loginWithServer(email, senha, opts = {}) {
+  const body = { email, password: senha };
+  if (opts?.forceNewSession === true) {
+    body.force_new_session = true;
+  }
   const r = await fetchJson("/auth/login", {
     method: "POST",
-    body: { email, password: senha },
+    body,
   });
   if (r && typeof r === "object" && r.message === "2fa_required") {
     return { twoFactorRequired: true, login_token: r.login_token, expires_at: r.expires_at };
@@ -174,9 +178,13 @@ function mapServerLoginError(e) {
 }
 
 /**
- * @returns {Promise<{ ok: true } | { ok: false; message: string }>}
+ * @param {{ forceNewSession?: boolean }} [opts]
+ * @returns {Promise<
+ *   | { ok: true }
+ *   | { ok: false; message: string; sessionAlreadyActive?: boolean }
+ * >}
  */
-export async function login(email, senha) {
+export async function login(email, senha, opts = {}) {
   const demo = resolveLoginUser(email, senha);
   if (demo) {
     const e = demo.email;
@@ -203,7 +211,7 @@ export async function login(email, senha) {
   }
 
   try {
-    const r = await loginWithServer(email, senha);
+    const r = await loginWithServer(email, senha, opts);
     if (r?.twoFactorRequired) {
       return {
         ok: false,
@@ -225,11 +233,18 @@ export async function login(email, senha) {
       status === 429 ||
       status === 503
     ) {
+      const data = /** @type {{ message?: string }} */ (
+        /** @type {Error & { data?: unknown }} */ (e)?.data
+      );
+      const code = String(data?.message || "");
       return {
         ok: false,
         message: mapServerLoginError(
           /** @type {Error & { status?: number; data?: unknown }} */ (e),
         ),
+        ...(status === 409 && code === "session_already_active"
+          ? { sessionAlreadyActive: true }
+          : {}),
       };
     }
     return {
