@@ -300,6 +300,11 @@ export function createDataRouter(db) {
       const now = nowIso();
       const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
       delete body.id;
+      const bulk_batch_id_raw = body.bulk_batch_id;
+      const bulk_batch_id =
+        typeof bulk_batch_id_raw === "string" && bulk_batch_id_raw.trim()
+          ? bulk_batch_id_raw.trim().slice(0, 96)
+          : null;
       const event_date = eventDateFromBody(body);
       const body_json = JSON.stringify(body);
       const id = await nextSeq(db, "eventos");
@@ -308,6 +313,7 @@ export function createDataRouter(db) {
         owner_user_id: req.user.id,
         event_date,
         body_json,
+        bulk_batch_id,
         created_at: now,
         updated_at: now,
       });
@@ -340,6 +346,7 @@ export function createDataRouter(db) {
       const now = nowIso();
       const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
       delete body.id;
+      delete body.bulk_batch_id;
       const event_date = eventDateFromBody(body);
       const body_json = JSON.stringify(body);
       await db.collection("eventos").updateOne(

@@ -19,6 +19,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
+import qrcode from "qrcode";
 import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
 import {
   getPublicWorkspace,
@@ -34,6 +35,44 @@ import {
   listAuditLogsForUser,
   listAuditLogsGlobal,
 } from "./auditLog.js";
+import { validateAccountPassword } from "./passwordPolicy.js";
+import { getBackupSummary, pipeSiteBackupZip, writeSiteBackupZipToFile } from "./siteBackup.js";
+import {
+  getGoogleIntegrationSafe,
+  mergeGoogleIntegration,
+} from "./adminGoogleIntegration.js";
+import {
+  buildGoogleAuthUrl,
+  buildOAuthClient,
+  callbackRedirectBase,
+  consumeGoogleOauthState,
+  createGoogleOauthState,
+  disconnectGoogle,
+  exchangeCodeAndStoreTokens,
+  getAuthorizedDriveClient,
+  getGoogleTokensSafe,
+} from "./googleOAuth.js";
+import {
+  decryptTotpSecret,
+  encryptTotpSecret,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  hashRecoveryCode,
+  isTotpEnforcementEnabled,
+  totpGraceDays,
+  totpVerify,
+} from "./totp.js";
+
+/**
+ * @param {import("express").Response} res
+ * @param {{ ok: true } | { ok: false; code: string }} result
+ * @returns {boolean} true se já respondeu com erro
+ */
+function respondIfPasswordPolicyFails(res, result) {
+  if (result.ok) return false;
+  res.status(400).json({ message: result.code });
+  return true;
+}
 
 /**
  * @param {import("mongodb").Db} db
@@ -279,6 +318,92 @@ export function createApplication(db, options = {}) {
     }
   });
 
+  // ── CSRF (double-submit cookie) ─────────────────────────────────────────
+  const CSRF_COOKIE = "icer_csrf";
+  const isProd = process.env.NODE_ENV === "production";
+  const csrfCookieOptions = {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: isProd,
+    path: "/",
+  };
+
+  function ensureCsrfCookie(req, res) {
+    const cur = req.cookies?.[CSRF_COOKIE];
+    const token = typeof cur === "string" && cur.trim() ? cur.trim() : randomToken();
+    if (token !== cur) {
+      res.cookie(CSRF_COOKIE, token, csrfCookieOptions);
+    }
+    return token;
+  }
+
+  function requireCsrf(req, res, next) {
+    const m = String(req.method || "").toUpperCase();
+    if (m === "GET" || m === "HEAD" || m === "OPTIONS") return next();
+    const path = String(req.path || req.originalUrl || "");
+    // Não exigir CSRF em endpoints públicos/bootstraps.
+    if (
+      path === "/api/auth/login" ||
+      path === "/api/auth/csrf" ||
+      path.startsWith("/api/health") ||
+      path === "/api/site-config" ||
+      path === "/api/public-workspace/dismiss-destaque"
+    ) {
+      return next();
+    }
+    // Só faz sentido exigir quando há cookie de sessão presente.
+    const hasSessionCookie = Boolean(req.cookies?.[getCookieName()]);
+    if (!hasSessionCookie) return next();
+
+    const cookieToken = String(req.cookies?.[CSRF_COOKIE] || "").trim();
+    const headerToken = String(req.headers["x-csrf-token"] || "").trim();
+    if (!cookieToken || !headerToken) {
+      res.status(403).json({ message: "csrf_required" });
+      return;
+    }
+    if (cookieToken !== headerToken) {
+      res.status(403).json({ message: "csrf_invalid" });
+      return;
+    }
+    next();
+  }
+
+  app.get("/api/auth/csrf", (req, res) => {
+    const token = ensureCsrfCookie(req, res);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ csrf_token: token });
+  });
+
+  // Aplica CSRF em rotas mutáveis com cookie.
+  app.use(requireCsrf);
+
+  // ── 2FA enforcement (bloqueia uso após grace) ───────────────────────────
+  app.use(async (req, res, next) => {
+    if (!req.user) return next();
+    if (!isTotpEnforcementEnabled()) return next();
+    if (req.user?.totp_enabled === true) return next();
+
+    const p = String(req.path || req.originalUrl || "");
+    const allow =
+      p === "/api/auth/me" ||
+      p === "/api/auth/logout" ||
+      p === "/api/auth/csrf" ||
+      p === "/api/auth/2fa/setup" ||
+      p === "/api/auth/2fa/verify" ||
+      p === "/api/auth/2fa/disable" ||
+      p === "/api/auth/login-2fa";
+    if (allow) return next();
+
+    const started = req.user?.totp_grace_started_at
+      ? new Date(String(req.user.totp_grace_started_at)).getTime()
+      : 0;
+    if (!started) return next(); // grace ainda não começou
+    const days = totpGraceDays();
+    const deadline = started + days * 24 * 60 * 60 * 1000;
+    if (Date.now() <= deadline) return next();
+    res.status(403).json({ message: "2fa_required" });
+  });
+
   // Admin: grava config pública do site no servidor (Mongo).
   app.put("/api/admin/site-config", requireAuth, requireAdmin, async (req, res) => {
     const body = req.body && typeof req.body === "object" ? { ...req.body } : null;
@@ -417,6 +542,7 @@ export function createApplication(db, options = {}) {
       },
     );
     if (!row) {
+      // Evita enumeração: resposta igual a "senha errada".
       await recordAudit(db, {
         userId: null,
         actorUserId: null,
@@ -431,11 +557,16 @@ export function createApplication(db, options = {}) {
       return;
     }
     if (!row.password_hash) {
-      res.status(409).json({ message: "password_not_set" });
+      // Evita enumeração por estado de conta.
+      await bumpLoginFailure([ipKey, userKey]);
+      await sleep(350);
+      res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     if (row.disabled === true) {
-      res.status(403).json({ message: "account_disabled" });
+      await bumpLoginFailure([ipKey, userKey]);
+      await sleep(350);
+      res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     // Sessão única: bloqueia novo login se já existir sessão ativa.
@@ -472,14 +603,251 @@ export function createApplication(db, options = {}) {
       { id: row.id },
       { $set: { last_login_at: loginStamp } },
     );
+
+    // Inicia grace period do 2FA para todos (se enforce estiver ativo).
+    if (isTotpEnforcementEnabled()) {
+      const u = await db.collection("users").findOne(
+        { id: row.id },
+        { projection: { _id: 0, totp_enabled: 1, totp_grace_started_at: 1, totp_secret_enc: 1 } },
+      );
+      const enabled = u?.totp_enabled === true && String(u?.totp_secret_enc || "").trim();
+      if (!enabled) {
+        const started = u?.totp_grace_started_at ? String(u.totp_grace_started_at) : "";
+        if (!started) {
+          await db.collection("users").updateOne(
+            { id: row.id },
+            { $set: { totp_grace_started_at: nowIso() } },
+          );
+        } else {
+          const startMs = new Date(started).getTime();
+          const deadline = startMs + totpGraceDays() * 24 * 60 * 60 * 1000;
+          if (Number.isFinite(startMs) && Date.now() > deadline) {
+            res.status(403).json({ message: "2fa_required" });
+            return;
+          }
+        }
+      }
+    }
+
+    // Se 2FA estiver ativo, não cria sessão: exige confirmação do TOTP.
+    const two = await db.collection("users").findOne(
+      { id: row.id },
+      { projection: { _id: 0, totp_enabled: 1, totp_secret_enc: 1 } },
+    );
+    if (two?.totp_enabled === true && String(two?.totp_secret_enc || "").trim()) {
+      const loginToken = randomToken();
+      const tokenHash = sha256Hex(loginToken);
+      const now = nowIso();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await db.collection("auth_2fa_challenges_v1").insertOne({
+        token_hash: tokenHash,
+        user_id: row.id,
+        created_at: now,
+        expires_at: expiresAt,
+      });
+      res.json({ message: "2fa_required", login_token: loginToken, expires_at: expiresAt });
+      return;
+    }
+
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
     setSessionCookie(res, token);
+    ensureCsrfCookie(req, res);
     await recordAudit(db, {
       userId: row.id,
       actorUserId: row.id,
       action: "auth.login",
       details: { email: row.email },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/auth/login-2fa", async (req, res) => {
+    const schema = z.object({
+      login_token: z.string().min(10),
+      code: z.string().min(4).max(12).optional(),
+      recovery_code: z.string().min(6).max(64).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const tokenHash = sha256Hex(parsed.data.login_token);
+    const now = nowIso();
+    const ch = await db.collection("auth_2fa_challenges_v1").findOne({
+      token_hash: tokenHash,
+      expires_at: { $gt: now },
+    });
+    if (!ch) {
+      res.status(400).json({ message: "invalid_or_expired_2fa" });
+      return;
+    }
+    const u = await db.collection("users").findOne(
+      { id: ch.user_id },
+      { projection: { _id: 0, id: 1, email: 1, totp_enabled: 1, totp_secret_enc: 1, totp_recovery_codes_hash: 1 } },
+    );
+    if (!u || u.totp_enabled !== true || !u.totp_secret_enc) {
+      res.status(400).json({ message: "2fa_not_enabled" });
+      return;
+    }
+    const secret = decryptTotpSecret(u.totp_secret_enc);
+    if (!secret) {
+      res.status(500).json({ message: "2fa_secret_unavailable" });
+      return;
+    }
+    const code = String(parsed.data.code || "").trim();
+    const rec = String(parsed.data.recovery_code || "").trim();
+    let ok = false;
+    let usedRecoveryHash = null;
+    if (code) {
+      ok = totpVerify(secret, code);
+    } else if (rec) {
+      const h = hashRecoveryCode(rec);
+      const list = Array.isArray(u.totp_recovery_codes_hash) ? u.totp_recovery_codes_hash : [];
+      if (list.includes(h)) {
+        ok = true;
+        usedRecoveryHash = h;
+      }
+    }
+    if (!ok) {
+      res.status(401).json({ message: "invalid_2fa_code" });
+      return;
+    }
+    if (usedRecoveryHash) {
+      await db.collection("users").updateOne(
+        { id: u.id },
+        { $pull: { totp_recovery_codes_hash: usedRecoveryHash }, $set: { updated_at: nowIso() } },
+      );
+    }
+    await db.collection("auth_2fa_challenges_v1").deleteOne({ token_hash: tokenHash });
+    const ttlMinutes = await getSessionTtlMinutes();
+    const { token } = await createSession(db, u.id, { minutes: ttlMinutes });
+    setSessionCookie(res, token);
+    ensureCsrfCookie(req, res);
+    await recordAudit(db, {
+      userId: u.id,
+      actorUserId: u.id,
+      action: "auth.login_2fa",
+      details: { email: u.email, used_recovery: Boolean(usedRecoveryHash) },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/auth/2fa/setup", requireAuth, async (req, res) => {
+    const issuer = String(process.env.ICER_TOTP_ISSUER || "ICER").trim() || "ICER";
+    const secret = generateTotpSecret();
+    const otpauth = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(req.user.email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
+    const qr = await qrcode.toDataURL(otpauth, { margin: 1, scale: 6 });
+    const enc = encryptTotpSecret(secret);
+    const now = nowIso();
+    await db.collection("users").updateOne(
+      { id: req.user.id },
+      { $set: { totp_pending_secret_enc: enc, totp_pending_created_at: now, updated_at: now } },
+    );
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, otpauth_url: otpauth, qr_data_url: qr, secret });
+  });
+
+  app.post("/api/auth/2fa/verify", requireAuth, async (req, res) => {
+    const schema = z.object({ code: z.string().min(4).max(12) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const row = await db.collection("users").findOne(
+      { id: req.user.id },
+      { projection: { _id: 0, totp_pending_secret_enc: 1 } },
+    );
+    const pending = String(row?.totp_pending_secret_enc || "").trim();
+    if (!pending) {
+      res.status(400).json({ message: "2fa_setup_not_started" });
+      return;
+    }
+    const secret = decryptTotpSecret(pending);
+    if (!secret) {
+      res.status(500).json({ message: "2fa_secret_unavailable" });
+      return;
+    }
+    const ok = totpVerify(secret, parsed.data.code);
+    if (!ok) {
+      res.status(401).json({ message: "invalid_2fa_code" });
+      return;
+    }
+    const codes = generateRecoveryCodes(10);
+    const hashes = codes.map(hashRecoveryCode);
+    const now = nowIso();
+    await db.collection("users").updateOne(
+      { id: req.user.id },
+      {
+        $set: {
+          totp_enabled: true,
+          totp_secret_enc: pending,
+          totp_verified_at: now,
+          totp_recovery_codes_hash: hashes,
+          updated_at: now,
+        },
+        $unset: { totp_pending_secret_enc: "", totp_pending_created_at: "" },
+      },
+    );
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "auth.2fa_enabled",
+      details: {},
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true, recovery_codes: codes });
+  });
+
+  app.post("/api/auth/2fa/disable", requireAuth, async (req, res) => {
+    const schema = z.object({
+      code: z.string().min(4).max(12).optional(),
+      recovery_code: z.string().min(6).max(64).optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const u = await db.collection("users").findOne(
+      { id: req.user.id },
+      { projection: { _id: 0, totp_enabled: 1, totp_secret_enc: 1, totp_recovery_codes_hash: 1 } },
+    );
+    if (!u?.totp_enabled || !u.totp_secret_enc) {
+      res.status(400).json({ message: "2fa_not_enabled" });
+      return;
+    }
+    const secret = decryptTotpSecret(u.totp_secret_enc);
+    const code = String(parsed.data.code || "").trim();
+    const rec = String(parsed.data.recovery_code || "").trim();
+    let ok = false;
+    if (code && secret) ok = totpVerify(secret, code);
+    if (!ok && rec) {
+      const h = hashRecoveryCode(rec);
+      const list = Array.isArray(u.totp_recovery_codes_hash) ? u.totp_recovery_codes_hash : [];
+      ok = list.includes(h);
+    }
+    if (!ok) {
+      res.status(401).json({ message: "invalid_2fa_code" });
+      return;
+    }
+    const now = nowIso();
+    await db.collection("users").updateOne(
+      { id: req.user.id },
+      { $set: { totp_enabled: false, updated_at: now }, $unset: { totp_secret_enc: "", totp_verified_at: "", totp_recovery_codes_hash: "" } },
+    );
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "auth.2fa_disabled",
+      details: {},
       ip: clientIp(req),
       ...auditCtx(req),
     });
@@ -501,6 +869,7 @@ export function createApplication(db, options = {}) {
       await deleteSessionByToken(db, req.sessionToken);
     }
     clearSessionCookie(res);
+    res.clearCookie(CSRF_COOKIE, csrfCookieOptions);
     res.json({ ok: true });
   });
 
@@ -519,11 +888,21 @@ export function createApplication(db, options = {}) {
   app.use("/api/data", createDataRouter(db));
 
   app.put("/api/users/me", requireAuth, async (req, res) => {
+    const avatarUrlSchema = z
+      .string()
+      .max(2048)
+      .optional()
+      .refine((s) => {
+        if (s === undefined) return true;
+        const t = s.trim();
+        return t === "" || t.startsWith("/") || /^https?:\/\//i.test(t);
+      }, { message: "invalid_avatar_url" });
     const schema = z.object({
       full_name: z.string().min(1).optional(),
       email: z.string().email().optional(),
       current_password: z.string().min(1).optional(),
-      new_password: z.string().min(10).optional(),
+      new_password: z.string().optional(),
+      avatar_url: avatarUrlSchema,
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -532,7 +911,7 @@ export function createApplication(db, options = {}) {
     }
     const row = await db.collection("users").findOne(
       { id: req.user.id },
-      { projection: { _id: 0, id: 1, email: 1, full_name: 1, password_hash: 1 } },
+      { projection: { _id: 0, id: 1, email: 1, full_name: 1, password_hash: 1, avatar_url: 1 } },
     );
     if (!row) {
       res.status(404).json({ message: "not_found" });
@@ -548,7 +927,11 @@ export function createApplication(db, options = {}) {
       }
     }
 
-    const wantsPasswordChange = !!parsed.data.new_password;
+    const newPass =
+      parsed.data.new_password === undefined || parsed.data.new_password === null
+        ? ""
+        : String(parsed.data.new_password).trim();
+    const wantsPasswordChange = newPass.length > 0;
     const wantsEmailChange = !!(nextEmail && nextEmail !== row.email);
     const requiresPassword =
       wantsPasswordChange || wantsEmailChange;
@@ -569,20 +952,37 @@ export function createApplication(db, options = {}) {
       }
     }
 
+    if (wantsPasswordChange) {
+      const pwPolicy = validateAccountPassword(newPass);
+      if (respondIfPasswordPolicyFails(res, pwPolicy)) return;
+    }
+
     let password_hash;
-    if (parsed.data.new_password) {
-      password_hash = await hashPassword(parsed.data.new_password);
+    if (wantsPasswordChange) {
+      password_hash = await hashPassword(newPass);
     }
     const now = nowIso();
     const $set = { updated_at: now };
+    const $unset = {};
     if (nextEmail != null) $set.email = nextEmail;
     if (parsed.data.full_name != null) $set.full_name = parsed.data.full_name.trim();
     if (password_hash) $set.password_hash = password_hash;
-    await db.collection("users").updateOne({ id: row.id }, { $set });
+    if (parsed.data.avatar_url !== undefined) {
+      const av = String(parsed.data.avatar_url).trim();
+      if (av === "") {
+        $unset.avatar_url = "";
+      } else {
+        $set.avatar_url = av;
+      }
+    }
+    const updateDoc = { $set };
+    if (Object.keys($unset).length > 0) updateDoc.$unset = $unset;
+    await db.collection("users").updateOne({ id: row.id }, updateDoc);
     const fields = [];
     if (nextEmail != null) fields.push("email");
     if (parsed.data.full_name != null) fields.push("full_name");
     if (password_hash) fields.push("password");
+    if (parsed.data.avatar_url !== undefined) fields.push("avatar_url");
     await recordAudit(db, {
       userId: row.id,
       actorUserId: row.id,
@@ -593,7 +993,7 @@ export function createApplication(db, options = {}) {
     });
     const u = await db.collection("users").findOne(
       { id: row.id },
-      { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, funcao: 1 } },
+      { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, funcao: 1, avatar_url: 1 } },
     );
     res.json(u);
   });
@@ -616,6 +1016,7 @@ export function createApplication(db, options = {}) {
             updated_at: 1,
             invited_at: 1,
             last_login_at: 1,
+            avatar_url: 1,
           },
         },
       )
@@ -758,18 +1159,358 @@ export function createApplication(db, options = {}) {
     res.json(result);
   });
 
+  app.get("/api/admin/backup/info", requireAuth, requireAdmin, async (_req, res) => {
+    try {
+      const info = await getBackupSummary(db, uploadDir, resolveUploadedDiskPath);
+      res.setHeader("Cache-Control", "no-store");
+      res.json(info);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ICER] backup/info", e);
+      res.status(500).json({ message: "backup_info_failed" });
+    }
+  });
+
+  app.get("/api/admin/backup/export", requireAuth, requireAdmin, async (req, res) => {
+    const stamp = new Date().toISOString().replaceAll(":", "-").replace(/\.\d{3}Z$/, "Z");
+    const filename = `icer-site-backup-${stamp}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      // Registra a intenção antes de começar o stream (evita async após fechar DB nos testes).
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "admin.backup_export",
+        details: { filename },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      await pipeSiteBackupZip(res, db, uploadDir, resolveUploadedDiskPath);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ICER] backup/export", e);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "backup_export_failed" });
+      }
+    }
+  });
+
+  app.get("/api/admin/integrations/google", requireAuth, requireAdmin, async (_req, res) => {
+    const data = await getGoogleIntegrationSafe(db);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(data);
+  });
+
+  app.put("/api/admin/integrations/google", requireAuth, requireAdmin, async (req, res) => {
+    const schema = z.object({
+      enabled: z.boolean().optional(),
+      client_id: z.string().max(2048).optional(),
+      client_secret: z.string().max(8192).optional(),
+      clear_client_secret: z.boolean().optional(),
+      drive_export_folder_id: z.string().max(512).optional(),
+      auto_upload_backups: z.boolean().optional(),
+      notes: z.string().max(8000).optional(),
+    });
+    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const next = await mergeGoogleIntegration(db, parsed.data);
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.google_integration_update",
+      details: {
+        enabled: next.enabled,
+        client_id_set: !!next.client_id,
+        client_secret_set: next.client_secret_set,
+        drive_export_folder_id_set: !!next.drive_export_folder_id,
+      },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json(next);
+  });
+
+  // OAuth: status / connect / disconnect
+  app.get("/api/admin/integrations/google/status", requireAuth, requireAdmin, async (_req, res) => {
+    const st = await getGoogleTokensSafe(db);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(st);
+  });
+
+  app.post("/api/admin/integrations/google/disconnect", requireAuth, requireAdmin, async (req, res) => {
+    await disconnectGoogle(db);
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.google_disconnect",
+      details: {},
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
+  });
+
+  app.get("/api/auth/google/start", requireAuth, requireAdmin, async (req, res) => {
+    const cfg = await getGoogleIntegrationSafe(db);
+    if (!cfg.enabled || !cfg.client_id || !cfg.client_secret_set) {
+      res.status(400).json({ message: "google_not_configured" });
+      return;
+    }
+    // lê secret real do KV (não expõe ao cliente)
+    const row = await db.collection("app_kv").findOne({ key: "google_integration_v1" }, { projection: { _id: 0, value: 1 } });
+    const real = row?.value && typeof row.value === "object" ? row.value : {};
+    const client_secret = String(real.client_secret || "").trim();
+    const client_id = String(real.client_id || "").trim();
+    if (!client_id || !client_secret) {
+      res.status(400).json({ message: "google_not_configured" });
+      return;
+    }
+    const state = await createGoogleOauthState(db, req.user.id, { redirectTo: "/Dashboard?tab=google" });
+    const { url } = buildGoogleAuthUrl(req, { client_id, client_secret }, state);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, auth_url: url });
+  });
+
+  app.get("/api/auth/google/callback", async (req, res) => {
+    const code = String(req.query.code || "").trim();
+    const state = String(req.query.state || "").trim();
+    if (!code || !state) {
+      res.status(400).type("text/plain").send("OAuth callback inválido.");
+      return;
+    }
+    const st = await consumeGoogleOauthState(db, state);
+    if (!st) {
+      res.status(400).type("text/plain").send("Estado OAuth expirado.");
+      return;
+    }
+    const row = await db.collection("app_kv").findOne({ key: "google_integration_v1" }, { projection: { _id: 0, value: 1 } });
+    const real = row?.value && typeof row.value === "object" ? row.value : {};
+    const client_id = String(real.client_id || "").trim();
+    const client_secret = String(real.client_secret || "").trim();
+    if (!client_id || !client_secret) {
+      res.status(400).type("text/plain").send("Google não configurado.");
+      return;
+    }
+    const base = callbackRedirectBase(req);
+    const redirectUri = `${base}/api/auth/google/callback`;
+    const oauth2 = buildOAuthClient({ client_id, client_secret }, redirectUri);
+    try {
+      const { connected_email } = await exchangeCodeAndStoreTokens(db, oauth2, code);
+      await recordAudit(db, {
+        userId: st.user_id,
+        actorUserId: st.user_id,
+        action: "auth.google_connected",
+        details: { connected_email },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.redirect(`${base}${st.redirect_to || "/Dashboard?tab=google"}&connected=1`);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ICER] google oauth callback", e);
+      res.redirect(`${base}${st.redirect_to || "/Dashboard?tab=google"}&connected=0`);
+    }
+  });
+
+  // Backup → Google Drive
+  app.post("/api/admin/backup/upload-google", requireAuth, requireAdmin, async (req, res) => {
+    const cfgSafe = await getGoogleIntegrationSafe(db);
+    if (!cfgSafe.enabled) {
+      res.status(400).json({ message: "google_integration_disabled" });
+      return;
+    }
+    if (!cfgSafe.drive_export_folder_id) {
+      res.status(400).json({ message: "google_drive_folder_required" });
+      return;
+    }
+    const row = await db.collection("app_kv").findOne({ key: "google_integration_v1" }, { projection: { _id: 0, value: 1 } });
+    const real = row?.value && typeof row.value === "object" ? row.value : {};
+    const client_id = String(real.client_id || "").trim();
+    const client_secret = String(real.client_secret || "").trim();
+    const base = callbackRedirectBase(req);
+    const redirectUri = `${base}/api/auth/google/callback`;
+    const auth = await getAuthorizedDriveClient(db, { client_id, client_secret }, redirectUri);
+    if (!auth.ok) {
+      res.status(409).json({ message: "google_not_connected" });
+      return;
+    }
+    const stamp = new Date().toISOString().replaceAll(":", "-").replace(/\.\d{3}Z$/, "Z");
+    const filename = `icer-site-backup-${stamp}.zip`;
+    const fsP = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const tmp = await fsP.mkdtemp(path.join(os.tmpdir(), "icer-"));
+    const outPath = path.join(tmp, filename);
+    try {
+      await writeSiteBackupZipToFile(outPath, db, uploadDir, resolveUploadedDiskPath);
+      const fsMod = await import("node:fs");
+      const media = {
+        mimeType: "application/zip",
+        body: fsMod.createReadStream(outPath),
+      };
+      const meta = {
+        name: filename,
+        parents: [cfgSafe.drive_export_folder_id],
+      };
+      const up = await auth.drive.files.create({
+        requestBody: meta,
+        media,
+        fields: "id,name,createdTime",
+      });
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "admin.backup_upload_google",
+        details: { drive_file_id: up.data.id, name: up.data.name },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.json({ ok: true, drive_file: up.data });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ICER] backup/upload-google", e);
+      res.status(500).json({ message: "google_upload_failed" });
+    } finally {
+      try {
+        const fsP = await import("node:fs/promises");
+        await fsP.rm(tmp, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+
+  // ── Admin: Rotinas de agendamento em massa (Eventos) ─────────────────────
+  const BULK_RUNS_COLLECTION = "event_bulk_runs_v1";
+
+  app.get("/api/admin/eventos/bulk-runs", requireAuth, requireAdmin, async (req, res) => {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const skip = Math.max(0, Math.min(10000, Number(req.query.skip) || 0));
+    const rows = await db
+      .collection(BULK_RUNS_COLLECTION)
+      .find({}, { projection: { _id: 0 } })
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ items: rows });
+  });
+
+  app.post("/api/admin/eventos/bulk-runs", requireAuth, requireAdmin, async (req, res) => {
+    const schema = z.object({
+      batch_id: z.string().min(6).max(96),
+      titulo: z.string().max(256).optional(),
+      categoria: z.string().max(80).optional(),
+      range_start: z.string().max(32).optional(),
+      range_end: z.string().max(32).optional(),
+      created_event_ids: z.array(z.number().int().positive()).max(2000).optional(),
+    });
+    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const now = nowIso();
+    const id = await nextSeq(db, "event_bulk_runs");
+    const ids = parsed.data.created_event_ids || [];
+    const doc = {
+      id,
+      batch_id: parsed.data.batch_id,
+      titulo: parsed.data.titulo ? String(parsed.data.titulo).trim() : "",
+      categoria: parsed.data.categoria ? String(parsed.data.categoria).trim() : "",
+      range_start: parsed.data.range_start ? String(parsed.data.range_start).trim() : "",
+      range_end: parsed.data.range_end ? String(parsed.data.range_end).trim() : "",
+      created_event_ids: ids,
+      created_count: ids.length,
+      created_by_user_id: req.user.id,
+      created_at: now,
+      undone_at: null,
+      undone_by_user_id: null,
+      undone_deleted_count: null,
+    };
+    await db.collection(BULK_RUNS_COLLECTION).insertOne(doc);
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.eventos.bulk_run.create",
+      details: { bulk_run_id: id, created_count: doc.created_count },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.status(201).json(doc);
+  });
+
+  app.post(
+    "/api/admin/eventos/bulk-runs/:id/undo",
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        res.status(400).json({ message: "invalid_id" });
+        return;
+      }
+      const run = await db
+        .collection(BULK_RUNS_COLLECTION)
+        .findOne({ id }, { projection: { _id: 0 } });
+      if (!run) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
+      if (run.undone_at) {
+        res.status(409).json({ message: "already_undone" });
+        return;
+      }
+      const batchId = String(run.batch_id || "").trim();
+      if (!batchId) {
+        res.status(400).json({ message: "invalid_batch_id" });
+        return;
+      }
+      const del = await db.collection("eventos").deleteMany({ bulk_batch_id: batchId });
+      const now = nowIso();
+      await db.collection(BULK_RUNS_COLLECTION).updateOne(
+        { id },
+        {
+          $set: {
+            undone_at: now,
+            undone_by_user_id: req.user.id,
+            undone_deleted_count: del.deletedCount || 0,
+            updated_at: now,
+          },
+        },
+      );
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "admin.eventos.bulk_run.undo",
+        details: { bulk_run_id: id, deleted: del.deletedCount || 0 },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.json({ ok: true, deleted: del.deletedCount || 0 });
+    },
+  );
+
   app.post("/api/admin/users", requireAdmin, async (req, res) => {
     const schema = z.object({
       email: z.string().email(),
       full_name: z.string().min(1),
-      role: z.enum(["admin", "user"]).default("user"),
-      password: z.string().min(10),
+      password: z.string().min(1),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
+    const pwPolicy = validateAccountPassword(parsed.data.password);
+    if (respondIfPasswordPolicyFails(res, pwPolicy)) return;
     const email = parsed.data.email.toLowerCase().trim();
     const exists = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
     if (exists) {
@@ -783,7 +1524,7 @@ export function createApplication(db, options = {}) {
       id,
       email,
       full_name: parsed.data.full_name.trim(),
-      role: parsed.data.role,
+      role: "admin",
       funcao: "",
       password_hash,
       disabled: false,
@@ -794,7 +1535,7 @@ export function createApplication(db, options = {}) {
       userId: id,
       actorUserId: req.user.id,
       action: "admin.user.create",
-      details: { email, role: parsed.data.role },
+      details: { email, role: "admin" },
       ip: clientIp(req),
     });
     res.status(201).json({ id });
@@ -803,7 +1544,6 @@ export function createApplication(db, options = {}) {
   app.post("/api/admin/users/invite", requireAdmin, async (req, res) => {
     const schema = z.object({
       email: z.string().email(),
-      role: z.enum(["admin", "user"]).default("user"),
       expires_days: z.number().int().min(1).max(30).optional(),
     });
     const parsed = schema.safeParse(req.body);
@@ -812,7 +1552,7 @@ export function createApplication(db, options = {}) {
       return;
     }
     const email = parsed.data.email.toLowerCase().trim();
-    const role = parsed.data.role;
+    const role = "admin";
 
     const existing = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
     if (existing) {
@@ -865,7 +1605,7 @@ export function createApplication(db, options = {}) {
   app.post("/api/auth/accept-invite", async (req, res) => {
     const schema = z.object({
       token: z.string().min(10),
-      password: z.string().min(10),
+      password: z.string().min(1),
       full_name: z.string().min(1).optional(),
     });
     const parsed = schema.safeParse(req.body);
@@ -873,6 +1613,8 @@ export function createApplication(db, options = {}) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
+    const pwPolicy = validateAccountPassword(parsed.data.password);
+    if (respondIfPasswordPolicyFails(res, pwPolicy)) return;
     const token_hash = sha256Hex(parsed.data.token);
     const now = nowIso();
     const inv = await db.collection("user_invites").findOne(
@@ -927,8 +1669,7 @@ export function createApplication(db, options = {}) {
     const schema = z.object({
       email: z.string().email().optional(),
       full_name: z.string().min(1).optional(),
-      role: z.enum(["admin", "user"]).optional(),
-      password: z.string().min(10).optional(),
+      password: z.string().min(1).optional(),
       funcao: z.string().optional(),
       disabled: z.boolean().optional(),
     });
@@ -936,6 +1677,10 @@ export function createApplication(db, options = {}) {
     if (!parsed.success) {
       res.status(400).json({ message: "invalid_request" });
       return;
+    }
+    if (parsed.data.password) {
+      const pwPolicy = validateAccountPassword(parsed.data.password);
+      if (respondIfPasswordPolicyFails(res, pwPolicy)) return;
     }
     const cur = await db.collection("users").findOne(
       { id },
@@ -962,7 +1707,6 @@ export function createApplication(db, options = {}) {
     const $set = { updated_at: now };
     if (nextEmail != null) $set.email = nextEmail;
     if (parsed.data.full_name != null) $set.full_name = parsed.data.full_name.trim();
-    if (parsed.data.role != null) $set.role = parsed.data.role;
     if (parsed.data.funcao != null) $set.funcao = String(parsed.data.funcao);
     if (password_hash) $set.password_hash = password_hash;
     if (parsed.data.disabled != null) $set.disabled = parsed.data.disabled;
@@ -970,7 +1714,6 @@ export function createApplication(db, options = {}) {
     const fields = [];
     if (nextEmail != null) fields.push("email");
     if (parsed.data.full_name != null) fields.push("full_name");
-    if (parsed.data.role != null) fields.push("role");
     if (parsed.data.funcao != null) fields.push("funcao");
     if (password_hash) fields.push("password");
     if (parsed.data.disabled != null) fields.push("disabled");
@@ -1002,6 +1745,13 @@ export function createApplication(db, options = {}) {
     if (!row) {
       res.status(404).json({ message: "not_found" });
       return;
+    }
+    if (row.role === "admin") {
+      const adminCount = await db.collection("users").countDocuments({ role: "admin" });
+      if (adminCount <= 1) {
+        res.status(400).json({ message: "cannot_delete_last_admin" });
+        return;
+      }
     }
 
     await Promise.all([
@@ -1110,6 +1860,16 @@ export function createApplication(db, options = {}) {
     if (!f) {
       res.status(400).json({ message: "file_required" });
       return;
+    }
+    const purposeRaw = req.body?.purpose;
+    const purpose = typeof purposeRaw === "string" ? purposeRaw.trim() : "";
+    if (purpose === "post_media") {
+      const mime = String(f.mimetype || "");
+      const ok = mime.startsWith("image/") || mime.startsWith("video/");
+      if (!ok) {
+        res.status(400).json({ message: "post_media_only" });
+        return;
+      }
     }
     const now = nowIso();
     const fid = await nextSeq(db, "files");
