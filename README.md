@@ -1,4 +1,9 @@
 # ICER
+Desenvolvido o site da Igreja ICER.
+
+https://github.com/user-attachments/assets/6ed22e9a-549e-44ba-9fd3-be124fee1008
+
+
 
 Frontend Vite + React. Autenticação e ficheiros privados opcionais via `server/index.js` (Express + SQLite).
 
