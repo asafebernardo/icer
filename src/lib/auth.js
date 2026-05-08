@@ -57,41 +57,6 @@ const PAGE_KEY_TO_MENU = {
   admin: MENU.DASHBOARD,
 };
 
-/**
- * Login local opcional (apenas desenvolvimento / demo).
- * Defina no .env: VITE_ENABLE_DEMO_LOGIN=true, VITE_DEMO_ADMIN_EMAIL, VITE_DEMO_ADMIN_PASSWORD
- * Nunca ative com palavra-passe fraca em produção.
- */
-export function resolveLoginUser(email, senha) {
-  const enabled = import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
-  const demoEmail = String(
-    import.meta.env.VITE_DEMO_ADMIN_EMAIL || "",
-  )
-    .toLowerCase()
-    .trim();
-  const demoPass = String(import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "");
-  if (!enabled || !demoEmail || !demoPass) {
-    return null;
-  }
-  const e = String(email || "").toLowerCase().trim();
-  if (e === demoEmail && senha === demoPass) {
-    return { email: e, role: "admin" };
-  }
-  return null;
-}
-
-function isDemoEmail(email) {
-  const enabled = import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
-  const demoEmail = String(import.meta.env.VITE_DEMO_ADMIN_EMAIL || "")
-    .toLowerCase()
-    .trim();
-  return (
-    enabled &&
-    !!demoEmail &&
-    String(email || "").toLowerCase().trim() === demoEmail
-  );
-}
-
 export { isServerAuthEnabled };
 
 async function loginWithServer(email, senha, opts = {}) {
@@ -185,23 +150,6 @@ function mapServerLoginError(e) {
  * >}
  */
 export async function login(email, senha, opts = {}) {
-  const demo = resolveLoginUser(email, senha);
-  if (demo) {
-    const e = demo.email;
-    const full_name =
-      String(import.meta.env.VITE_DEMO_ADMIN_FULL_NAME || "").trim() ||
-      e.split("@")[0];
-    const userData = {
-      email: e,
-      role: demo.role,
-      full_name,
-      _authSource: "demo",
-    };
-    persistSessionUser(userData);
-    recordMemberLogin(userData);
-    return { ok: true };
-  }
-
   if (!isServerAuthEnabled()) {
     return {
       ok: false,
@@ -335,11 +283,6 @@ export async function verifyCurrentPassword(user, plainPassword) {
   if (user?._authSource === "server") {
     return false;
   }
-  const email = String(user?.email || "").toLowerCase().trim();
-  if (isDemoEmail(email)) {
-    const demoPass = String(import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "");
-    return plainPassword === demoPass;
-  }
   return false;
 }
 
@@ -368,22 +311,6 @@ export async function updateUserProfile(fields) {
   }
 
   const oldEmail = String(cur.email || "").toLowerCase().trim();
-
-  if (isDemoEmail(oldEmail)) {
-    if (nextEmail !== oldEmail || newPassword.length > 0) {
-      throw new Error(
-        "Conta de demonstração: o e-mail e a palavra-passe estão definidos no ficheiro .env.",
-      );
-    }
-    const ok = await verifyCurrentPassword(cur, currentPassword);
-    if (!ok) {
-      throw new Error("Palavra-passe atual incorreta.");
-    }
-    const next = { ...cur, full_name: nextName };
-    persistSessionUser(next);
-    recordMemberLogin(next);
-    return next;
-  }
 
   if (cur._authSource === "server") {
     try {
@@ -444,5 +371,5 @@ export async function updateUserProfile(fields) {
 
 /** Sessão da conta de demonstração (.env) — e-mail e senha não se editam na UI. */
 export function isDemoAdminSession(user) {
-  return isDemoEmail(user?.email);
+  return false;
 }
