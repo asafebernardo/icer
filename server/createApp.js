@@ -36,31 +36,22 @@ import {
   listAuditLogsGlobal,
 } from "./auditLog.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
-import { getBackupSummary, pipeSiteBackupZip, writeSiteBackupZipToFile } from "./siteBackup.js";
-import { getBackupSchedule, saveBackupSchedule } from "./backupSchedule.js";
 import {
-  getGoogleIntegrationSafe,
-  mergeGoogleIntegration,
-} from "./adminGoogleIntegration.js";
-import {
-  buildGoogleAuthUrl,
-  buildOAuthClient,
-  callbackRedirectBase,
-  consumeGoogleOauthState,
-  createGoogleOauthState,
-  disconnectGoogle,
-  exchangeCodeAndStoreTokens,
-  getAuthorizedDriveClient,
-  getGoogleTokensSafe,
-} from "./googleOAuth.js";
+  buildGoogleLoginAuthorizeUrl,
+  consumeGoogleLoginOauthState,
+  createGoogleLoginOauthState,
+  exchangeGoogleLoginCodeForEmail,
+  googleLoginPublicBase,
+  googleLoginRedirectUri,
+  isEmailAllowedForGoogleLogin,
+  isGoogleLoginConfigured,
+} from "./googleLogin.js";
 import {
   decryptTotpSecret,
   encryptTotpSecret,
   generateRecoveryCodes,
   generateTotpSecret,
   hashRecoveryCode,
-  isTotpEnforcementEnabled,
-  totpGraceDays,
   totpVerify,
 } from "./totp.js";
 
@@ -301,6 +292,25 @@ export function createApplication(db, options = {}) {
     res.json({ ok: true });
   });
 
+  // Resumo público de acessos na Home (total e IPs únicos) para exibir no rodapé.
+  app.get("/api/metrics/home-views-summary", async (_req, res) => {
+    const [totalViewsRow, uniqueIps] = await Promise.all([
+      db.collection("app_kv").findOne({ key: HOME_VIEWS_KEY }),
+      db.collection(HOME_VIEWS_BY_IP_COLLECTION).countDocuments({}),
+    ]);
+
+    const totalViews =
+      typeof totalViewsRow?.value?.count === "number"
+        ? totalViewsRow.value.count
+        : Number(totalViewsRow?.value?.count || 0);
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      total_views: Number.isFinite(totalViews) ? totalViews : 0,
+      unique_ips: uniqueIps || 0,
+    });
+  });
+
   /** Estado partilhado do site (sugestões da agenda, paletas, destaque visto, etc.) — não depende de sessão para leitura. */
   app.get("/api/public-workspace", async (_req, res) => {
     const ws = await getPublicWorkspace(db);
@@ -377,33 +387,6 @@ export function createApplication(db, options = {}) {
 
   // Aplica CSRF em rotas mutáveis com cookie.
   app.use(requireCsrf);
-
-  // ── 2FA enforcement (bloqueia uso após grace) ───────────────────────────
-  app.use(async (req, res, next) => {
-    if (!req.user) return next();
-    if (!isTotpEnforcementEnabled()) return next();
-    if (req.user?.totp_enabled === true) return next();
-
-    const p = String(req.path || req.originalUrl || "");
-    const allow =
-      p === "/api/auth/me" ||
-      p === "/api/auth/logout" ||
-      p === "/api/auth/csrf" ||
-      p === "/api/auth/2fa/setup" ||
-      p === "/api/auth/2fa/verify" ||
-      p === "/api/auth/2fa/disable" ||
-      p === "/api/auth/login-2fa";
-    if (allow) return next();
-
-    const started = req.user?.totp_grace_started_at
-      ? new Date(String(req.user.totp_grace_started_at)).getTime()
-      : 0;
-    if (!started) return next(); // grace ainda não começou
-    const days = totpGraceDays();
-    const deadline = started + days * 24 * 60 * 60 * 1000;
-    if (Date.now() <= deadline) return next();
-    res.status(403).json({ message: "2fa_required" });
-  });
 
   // Admin: grava config pública do site no servidor (Mongo).
   app.put("/api/admin/site-config", requireAuth, requireAdmin, async (req, res) => {
@@ -620,31 +603,6 @@ export function createApplication(db, options = {}) {
       { $set: { last_login_at: loginStamp } },
     );
 
-    // Inicia grace period do 2FA para todos (se enforce estiver ativo).
-    if (isTotpEnforcementEnabled()) {
-      const u = await db.collection("users").findOne(
-        { id: row.id },
-        { projection: { _id: 0, totp_enabled: 1, totp_grace_started_at: 1, totp_secret_enc: 1 } },
-      );
-      const enabled = u?.totp_enabled === true && String(u?.totp_secret_enc || "").trim();
-      if (!enabled) {
-        const started = u?.totp_grace_started_at ? String(u.totp_grace_started_at) : "";
-        if (!started) {
-          await db.collection("users").updateOne(
-            { id: row.id },
-            { $set: { totp_grace_started_at: nowIso() } },
-          );
-        } else {
-          const startMs = new Date(started).getTime();
-          const deadline = startMs + totpGraceDays() * 24 * 60 * 60 * 1000;
-          if (Number.isFinite(startMs) && Date.now() > deadline) {
-            res.status(403).json({ message: "2fa_required" });
-            return;
-          }
-        }
-      }
-    }
-
     // Se 2FA estiver ativo, não cria sessão: exige confirmação do TOTP.
     const two = await db.collection("users").findOne(
       { id: row.id },
@@ -678,6 +636,215 @@ export function createApplication(db, options = {}) {
       ...auditCtx(req),
     });
     res.json({ ok: true });
+  });
+
+  app.get("/api/auth/google-login/config", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ enabled: isGoogleLoginConfigured() });
+  });
+
+  app.get("/api/auth/google-login/start", loginMw, async (req, res) => {
+    if (!isGoogleLoginConfigured()) {
+      res.status(503).json({ message: "google_login_unavailable" });
+      return;
+    }
+    const redirectUri = googleLoginRedirectUri();
+    const force = String(req.query.force_new_session || "").trim() === "1";
+    try {
+      const state = await createGoogleLoginOauthState(db, { force_new_session: force });
+      const url = buildGoogleLoginAuthorizeUrl({ state, redirectUri });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ auth_url: url });
+    } catch {
+      res.status(500).json({ message: "google_login_start_failed" });
+    }
+  });
+
+  app.get("/api/auth/google-login/callback", async (req, res) => {
+    const base = googleLoginPublicBase();
+    if (!base || !isGoogleLoginConfigured()) {
+      res.status(400).type("text/plain").send("Login Google não configurado.");
+      return;
+    }
+    const redirectUri = googleLoginRedirectUri();
+    const code = String(req.query.code || "").trim();
+    const state = String(req.query.state || "").trim();
+    const oauthErr = String(req.query.error || "").trim();
+
+    const errRedirect = (reason) => {
+      const u = new URL(`${base}/Home`);
+      u.searchParams.set("google_login", "err");
+      u.searchParams.set("reason", reason);
+      res.redirect(302, u.toString());
+    };
+
+    if (oauthErr) {
+      errRedirect("oauth");
+      return;
+    }
+
+    if (!code || !state) {
+      errRedirect("oauth");
+      return;
+    }
+    const st = await consumeGoogleLoginOauthState(db, state);
+    if (!st) {
+      errRedirect("oauth");
+      return;
+    }
+
+    let emailFromGoogle;
+    try {
+      ({ email: emailFromGoogle } = await exchangeGoogleLoginCodeForEmail({
+        code,
+        redirectUri,
+      }));
+    } catch {
+      await recordAudit(db, {
+        userId: null,
+        actorUserId: null,
+        action: "auth.login_google_failed",
+        details: { step: "token" },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      errRedirect("oauth");
+      return;
+    }
+
+    const email = emailFromGoogle;
+    const ipKey = `ip:${clientIp(req)}`;
+    const userKey = `user:${email}`;
+    const blockRows = await readLoginBlocks([ipKey, userKey]);
+    if (blockRows && blockRows.length > 0) {
+      await recordAudit(db, {
+        userId: null,
+        actorUserId: null,
+        action: "auth.login_google_failed",
+        details: { reason: "blocked" },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      errRedirect("blocked");
+      return;
+    }
+
+    if (!isEmailAllowedForGoogleLogin(email)) {
+      await recordAudit(db, {
+        userId: null,
+        actorUserId: null,
+        action: "auth.login_google_denied",
+        details: { reason: "not_allowlisted" },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      errRedirect("forbidden");
+      return;
+    }
+
+    const row = await db.collection("users").findOne(
+      { email },
+      {
+        projection: {
+          _id: 0,
+          id: 1,
+          email: 1,
+          full_name: 1,
+          role: 1,
+          disabled: 1,
+          password_hash: 1,
+        },
+      },
+    );
+    if (!row || row.disabled === true) {
+      await bumpLoginFailure([ipKey, userKey]);
+      await recordAudit(db, {
+        userId: row?.id ?? null,
+        actorUserId: null,
+        action: "auth.login_google_failed",
+        details: { reason: "no_account_or_disabled" },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      errRedirect("no_account");
+      return;
+    }
+
+    if (enforceSingleSession) {
+      const nowIsoStr = nowIso();
+      const active = await db.collection("sessions").findOne({
+        user_id: row.id,
+        expires_at: { $gt: nowIsoStr },
+      });
+      if (active && !st.force_new_session) {
+        await recordAudit(db, {
+          userId: row.id,
+          actorUserId: row.id,
+          action: "auth.login_google_failed",
+          details: { reason: "session_already_active" },
+          ip: clientIp(req),
+          ...auditCtx(req),
+        });
+        errRedirect("session_active");
+        return;
+      }
+      if (active && st.force_new_session) {
+        await db.collection("sessions").deleteMany({ user_id: row.id });
+        await recordAudit(db, {
+          userId: row.id,
+          actorUserId: row.id,
+          action: "auth.sessions_revoked_by_login",
+          details: { reason: "google_force_new_session" },
+          ip: clientIp(req),
+          ...auditCtx(req),
+        });
+      }
+    }
+
+    await clearLoginFailures([ipKey, userKey]);
+    const loginStamp = nowIso();
+    await db.collection("users").updateOne(
+      { id: row.id },
+      { $set: { last_login_at: loginStamp } },
+    );
+
+    const two = await db.collection("users").findOne(
+      { id: row.id },
+      { projection: { _id: 0, totp_enabled: 1, totp_secret_enc: 1 } },
+    );
+    if (two?.totp_enabled === true && String(two?.totp_secret_enc || "").trim()) {
+      const loginToken = randomToken();
+      const tokenHash = sha256Hex(loginToken);
+      const now = nowIso();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await db.collection("auth_2fa_challenges_v1").insertOne({
+        token_hash: tokenHash,
+        user_id: row.id,
+        created_at: now,
+        expires_at: expiresAt,
+      });
+      const u = new URL(`${base}/Home`);
+      u.searchParams.set("google_login", "2fa");
+      u.searchParams.set("login_token", loginToken);
+      res.redirect(302, u.toString());
+      return;
+    }
+
+    const ttlMinutes = await getSessionTtlMinutes();
+    const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
+    setSessionCookie(res, token);
+    ensureCsrfCookie(req, res);
+    await recordAudit(db, {
+      userId: row.id,
+      actorUserId: row.id,
+      action: "auth.login_google",
+      details: { email: row.email },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    const okUrl = new URL(`${base}/Home`);
+    okUrl.searchParams.set("google_login", "ok");
+    res.redirect(302, okUrl.toString());
   });
 
   app.post("/api/auth/login-2fa", async (req, res) => {
@@ -1185,285 +1352,6 @@ export function createApplication(db, options = {}) {
       ip,
     });
     res.json(result);
-  });
-
-  app.get("/api/admin/backup/info", requireAuth, requireAdmin, async (_req, res) => {
-    try {
-      const info = await getBackupSummary(db, uploadDir, resolveUploadedDiskPath);
-      res.setHeader("Cache-Control", "no-store");
-      res.json(info);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[ICER] backup/info", e);
-      res.status(500).json({ message: "backup_info_failed" });
-    }
-  });
-
-  app.get("/api/admin/backup/schedule", requireAuth, requireAdmin, async (_req, res) => {
-    try {
-      const schedule = await getBackupSchedule(db);
-      res.setHeader("Cache-Control", "no-store");
-      res.json(schedule);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[ICER] backup/schedule get", e);
-      res.status(500).json({ message: "backup_schedule_read_failed" });
-    }
-  });
-
-  app.put("/api/admin/backup/schedule", requireAuth, requireAdmin, async (req, res) => {
-    const schema = z.object({
-      enabled: z.boolean().optional(),
-      weekday: z.number().int().min(0).max(6).optional(),
-      hour: z.number().int().min(0).max(23).optional(),
-      minute: z.number().int().min(0).max(59).optional(),
-    });
-    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
-    if (!parsed.success) {
-      res.status(400).json({ message: "invalid_request" });
-      return;
-    }
-    try {
-      const next = await saveBackupSchedule(db, parsed.data);
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "admin.backup_schedule_update",
-        details: {
-          enabled: next.enabled,
-          weekday: next.weekday,
-          hour: next.hour,
-          minute: next.minute,
-        },
-        ip: clientIp(req),
-        ...auditCtx(req),
-      });
-      res.setHeader("Cache-Control", "no-store");
-      res.json(next);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[ICER] backup/schedule put", e);
-      res.status(500).json({ message: "backup_schedule_save_failed" });
-    }
-  });
-
-  app.get("/api/admin/backup/export", requireAuth, requireAdmin, async (req, res) => {
-    const stamp = new Date().toISOString().replaceAll(":", "-").replace(/\.\d{3}Z$/, "Z");
-    const filename = `icer-site-backup-${stamp}.zip`;
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.setHeader("Cache-Control", "no-store");
-    try {
-      // Registra a intenção antes de começar o stream (evita async após fechar DB nos testes).
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "admin.backup_export",
-        details: { filename },
-        ip: clientIp(req),
-        ...auditCtx(req),
-      });
-      await pipeSiteBackupZip(res, db, uploadDir, resolveUploadedDiskPath);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[ICER] backup/export", e);
-      if (!res.headersSent) {
-        res.status(500).json({ message: "backup_export_failed" });
-      }
-    }
-  });
-
-  app.get("/api/admin/integrations/google", requireAuth, requireAdmin, async (_req, res) => {
-    const data = await getGoogleIntegrationSafe(db);
-    res.setHeader("Cache-Control", "no-store");
-    res.json(data);
-  });
-
-  app.put("/api/admin/integrations/google", requireAuth, requireAdmin, async (req, res) => {
-    const schema = z.object({
-      enabled: z.boolean().optional(),
-      client_id: z.string().max(2048).optional(),
-      client_secret: z.string().max(8192).optional(),
-      clear_client_secret: z.boolean().optional(),
-      drive_export_folder_id: z.string().max(512).optional(),
-      auto_upload_backups: z.boolean().optional(),
-      notes: z.string().max(8000).optional(),
-    });
-    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
-    if (!parsed.success) {
-      res.status(400).json({ message: "invalid_request" });
-      return;
-    }
-    const next = await mergeGoogleIntegration(db, parsed.data);
-    await recordAudit(db, {
-      userId: req.user.id,
-      actorUserId: req.user.id,
-      action: "admin.google_integration_update",
-      details: {
-        enabled: next.enabled,
-        client_id_set: !!next.client_id,
-        client_secret_set: next.client_secret_set,
-        drive_export_folder_id_set: !!next.drive_export_folder_id,
-      },
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    res.setHeader("Cache-Control", "no-store");
-    res.json(next);
-  });
-
-  // OAuth: status / connect / disconnect
-  app.get("/api/admin/integrations/google/status", requireAuth, requireAdmin, async (_req, res) => {
-    const st = await getGoogleTokensSafe(db);
-    res.setHeader("Cache-Control", "no-store");
-    res.json(st);
-  });
-
-  app.post("/api/admin/integrations/google/disconnect", requireAuth, requireAdmin, async (req, res) => {
-    await disconnectGoogle(db);
-    await recordAudit(db, {
-      userId: req.user.id,
-      actorUserId: req.user.id,
-      action: "admin.google_disconnect",
-      details: {},
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    res.json({ ok: true });
-  });
-
-  app.get("/api/auth/google/start", requireAuth, requireAdmin, async (req, res) => {
-    if (!callbackRedirectBase(req)) {
-      res.status(400).json({ message: "google_public_base_missing" });
-      return;
-    }
-    const cfg = await getGoogleIntegrationSafe(db);
-    if (!cfg.enabled || !cfg.client_id || !cfg.client_secret_set) {
-      res.status(400).json({ message: "google_not_configured" });
-      return;
-    }
-    // lê secret real do KV (não expõe ao cliente)
-    const row = await db.collection("app_kv").findOne({ key: "google_integration_v1" }, { projection: { _id: 0, value: 1 } });
-    const real = row?.value && typeof row.value === "object" ? row.value : {};
-    const client_secret = String(real.client_secret || "").trim();
-    const client_id = String(real.client_id || "").trim();
-    if (!client_id || !client_secret) {
-      res.status(400).json({ message: "google_not_configured" });
-      return;
-    }
-    const state = await createGoogleOauthState(db, req.user.id, { redirectTo: "/Dashboard?tab=google" });
-    const { url } = buildGoogleAuthUrl(req, { client_id, client_secret }, state);
-    res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, auth_url: url });
-  });
-
-  app.get("/api/auth/google/callback", async (req, res) => {
-    const code = String(req.query.code || "").trim();
-    const state = String(req.query.state || "").trim();
-    if (!code || !state) {
-      res.status(400).type("text/plain").send("OAuth callback inválido.");
-      return;
-    }
-    const st = await consumeGoogleOauthState(db, state);
-    if (!st) {
-      res.status(400).type("text/plain").send("Estado OAuth expirado.");
-      return;
-    }
-    const row = await db.collection("app_kv").findOne({ key: "google_integration_v1" }, { projection: { _id: 0, value: 1 } });
-    const real = row?.value && typeof row.value === "object" ? row.value : {};
-    const client_id = String(real.client_id || "").trim();
-    const client_secret = String(real.client_secret || "").trim();
-    if (!client_id || !client_secret) {
-      res.status(400).type("text/plain").send("Google não configurado.");
-      return;
-    }
-    const base = callbackRedirectBase(req);
-    const redirectUri = `${base}/api/auth/google/callback`;
-    const oauth2 = buildOAuthClient({ client_id, client_secret }, redirectUri);
-    try {
-      const { connected_email } = await exchangeCodeAndStoreTokens(db, oauth2, code);
-      await recordAudit(db, {
-        userId: st.user_id,
-        actorUserId: st.user_id,
-        action: "auth.google_connected",
-        details: { connected_email },
-        ip: clientIp(req),
-        ...auditCtx(req),
-      });
-      res.redirect(`${base}${st.redirect_to || "/Dashboard?tab=google"}&connected=1`);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[ICER] google oauth callback", e);
-      res.redirect(`${base}${st.redirect_to || "/Dashboard?tab=google"}&connected=0`);
-    }
-  });
-
-  // Backup → Google Drive
-  app.post("/api/admin/backup/upload-google", requireAuth, requireAdmin, async (req, res) => {
-    const cfgSafe = await getGoogleIntegrationSafe(db);
-    if (!cfgSafe.enabled) {
-      res.status(400).json({ message: "google_integration_disabled" });
-      return;
-    }
-    if (!cfgSafe.drive_export_folder_id) {
-      res.status(400).json({ message: "google_drive_folder_required" });
-      return;
-    }
-    const row = await db.collection("app_kv").findOne({ key: "google_integration_v1" }, { projection: { _id: 0, value: 1 } });
-    const real = row?.value && typeof row.value === "object" ? row.value : {};
-    const client_id = String(real.client_id || "").trim();
-    const client_secret = String(real.client_secret || "").trim();
-    const base = callbackRedirectBase(req);
-    const redirectUri = `${base}/api/auth/google/callback`;
-    const auth = await getAuthorizedDriveClient(db, { client_id, client_secret }, redirectUri);
-    if (!auth.ok) {
-      res.status(409).json({ message: "google_not_connected" });
-      return;
-    }
-    const stamp = new Date().toISOString().replaceAll(":", "-").replace(/\.\d{3}Z$/, "Z");
-    const filename = `icer-site-backup-${stamp}.zip`;
-    const fsP = await import("node:fs/promises");
-    const os = await import("node:os");
-    const path = await import("node:path");
-    const tmp = await fsP.mkdtemp(path.join(os.tmpdir(), "icer-"));
-    const outPath = path.join(tmp, filename);
-    try {
-      await writeSiteBackupZipToFile(outPath, db, uploadDir, resolveUploadedDiskPath);
-      const fsMod = await import("node:fs");
-      const media = {
-        mimeType: "application/zip",
-        body: fsMod.createReadStream(outPath),
-      };
-      const meta = {
-        name: filename,
-        parents: [cfgSafe.drive_export_folder_id],
-      };
-      const up = await auth.drive.files.create({
-        requestBody: meta,
-        media,
-        fields: "id,name,createdTime",
-      });
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "admin.backup_upload_google",
-        details: { drive_file_id: up.data.id, name: up.data.name },
-        ip: clientIp(req),
-        ...auditCtx(req),
-      });
-      res.json({ ok: true, drive_file: up.data });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[ICER] backup/upload-google", e);
-      res.status(500).json({ message: "google_upload_failed" });
-    } finally {
-      try {
-        const fsP = await import("node:fs/promises");
-        await fsP.rm(tmp, { recursive: true, force: true });
-      } catch {
-        /* ignore */
-      }
-    }
   });
 
   // ── Admin: Rotinas de agendamento em massa (Eventos) ─────────────────────

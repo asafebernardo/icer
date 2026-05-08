@@ -37,6 +37,7 @@ import {
   savePublicSiteConfigAdmin,
 } from "@/lib/siteConfig";
 import { getPageBackgroundUrl } from "@/lib/usePageBackground";
+import SafeImg from "@/components/shared/SafeImg";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
 import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
@@ -475,7 +476,7 @@ export default function AdminSitePanel() {
             className="hidden"
             onChange={handleLogoUpload}
           />
-          <img
+          <SafeImg
             src={logoUrl || DEFAULT_SITE_LOGO_URL}
             alt="Pré-visualização da logo"
             className="h-12 w-auto rounded-lg border border-border object-contain"
@@ -911,7 +912,7 @@ export default function AdminSitePanel() {
             />
             {loginHeroUrl ? (
               <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
-                <img src={loginHeroUrl} alt="" className="w-full h-full object-cover" />
+                <SafeImg src={loginHeroUrl} alt="" className="w-full h-full object-cover" />
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
@@ -949,7 +950,7 @@ export default function AdminSitePanel() {
             />
             {loginFormBgUrl ? (
               <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
-                <img src={loginFormBgUrl} alt="" className="w-full h-full object-cover" />
+                <SafeImg src={loginFormBgUrl} alt="" className="w-full h-full object-cover" />
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">Nenhuma imagem</p>

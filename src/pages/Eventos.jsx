@@ -344,9 +344,10 @@ export default function Eventos() {
 
       <section className="py-10 lg:py-14">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Alternância Agenda / Eventos + criar (alinhado à direita das abas) */}
+          {/* Alternância Agenda / Eventos + criar */}
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-            <div className="flex bg-muted rounded-xl p-1 gap-1 w-fit">
+            {/* Desktop/tablet: tabs “conjuntas” */}
+            <div className="hidden sm:flex bg-muted rounded-xl p-1 gap-1 w-fit">
               <Link to="/Agenda">
                 <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   <CalendarDays className="w-4 h-4" /> Agenda
@@ -357,20 +358,65 @@ export default function Eventos() {
               </span>
             </div>
             {canCreate ? (
-              <div className="flex items-center gap-2 w-fit shrink-0">
-                <Button type="button" variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
-                  <span>Agendar em massa</span>
-                  <span className="inline-flex items-center rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-                    Beta
-                  </span>
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setBulkRunsOpen(true)} className="gap-2">
-                  <History className="w-4 h-4" />
-                  Rotinas
-                </Button>
-                <Button type="button" onClick={handleNew} className="gap-2">
-                  <Plus className="w-4 h-4" /> Novo evento
-                </Button>
+              <div className="flex items-center justify-between gap-2 w-full shrink-0">
+                {/* Mobile: filtros à esquerda, alinhados aos botões */}
+                <div className="sm:hidden flex bg-muted rounded-lg p-1 gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Próximo evento"
+                    onClick={() => setFiltro("proximos")}
+                    className={filtro === "proximos" ? "bg-background shadow-sm" : ""}
+                  >
+                    <Clock className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Todos (${sorted.length})`}
+                    onClick={() => setFiltro("todos")}
+                    className={filtro === "todos" ? "bg-background shadow-sm" : ""}
+                  >
+                    <ListChecks className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setBulkOpen(true)}
+                    className="gap-2"
+                    aria-label="Agendar em massa"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span className="hidden sm:inline">Agendar em massa</span>
+                    <span className="hidden sm:inline-flex items-center rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                      Beta
+                    </span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setBulkRunsOpen(true)}
+                    className="gap-2"
+                    aria-label="Rotinas"
+                  >
+                    <History className="w-4 h-4" />
+                    <span className="hidden sm:inline">Rotinas</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleNew}
+                    className="gap-2"
+                    aria-label="Novo evento"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Novo evento</span>
+                  </Button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -415,18 +461,27 @@ export default function Eventos() {
           {/* Barra de controles */}
           <div className="flex flex-col gap-3 mb-6">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex bg-muted rounded-lg p-1 gap-1">
+              {/* Desktop/tablet: controlo com texto */}
+              <div className="hidden sm:flex bg-muted rounded-lg p-1 gap-1">
                 <button
                   type="button"
                   onClick={() => setFiltro("proximos")}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${filtro === "proximos" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    filtro === "proximos"
+                      ? "bg-background shadow text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
                   Próximo evento
                 </button>
                 <button
                   type="button"
                   onClick={() => setFiltro("todos")}
-                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${filtro === "todos" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    filtro === "todos"
+                      ? "bg-background shadow text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
                   Todos ({sorted.length})
                 </button>
@@ -478,23 +533,25 @@ export default function Eventos() {
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       disabled={pageTodos <= 0}
                       onClick={() => setPageTodos((p) => Math.max(0, p - 1))}
+                      aria-label="Página anterior"
                     >
-                      Anterior
+                      <ChevronLeft className="w-4 h-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      Página {Math.min(pageTodos + 1, totalPagesTodos)} / {totalPagesTodos}
+                      {Math.min(pageTodos + 1, totalPagesTodos)} / {totalPagesTodos}
                     </span>
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       disabled={pageTodos + 1 >= totalPagesTodos}
                       onClick={() => setPageTodos((p) => Math.min(totalPagesTodos - 1, p + 1))}
+                      aria-label="Próxima página"
                     >
-                      Próxima
+                      <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>

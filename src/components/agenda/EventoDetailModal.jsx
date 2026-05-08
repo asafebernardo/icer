@@ -11,6 +11,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 import { CATEGORY_BADGE_QUIET_CLASS } from "@/lib/categoryAppearance";
+import SafeImg from "@/components/shared/SafeImg";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -103,7 +104,7 @@ export default function EventoDetailModal({
               {evento.preletor && (
                 <div className="flex items-center gap-2">
                   {evento.preletor_avatar_url ? (
-                    <img
+                    <SafeImg
                       src={evento.preletor_avatar_url}
                       alt=""
                       className="w-8 h-8 rounded-full object-cover border border-border bg-muted shrink-0"

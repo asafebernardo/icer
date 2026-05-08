@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/AuthContext";
 import { getPageBackgroundUrl } from "@/lib/usePageBackground";
+import { getUser, isAdminUser, isServerAuthEnabled } from "@/lib/auth";
 import ResponsivePageBgImage from "@/components/shared/ResponsivePageBgImage";
 import {
   imageScrimFlat,
@@ -23,8 +24,20 @@ import {
 /**
  * Modal de login. Controlado por AuthContext (openLoginModal / closeLoginModal).
  */
+function postLoginPath() {
+  const u = getUser();
+  return isAdminUser(u) ? "/Admin" : "/Dashboard";
+}
+
 export default function LoginModal() {
-  const { login, loginModalOpen, closeLoginModal, checkUserAuth } = useAuth();
+  const {
+    login,
+    loginModalOpen,
+    closeLoginModal,
+    checkUserAuth,
+    googleLoginIntent,
+    clearGoogleLoginIntent,
+  } = useAuth();
   const navigate = useNavigate();
   const formId = useId();
   const [email, setEmail] = useState("");
@@ -35,6 +48,8 @@ export default function LoginModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [sessionConflict, setSessionConflict] = useState(false);
+  const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
+  const [googleForceSession, setGoogleForceSession] = useState(false);
   const [formBgUrl, setFormBgUrl] = useState(() =>
     getPageBackgroundUrl("login_form"),
   );
@@ -55,7 +70,46 @@ export default function LoginModal() {
       setShowPassword(false);
       setError("");
       setSessionConflict(false);
+      setGoogleForceSession(false);
     }
+  }, [loginModalOpen]);
+
+  useEffect(() => {
+    if (!loginModalOpen || !googleLoginIntent) return;
+    if (googleLoginIntent.type === "2fa") {
+      setTwoFactorToken(googleLoginIntent.login_token);
+      setTwoFactorStep(true);
+      setSessionConflict(false);
+      setError("");
+      clearGoogleLoginIntent();
+    } else if (googleLoginIntent.type === "err") {
+      setError(googleLoginIntent.message);
+      clearGoogleLoginIntent();
+    }
+  }, [loginModalOpen, googleLoginIntent, clearGoogleLoginIntent]);
+
+  useEffect(() => {
+    if (!loginModalOpen || !isServerAuthEnabled()) {
+      setGoogleLoginAvailable(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/auth/google-login/config", { credentials: "include" });
+        const j = await r.json().catch(() => ({}));
+        if (!cancelled && r.ok && j.enabled === true) {
+          setGoogleLoginAvailable(true);
+        } else if (!cancelled) {
+          setGoogleLoginAvailable(false);
+        }
+      } catch {
+        if (!cancelled) setGoogleLoginAvailable(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [loginModalOpen]);
 
   const handleSubmit = async (e) => {
@@ -77,7 +131,7 @@ export default function LoginModal() {
       }
       setSessionConflict(false);
       closeLoginModal();
-      navigate("/Dashboard");
+      navigate(postLoginPath());
       return;
     }
     try {
@@ -86,9 +140,22 @@ export default function LoginModal() {
       // O 2FA faz `persistSessionUser`, mas o AuthContext só atualiza estado ao chamar `checkUserAuth`.
       checkUserAuth();
       closeLoginModal();
-      navigate("/Dashboard");
+      navigate(postLoginPath());
     } catch (err) {
       setError(err?.message || "Código 2FA inválido.");
+    }
+  };
+
+  const startGoogleLogin = async () => {
+    setError("");
+    try {
+      const qs = googleForceSession ? "?force_new_session=1" : "";
+      const r = await fetch(`/api/auth/google-login/start${qs}`, { credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || r.statusText);
+      if (j.auth_url) window.location.assign(j.auth_url);
+    } catch (err) {
+      setError(err?.message || "Não foi possível iniciar o login com Google.");
     }
   };
 
@@ -219,6 +286,28 @@ export default function LoginModal() {
               </Button>
             </div>
           )}
+          {googleLoginAvailable && !twoFactorStep ? (
+            <div className="space-y-3 border-t border-border pt-4">
+              <p className="text-center text-xs text-muted-foreground">ou</p>
+              <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={googleForceSession}
+                  onChange={(e) => setGoogleForceSession(e.target.checked)}
+                  className="mt-0.5 rounded border-input"
+                />
+                <span>Encerrar outra sessão activa no servidor (se existir)</span>
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => void startGoogleLogin()}
+              >
+                Continuar com Google
+              </Button>
+            </div>
+          ) : null}
           {error ? (
             <p
               role="alert"
@@ -249,7 +338,7 @@ export default function LoginModal() {
                 }
                 setSessionConflict(false);
                 closeLoginModal();
-                navigate("/Dashboard");
+                navigate(postLoginPath());
               }}
             >
               Encerrar a outra sessão e entrar

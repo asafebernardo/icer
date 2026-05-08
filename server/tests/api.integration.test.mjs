@@ -438,55 +438,8 @@ describe("ICER API", () => {
     assert.equal(res.body.message, "cannot_delete_self");
   });
 
-  it("GET /api/admin/backup/info sem sessão → 401", async () => {
-    await request(app).get("/api/admin/backup/info").expect(401);
-  });
-
-  it("GET /api/admin/backup/info e export ZIP (admin)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const info = await agent.get("/api/admin/backup/info").expect(200);
-    assert.equal(info.body.backup_version, 1);
-    assert.ok(info.body.mongo_collections);
-    assert.ok(Number.isFinite(info.body.files_total));
-
-    const g0 = await agent.get("/api/admin/integrations/google").expect(200);
-    assert.equal(g0.body.enabled, false);
-
-    await agent
-      .put("/api/admin/integrations/google")
-      .set("X-CSRF-Token", csrf)
-      .send({
-        enabled: true,
-        client_id: "123.apps.googleusercontent.com",
-        drive_export_folder_id: "folderABC",
-        notes: "teste",
-      })
-      .expect(200);
-
-    const g1 = await agent.get("/api/admin/integrations/google").expect(200);
-    assert.equal(g1.body.enabled, true);
-    assert.equal(g1.body.client_id, "123.apps.googleusercontent.com");
-    assert.equal(g1.body.client_secret_set, false);
-
-    const binaryParser = (res, cb) => {
-      const chunks = [];
-      res.on("data", (c) => chunks.push(c));
-      res.on("end", () => cb(null, Buffer.concat(chunks)));
-      res.on("error", (e) => cb(e));
-    };
-    const zip = await agent
-      .get("/api/admin/backup/export")
-      .buffer(true)
-      .parse(binaryParser)
-      .expect(200);
-    const buf = zip.body;
-    assert.ok(buf.length > 8);
-    assert.equal(buf[0], 0x50);
-    assert.equal(buf[1], 0x4b);
+  it("GET /api/auth/google-login/config", async () => {
+    const r = await request(app).get("/api/auth/google-login/config").expect(200);
+    assert.equal(typeof r.body.enabled, "boolean");
   });
 });

@@ -264,22 +264,26 @@ export default function GlobalAuditLogPanel() {
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={goPrev}
               disabled={!hasPrev || isLoading}
+              aria-label="Página anterior"
             >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Anterior
+              <ChevronLeft className="w-4 h-4" />
             </Button>
+            <span className="text-xs text-muted-foreground tabular-nums self-center">
+              {Math.floor(applied.skip / PAGE_SIZE) + 1} /{" "}
+              {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            </span>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={goNext}
               disabled={!hasNext || isLoading}
+              aria-label="Próxima página"
             >
-              Seguinte
-              <ChevronRight className="w-4 h-4 ml-1" />
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>

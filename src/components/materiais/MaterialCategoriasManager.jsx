@@ -143,7 +143,7 @@ export default function MaterialCategoriasManager({ open, onOpenChange }) {
               </div>
               <Button type="button" className="gap-2 shrink-0" onClick={handleAdd}>
                 <Plus className="w-4 h-4" />
-                Adicionar
+                <span className="hidden sm:inline">Adicionar</span>
               </Button>
             </div>
 

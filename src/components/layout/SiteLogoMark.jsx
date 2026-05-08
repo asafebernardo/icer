@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
 import { getSiteConfig, DEFAULT_SITE_LOGO_URL } from "@/lib/siteConfig";
+import SafeImg from "@/components/shared/SafeImg";
 
 export function useSiteLogoUrl() {
   const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
@@ -22,7 +23,7 @@ export default function SiteLogoMark({ imgClassName }) {
   const src = stored || DEFAULT_SITE_LOGO_URL;
 
   return (
-    <img
+    <SafeImg
       src={src}
       alt="ICER Chapecó — Bíblia com cruz"
       className={imgClassName}

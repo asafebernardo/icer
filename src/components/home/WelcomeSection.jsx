@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 import { motion } from "framer-motion";
-import { Heart, Pencil, FileText, ImageIcon } from "lucide-react";
+import { Heart, Pencil, ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import HomeSectionBackdrop from "@/components/home/HomeSectionBackdrop";
+import SafeImg from "@/components/shared/SafeImg";
 import {
   getSiteConfig,
   refreshPublicSiteConfig,
@@ -206,9 +207,10 @@ export default function WelcomeSection() {
                 size="sm"
                 onClick={openHomeEditor}
                 className="gap-2"
+                aria-label="Editar — Textos (Bem-vindo)"
               >
-                <FileText className="w-4 h-4" />
-                Editar — Textos (Bem-vindo)
+                <Pencil className="w-4 h-4" />
+                <span className="hidden sm:inline">Editar — Textos (Bem-vindo)</span>
               </Button>
             </div>
           )}
@@ -245,7 +247,7 @@ export default function WelcomeSection() {
             <div className="relative z-0 flex min-h-[min(360px,58vh)] w-full flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-muted/10 shadow-card lg:min-h-[min(26rem,100%)]">
               {verseImageUrl ? (
                 <>
-                  <img
+                  <SafeImg
                     src={verseImageUrl}
                     alt=""
                     className="absolute inset-0 z-0 h-full w-full object-cover object-center"
@@ -492,7 +494,7 @@ export default function WelcomeSection() {
                     </div>
                     {homeDraft.verseImageUrl ? (
                       <div className="relative max-h-44 overflow-hidden rounded-md border">
-                        <img
+                        <SafeImg
                           src={homeDraft.verseImageUrl}
                           alt=""
                           className="h-44 w-full object-cover"

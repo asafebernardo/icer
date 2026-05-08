@@ -1,9 +1,22 @@
 import { motion } from "framer-motion";
 
-import { usePageBackground } from "@/lib/usePageBackground";
+import {
+  usePageBackground,
+  hasCustomPageBackground,
+  getPageBackgroundDisplayMode,
+  getPageBackgroundTileBaseColor,
+} from "@/lib/usePageBackground";
 import ResponsivePageBgImage from "@/components/shared/ResponsivePageBgImage";
 import AdminPageBgButton from "@/components/shared/AdminPageBgButton";
 import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
+
+const DISABLE_BG_BUTTON_PAGE_KEYS = new Set([
+  "postagens",
+  "recursos",
+  "agenda",
+  "eventos",
+  "admin",
+]);
 
 /**
  * @param {string} [pageKey] — identificador para fundo próprio + botão admin ("postagens", "agenda", …)
@@ -18,11 +31,20 @@ export default function PageHeader({
 }) {
   const { url, isAdmin, handleFile, applyUrl } = usePageBackground(pageKey);
   const effectiveUrl = url || backgroundImage || "";
-  const hasStoredBg = Boolean((url || "").trim());
+  const hasStoredBg = hasCustomPageBackground(pageKey);
+  const bgMode = getPageBackgroundDisplayMode(pageKey);
+  const tileBase =
+    bgMode === "tile" && pageKey ? getPageBackgroundTileBaseColor(pageKey) : undefined;
+  const canShowBgButton =
+    !!pageKey && isAdmin && !DISABLE_BG_BUTTON_PAGE_KEYS.has(String(pageKey));
 
   return (
     <section className="relative min-h-[220px] overflow-hidden border-b border-primary/10 bg-primary py-14 dark:border-white/10 dark:bg-brand-surface sm:min-h-[260px] sm:py-16 lg:min-h-[300px] lg:py-20">
-      <ResponsivePageBgImage src={effectiveUrl} />
+      <ResponsivePageBgImage
+        src={effectiveUrl}
+        mode={bgMode}
+        tileBackgroundColor={tileBase}
+      />
 
       {effectiveUrl ? (
         <>
@@ -47,7 +69,7 @@ export default function PageHeader({
       </div>
 
       <AdminPageBgButton
-        visible={!!pageKey && isAdmin}
+        visible={canShowBgButton}
         onSelectFile={handleFile}
         onClear={() => applyUrl("")}
         hasBackground={hasStoredBg}
