@@ -15,11 +15,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Plus, ImagePlus, Palette } from "lucide-react";
+import { X, Plus, ImagePlus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { EVENT_CARD_COLOR_OPTIONS } from "@/lib/eventCardColors";
+import { eventCardBarClass } from "@/lib/eventCardColors";
+import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 import { EVENTO_CATEGORIAS } from "@/lib/eventoFormOptions";
+import {
+  HORARIO_FIM_VAZIO,
+  horarioSelectOptions,
+} from "@/lib/horarioCadastroOptions";
 import {
   imageFileToCompressedDataUrl,
   isLocalImageUploadEnabled,
@@ -42,16 +47,19 @@ import {
 } from "@/components/ui/dialog";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import SafeImg from "@/components/shared/SafeImg";
+import {
+  resolvePastorAvatarUrl,
+  resolvePreletorAvatarUrl,
+} from "@/lib/agendaPreletorAvatar";
 import { buildEventoApiPayload, normalizeEventoDate } from "@/lib/eventoPayload";
 import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
-import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import {
   PUBLIC_WORKSPACE_QUERY_KEY,
   fetchPublicWorkspaceJson,
   mergeRemoteAgendaSugestoes,
-  putAgendaSugestoesRemote,
 } from "@/lib/publicWorkspace";
+import { DEFAULT_AGENDA_SUGESTOES } from "@/lib/agendaSugestoesDefaults";
 
 /** Abre o seletor nativo de data/hora (Firefox e outros). */
 function openNativePicker(e) {
@@ -77,64 +85,23 @@ const nativePickerInputClass = cn(
   "[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0",
 );
 
-const DEFAULT_SUGESTOES = {
-  titulo: [
-    "Ceia + EBD",
-    "Estudo bíblico",
-    "Reunião feminina",
-    "Reunião masculina",
-    "Reunião de jovens",
-    "Reunião de oração",
-    "Cronológico",
-    "Aconselhamento",
-    "Assembléia",
-  ],
-  preletor: ["Asafe", "Joneri", "Juninho"],
-  pastor: ["Joneri", "Sandro"],
-  categoria: EVENTO_CATEGORIAS.map((c) => c.value),
-};
+const DEFAULT_SUGESTOES = DEFAULT_AGENDA_SUGESTOES;
 
 const CATEGORIA_LABEL_BY_SLUG = Object.fromEntries(
   EVENTO_CATEGORIAS.map((c) => [c.value, c.label]),
 );
-
-const LOCAIS_PADRAO = ["Sede local", "Outros"];
-
-const SUGESTOES_KEY = "agenda_sugestoes";
-
-function loadSugestoesLocal() {
-  try {
-    const raw = localStorage.getItem(SUGESTOES_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const merged = { ...DEFAULT_SUGESTOES, ...parsed };
-    for (const key of Object.keys(DEFAULT_SUGESTOES)) {
-      if (!Array.isArray(merged[key]) || merged[key].length === 0) {
-        merged[key] = DEFAULT_SUGESTOES[key];
-      }
-    }
-    return merged;
-  } catch {
-    return { ...DEFAULT_SUGESTOES };
-  }
-}
-
-function saveSugestoesLocal(s) {
-  localStorage.setItem(SUGESTOES_KEY, JSON.stringify(s));
-}
 
 function ComboSugestao({
   label,
   value,
   onChange,
   sugestoes,
-  onSugestoesChange,
   required,
   /** Ex.: mostrar rótulo PT na lista quando o valor guardado é um slug */
   formatSuggestion,
 }) {
   const [inputVal, setInputVal] = useState(value || "");
   const [showDrop, setShowDrop] = useState(false);
-  const [newItem, setNewItem] = useState("");
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -145,19 +112,6 @@ function ComboSugestao({
     onChange(v);
     setInputVal(v);
     setShowDrop(false);
-  };
-
-  const addSugestao = () => {
-    const t = newItem.trim();
-    if (t && !sugestoes.includes(t)) {
-      const updated = [...sugestoes, t];
-      onSugestoesChange(updated);
-    }
-    setNewItem("");
-  };
-
-  const removeSugestao = (item) => {
-    onSugestoesChange(sugestoes.filter((s) => s !== item));
   };
 
   return (
@@ -184,132 +138,23 @@ function ComboSugestao({
           }}
           placeholder={`${label}...`}
         />
-        {showDrop && (
+        {showDrop && sugestoes.length > 0 && (
           <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-xl shadow-lg overflow-hidden">
             <div className="max-h-48 overflow-y-auto">
               {sugestoes.map((s) => (
-                <div
+                <button
                   key={s}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-muted group"
+                  type="button"
+                  className="flex w-full items-center px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
+                  onMouseDown={() => select(s)}
                 >
-                  <button
-                    type="button"
-                    className="flex-1 text-left text-sm text-foreground"
-                    onMouseDown={() => select(s)}
-                  >
-                    {formatSuggestion ? formatSuggestion(s) : s}
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      removeSugestao(s);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
+                  {formatSuggestion ? formatSuggestion(s) : s}
+                </button>
               ))}
-            </div>
-            <div className="border-t border-border p-2 flex gap-2">
-              <Input
-                className="h-7 text-xs"
-                placeholder="Adicionar opção..."
-                value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && (e.preventDefault(), addSugestao())
-                }
-              />
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 shrink-0"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  addSugestao();
-                }}
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
             </div>
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function LocalField({ value, onChange }) {
-  const [modo, setModo] = useState(
-    value && !LOCAIS_PADRAO.includes(value) ? "livre" : "select",
-  );
-  const [localLivre, setLocalLivre] = useState(
-    value && !LOCAIS_PADRAO.includes(value) ? value : "",
-  );
-
-  useEffect(() => {
-    if (value && !LOCAIS_PADRAO.includes(value)) {
-      setModo("livre");
-      setLocalLivre(value);
-    } else {
-      setModo("select");
-    }
-  }, [value]);
-
-  const handleSelect = (v) => {
-    if (v === "__livre__") {
-      setModo("livre");
-      onChange(localLivre);
-    } else {
-      setModo("select");
-      onChange(v);
-    }
-  };
-
-  return (
-    <div>
-      <Label>Local *</Label>
-      {modo === "select" ? (
-        <Select value={value || ""} onValueChange={handleSelect}>
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Selecionar local..." />
-          </SelectTrigger>
-          <SelectContent>
-            {LOCAIS_PADRAO.map((l) => (
-              <SelectItem key={l} value={l}>
-                {l}
-              </SelectItem>
-            ))}
-            <SelectItem value="__livre__">✏️ Digitar endereço...</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : (
-        <div className="flex gap-2 mt-1">
-          <Input
-            value={localLivre}
-            onChange={(e) => {
-              setLocalLivre(e.target.value);
-              onChange(e.target.value);
-            }}
-            placeholder="Digite o local..."
-            className="flex-1"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setModo("select");
-              onChange("Sede local");
-            }}
-          >
-            Voltar
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -323,7 +168,6 @@ const empty = {
   local: "",
   categoria: "culto",
   preletor: "",
-  preletor_avatar_url: "",
   pastor: "",
   imagem_url: "",
   destaque: false,
@@ -348,30 +192,27 @@ export default function EventoFormPanel({
   existingEventos = [],
 }) {
   const [form, setForm] = useState(empty);
-  const [sugestoes, setSugestoes] = useState(loadSugestoesLocal);
+  const [sugestoes, setSugestoes] = useState(() =>
+    mergeRemoteAgendaSugestoes(DEFAULT_SUGESTOES, {}),
+  );
   const [uploadingImg, setUploadingImg] = useState(false);
   const [imgError, setImgError] = useState("");
-  const [uploadingPreletorAvatar, setUploadingPreletorAvatar] = useState(false);
-  const [preletorAvatarError, setPreletorAvatarError] = useState("");
   const [uploadingProgBanner, setUploadingProgBanner] = useState(false);
   const [progBannerError, setProgBannerError] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const imgRef = useRef();
-  const preletorAvatarRef = useRef();
   const progBannerRef = useRef();
   const previewBlobRef = useRef(null);
-  const previewPreletorAvatarBlobRef = useRef(null);
   const previewProgBannerBlobRef = useRef(null);
   const queryClient = useQueryClient();
   const exportRef = useRef(null);
   const [step, setStep] = useState("dados"); // "dados" | "programacao"
   const [conflictError, setConflictError] = useState("");
 
-  const useRemoteWs = isServerAuthEnabled();
   const { data: publicWs } = useQuery({
     queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
     queryFn: fetchPublicWorkspaceJson,
-    enabled: useRemoteWs,
+    enabled: open,
     staleTime: 60_000,
   });
 
@@ -388,14 +229,14 @@ export default function EventoFormPanel({
       : fetchedEventos;
 
   useEffect(() => {
-    if (!useRemoteWs || publicWs == null) return;
+    if (publicWs == null) return;
     hydrateMemberRegistryFromPublicWorkspace(publicWs);
     if (publicWs.agenda_sugestoes && typeof publicWs.agenda_sugestoes === "object") {
       setSugestoes(
         mergeRemoteAgendaSugestoes(DEFAULT_SUGESTOES, publicWs.agenda_sugestoes),
       );
     }
-  }, [useRemoteWs, publicWs]);
+  }, [publicWs]);
 
   const revokePreviewBlob = () => {
     if (previewBlobRef.current) {
@@ -411,17 +252,9 @@ export default function EventoFormPanel({
     }
   };
 
-  const revokePreletorAvatarPreviewBlob = () => {
-    if (previewPreletorAvatarBlobRef.current) {
-      URL.revokeObjectURL(previewPreletorAvatarBlobRef.current);
-      previewPreletorAvatarBlobRef.current = null;
-    }
-  };
-
   useEffect(() => {
     return () => {
       revokePreviewBlob();
-      revokePreletorAvatarPreviewBlob();
       revokeProgBannerPreviewBlob();
     };
   }, []);
@@ -475,57 +308,6 @@ export default function EventoFormPanel({
     revokePreviewBlob();
     setImgError("");
     set("imagem_url", "");
-  };
-
-  const handlePreletorAvatarUpload = async (e) => {
-    const input = e.target;
-    const file = input.files?.[0];
-    input.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setPreletorAvatarError("Selecione um ficheiro de imagem (JPEG, PNG, WebP, etc.).");
-      return;
-    }
-    setPreletorAvatarError("");
-    setUploadingPreletorAvatar(true);
-
-    revokePreletorAvatarPreviewBlob();
-    const blobUrl = URL.createObjectURL(file);
-    previewPreletorAvatarBlobRef.current = blobUrl;
-    set("preletor_avatar_url", blobUrl);
-
-    try {
-      const { file_url: url } = await uploadImageFile(file);
-      revokePreletorAvatarPreviewBlob();
-      set("preletor_avatar_url", url);
-    } catch (err) {
-      if (isLocalImageUploadEnabled()) {
-        console.warn("[Evento] uploadImageFile (preletor avatar):", err);
-        setPreletorAvatarError("Não foi possível processar a imagem.");
-      } else {
-        console.warn("[Evento] UploadFile (preletor avatar):", err);
-        void (async () => {
-          try {
-            const compressed = await imageFileToCompressedDataUrl(file);
-            revokePreletorAvatarPreviewBlob();
-            set("preletor_avatar_url", compressed);
-            setPreletorAvatarError(
-              "Não foi possível enviar ao servidor; a imagem foi incorporada localmente (comprimida). Guarde o evento.",
-            );
-          } catch {
-            setPreletorAvatarError("Não foi possível processar a imagem.");
-          }
-        })();
-      }
-    } finally {
-      setUploadingPreletorAvatar(false);
-    }
-  };
-
-  const clearPreletorAvatar = () => {
-    revokePreletorAvatarPreviewBlob();
-    setPreletorAvatarError("");
-    set("preletor_avatar_url", "");
   };
 
   const handleProgramacaoBannerUpload = async (e) => {
@@ -704,32 +486,20 @@ export default function EventoFormPanel({
     set("programacao", next);
   };
 
-  const updateSugestoes = (campo, lista) => {
-    const updated = { ...sugestoes, [campo]: lista };
-    setSugestoes(updated);
-    if (useRemoteWs) {
-      void (async () => {
-        try {
-          await putAgendaSugestoesRemote(updated);
-          await queryClient.invalidateQueries({
-            queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
-          });
-        } catch (e) {
-          toast({
-            title: "Não foi possível guardar sugestões",
-            description: String(e?.message || "Erro ao sincronizar com o servidor."),
-            variant: "destructive",
-          });
-        }
-      })();
-    } else {
-      saveSugestoesLocal(updated);
-    }
-  };
-
   const save = useMutation({
     mutationFn: async (raw) => {
-      const payload = buildEventoApiPayload(raw);
+      const payload = buildEventoApiPayload({
+        ...raw,
+        cor_barra: "auto",
+        preletor_avatar_url: resolvePreletorAvatarUrl(
+          sugestoes.preletor_avatars,
+          raw.preletor,
+        ),
+        pastor_avatar_url: resolvePastorAvatarUrl(
+          sugestoes.pastor_avatars,
+          raw.pastor,
+        ),
+      });
       if (evento) {
         return api.entities.Evento.update(evento.id, payload);
       }
@@ -778,7 +548,35 @@ export default function EventoFormPanel({
     String(form.titulo || "").trim() &&
     String(form.data || "").trim() &&
     String(form.categoria || "").trim() &&
-    String(form.local || "").trim();
+    String(form.local || "").trim() &&
+    String(form.horario || "").trim();
+
+  const horarioOpcoes = useMemo(
+    () =>
+      horarioSelectOptions(
+        sugestoes.horario,
+        form.horario,
+        form.horario_fim,
+      ),
+    [sugestoes.horario, form.horario, form.horario_fim],
+  );
+
+  /** Horários da programação (por dia) incluídos nas opções para não perder valores ao editar. */
+  const horarioProgramOpcoes = useMemo(() => {
+    const extras = [];
+    for (const dia of Array.isArray(form.programacao) ? form.programacao : []) {
+      for (const it of Array.isArray(dia.itens) ? dia.itens : []) {
+        const h = String(it?.hora ?? "").trim();
+        if (h) extras.push(h);
+      }
+    }
+    return horarioSelectOptions(
+      sugestoes.horario,
+      form.horario,
+      form.horario_fim,
+      ...extras,
+    );
+  }, [sugestoes.horario, form.horario, form.horario_fim, form.programacao]);
 
   const conflictInfo = useMemo(() => {
     const date = normalizeEventoDate(form.data);
@@ -796,6 +594,27 @@ export default function EventoFormPanel({
     });
     return { hasConflict: Boolean(match), sample: match || null };
   }, [effectiveEventos, form.data, form.horario, form.categoria, evento?.id]);
+
+  /** Mesma lógica dos cartões na lista; em «Novo evento» força auto (valor gravado). */
+  const previewBarClass = useMemo(
+    () =>
+      eventCardBarClass(
+        {
+          titulo: String(form.titulo || "").trim(),
+          categoria: String(form.categoria || "").trim() || "culto",
+          cor_barra: evento ? form.cor_barra || "auto" : "auto",
+        },
+        CATEGORY_BAR_CLASS,
+        sugestoes.titulo_cor_barra,
+      ),
+    [
+      evento,
+      form.titulo,
+      form.categoria,
+      form.cor_barra,
+      sugestoes.titulo_cor_barra,
+    ],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -831,6 +650,10 @@ export default function EventoFormPanel({
             mostrar o evento no calendário.
           </DialogDescription>
         </DialogHeader>
+        <div
+          className={cn("h-1.5 w-full shrink-0", previewBarClass)}
+          aria-hidden
+        />
 
       <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[min(70vh,720px)]">
         {/* Destaque na home (discreto, no topo) */}
@@ -911,7 +734,6 @@ export default function EventoFormPanel({
           value={form.titulo}
           onChange={(v) => set("titulo", v)}
           sugestoes={sugestoes.titulo}
-          onSugestoesChange={(lista) => updateSugestoes("titulo", lista)}
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -934,88 +756,68 @@ export default function EventoFormPanel({
             value={form.categoria}
             onChange={(v) => set("categoria", v)}
             sugestoes={sugestoes.categoria}
-            onSugestoesChange={(lista) => updateSugestoes("categoria", lista)}
             formatSuggestion={(slug) =>
               CATEGORIA_LABEL_BY_SLUG[slug] || slug
             }
           />
         </div>
 
-        <div>
-          <Label>Cor do card (barra e bloco da data)</Label>
-          <div
-            className="mt-2 flex flex-wrap gap-2 items-center"
-            role="group"
-            aria-label="Cor do card"
-          >
-            <button
-              type="button"
-              title="Igual à categoria"
-              aria-label="Igual à categoria"
-              aria-pressed={(form.cor_barra || "auto") === "auto"}
-              onClick={() => set("cor_barra", "auto")}
-              className={cn(
-                "h-9 w-9 rounded-full flex items-center justify-center border-2 transition-all shrink-0",
-                (form.cor_barra || "auto") === "auto"
-                  ? "border-foreground ring-2 ring-offset-2 ring-foreground"
-                  : "border-dashed border-muted-foreground/60 bg-muted/50 hover:bg-muted",
-              )}
-            >
-              <Palette className="w-4 h-4 text-muted-foreground" />
-            </button>
-            {EVENT_CARD_COLOR_OPTIONS.filter((o) => o.tailwind).map((o) => {
-              const selected = form.cor_barra === o.value;
-              return (
-                <button
-                  key={o.value}
-                  type="button"
-                  title={o.label}
-                  aria-label={o.label}
-                  aria-pressed={selected}
-                  onClick={() => set("cor_barra", o.value)}
-                  className={cn(
-                    "h-9 w-9 rounded-full border-2 border-transparent transition-all shrink-0 shadow-sm",
-                    o.tailwind,
-                    selected &&
-                      "ring-2 ring-offset-2 ring-foreground scale-105 z-10",
-                  )}
-                />
-              );
-            })}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Paleta: mesma cor da categoria. Círculos: cor fixa no card.
-          </p>
-        </div>
-
-        <LocalField value={form.local} onChange={(v) => set("local", v)} />
+        <ComboSugestao
+          label="Local"
+          required
+          value={form.local}
+          onChange={(v) => set("local", v)}
+          sugestoes={sugestoes.local || []}
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="evento-hora-inicio">Horário início</Label>
-            <div className="relative mt-1">
-              <Input
-                id="evento-hora-inicio"
-                type="time"
-                className={nativePickerInputClass}
-                value={form.horario}
-                onChange={(e) => set("horario", e.target.value)}
-                onClick={openNativePicker}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="evento-hora-inicio">Horário início *</Label>
+            <Select
+              value={form.horario || undefined}
+              onValueChange={(v) => set("horario", v)}
+            >
+              <SelectTrigger id="evento-hora-inicio" className="w-full">
+                <SelectValue placeholder="Selecione o horário (cadastro)" />
+              </SelectTrigger>
+              <SelectContent>
+                {horarioOpcoes.map((t) => (
+                  <SelectItem key={`ini-${t}`} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="evento-hora-fim">Horário fim</Label>
-            <div className="relative mt-1">
-              <Input
-                id="evento-hora-fim"
-                type="time"
-                className={nativePickerInputClass}
-                value={form.horario_fim}
-                onChange={(e) => set("horario_fim", e.target.value)}
-                onClick={openNativePicker}
-              />
-            </div>
+            <Select
+              value={
+                form.horario_fim
+                  ? form.horario_fim
+                  : HORARIO_FIM_VAZIO
+              }
+              onValueChange={(v) =>
+                set(
+                  "horario_fim",
+                  v === HORARIO_FIM_VAZIO ? "" : v,
+                )
+              }
+            >
+              <SelectTrigger id="evento-hora-fim" className="w-full">
+                <SelectValue placeholder="Opcional — cadastro" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={HORARIO_FIM_VAZIO}>
+                  — Sem horário de fim —
+                </SelectItem>
+                {horarioOpcoes.map((t) => (
+                  <SelectItem key={`fim-${t}`} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -1024,74 +826,22 @@ export default function EventoFormPanel({
           value={form.preletor}
           onChange={(v) => set("preletor", v)}
           sugestoes={sugestoes.preletor}
-          onSugestoesChange={(lista) => updateSugestoes("preletor", lista)}
         />
-
-        <div>
-          <Label>Foto do preletor (perfil)</Label>
-          <input
-            ref={preletorAvatarRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePreletorAvatarUpload}
-          />
-          <div className="mt-2 flex items-center gap-3 flex-wrap">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => preletorAvatarRef.current?.click()}
-              disabled={uploadingPreletorAvatar}
-              className="gap-2"
-            >
-              <ImagePlus className="w-4 h-4" />
-              {uploadingPreletorAvatar
-                ? "Enviando..."
-                : form.preletor_avatar_url
-                  ? "Trocar foto"
-                  : "Adicionar foto"}
-            </Button>
-            {form.preletor_avatar_url ? (
-              <>
-                <SafeImg
-                  src={form.preletor_avatar_url}
-                  alt="Pré-visualização da foto do preletor"
-                  className="h-12 w-12 object-cover rounded-full border border-border bg-muted"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                  onClick={clearPreletorAvatar}
-                >
-                  Remover
-                </Button>
-              </>
-            ) : null}
-          </div>
-          {preletorAvatarError ? (
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
-              {preletorAvatarError}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground mt-1.5">
-              Esta foto aparece no destaque e junto do nome do preletor.
-            </p>
-          )}
-        </div>
 
         <ComboSugestao
           label="Presbítero"
           value={form.pastor}
           onChange={(v) => set("pastor", v)}
           sugestoes={sugestoes.pastor}
-          onSugestoesChange={(lista) => updateSugestoes("pastor", lista)}
         />
 
         <div>
           <Label>Imagem de fundo do card</Label>
+          <p className="text-xs text-muted-foreground mt-1 mb-0">
+            {String(form.imagem_url || "").trim()
+              ? "Esta imagem substitui o fundo definido por título no cadastro (Títulos sugeridos)."
+              : "Se não enviar imagem aqui, o cartão no site pode usar o fundo configurado no cadastro para este título. Ao adicionar imagem, ela passa a ter prioridade."}
+          </p>
           <input
             ref={imgRef}
             type="file"
@@ -1244,21 +994,30 @@ export default function EventoFormPanel({
                                         ))}
                                       </SelectContent>
                                     </Select>
-                                    <Input
-                                      type="time"
-                                      className={cn(
-                                        nativePickerInputClass,
-                                        "h-9 w-[7.25rem] shrink-0",
-                                      )}
-                                      value={it.hora || ""}
-                                      onChange={(e) =>
-                                        updateItem(dia.id, it.id, {
-                                          hora: e.target.value,
-                                        })
+                                    <Select
+                                      value={it.hora || undefined}
+                                      onValueChange={(v) =>
+                                        updateItem(dia.id, it.id, { hora: v })
                                       }
-                                      onClick={openNativePicker}
-                                      aria-label="Hora"
-                                    />
+                                    >
+                                      <SelectTrigger
+                                        className="h-9 w-[8.5rem] shrink-0"
+                                        aria-label="Hora (cadastro)"
+                                        id={`prog-hora-${dia.id}-${it.id}`}
+                                      >
+                                        <SelectValue placeholder="Hora (cadastro)" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {horarioProgramOpcoes.map((t) => (
+                                          <SelectItem
+                                            key={`prog-${dia.id}-${it.id}-${t}`}
+                                            value={t}
+                                          >
+                                            {t}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                   <Input
                                     className="min-w-[10rem] flex-1"

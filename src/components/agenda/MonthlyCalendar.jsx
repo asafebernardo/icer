@@ -21,6 +21,7 @@ export default function MonthlyCalendar({
   onEventClick,
   onDayClick,
   showPreletorCards = false,
+  tituloCorBarraMap = {},
 }) {
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
@@ -104,7 +105,7 @@ export default function MonthlyCalendar({
                     className="w-full text-left rounded-lg border border-border bg-card overflow-hidden shadow-sm hover:border-accent/50 transition-colors shrink-0"
                   >
                     <div
-                      className={`h-1 w-full ${eventCardBarClass(ev, categoriaColors)}`}
+                      className={`h-1 w-full ${eventCardBarClass(ev, categoriaColors, tituloCorBarraMap)}`}
                     />
                     <div className="px-1 py-1">
                       {showPreletorCards ? (

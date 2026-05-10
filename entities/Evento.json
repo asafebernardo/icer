@@ -49,6 +49,14 @@
       "type": "string",
       "description": "Nome do pastor respons\u00e1vel"
     },
+    "preletor_avatar_url": {
+      "type": "string",
+      "description": "URL da foto do preletor (cadastro admin)"
+    },
+    "pastor_avatar_url": {
+      "type": "string",
+      "description": "URL da foto do presb\u00edtero (cadastro admin)"
+    },
     "imagem_url": {
       "type": "string",
       "description": "URL da imagem do evento"

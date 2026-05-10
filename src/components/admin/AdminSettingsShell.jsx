@@ -11,6 +11,8 @@ import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
 import LoginBlocksPanel from "@/components/dashboard/LoginBlocksPanel";
 import TwoFactorPanel from "@/components/dashboard/TwoFactorPanel";
+import AdminCadastrosOpcoesPanel from "@/components/dashboard/AdminCadastrosOpcoesPanel";
+import AdminServerPanel from "@/components/dashboard/AdminServerPanel";
 import * as auth from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import {
@@ -45,10 +47,10 @@ function MembrosSemServidorNotice() {
 }
 
 /**
- * Painel admin: mesmas secções que o antigo Dashboard (perfil, membros, site, …) + Conteúdo.
- * @param {{ tabMembrosSlot?: import("react").ReactNode; tabConteudoSlot: import("react").ReactNode }} props
+ * Painel admin: perfil, membros, site e restantes opções.
+ * @param {{ tabMembrosSlot?: import("react").ReactNode }} props
  */
-export default function AdminSettingsShell({ tabMembrosSlot, tabConteudoSlot }) {
+export default function AdminSettingsShell({ tabMembrosSlot }) {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const validTabIds = useMemo(
@@ -124,6 +126,12 @@ export default function AdminSettingsShell({ tabMembrosSlot, tabConteudoSlot }) 
           <TabsContent value="site">
             {canUseAdminTabs ? <AdminSitePanel /> : <LockedTabNotice />}
           </TabsContent>
+          <TabsContent value="server">
+            {canUseAdminTabs ? <AdminServerPanel /> : <LockedTabNotice />}
+          </TabsContent>
+          <TabsContent value="cadastros-opcoes">
+            {canUseAdminTabs ? <AdminCadastrosOpcoesPanel /> : <LockedTabNotice />}
+          </TabsContent>
           <TabsContent value="audit-log">
             {canUseAdminTabs ? <GlobalAuditLogPanel /> : <LockedTabNotice />}
           </TabsContent>
@@ -133,7 +141,6 @@ export default function AdminSettingsShell({ tabMembrosSlot, tabConteudoSlot }) 
           <TabsContent value="2fa">
             {canUseAdminTabs ? <TwoFactorPanel /> : <LockedTabNotice />}
           </TabsContent>
-          <TabsContent value="content">{tabConteudoSlot}</TabsContent>
       </div>
     </Tabs>
   );

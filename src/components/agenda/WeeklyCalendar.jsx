@@ -89,8 +89,15 @@ function groupEventosByPeriod(eventos) {
   return buckets;
 }
 
-function EventoCard({ evento, idx, onSelect, periodKey, showPreletorCards }) {
-  const barColor = eventCardBarClass(evento, categoriaColorsBg);
+function EventoCard({
+  evento,
+  idx,
+  onSelect,
+  periodKey,
+  showPreletorCards,
+  tituloCorBarraMap,
+}) {
+  const barColor = eventCardBarClass(evento, categoriaColorsBg, tituloCorBarraMap);
   const cardBorder = PERIOD_STYLE[periodKey]?.cardBorder ?? "";
 
   return (
@@ -142,6 +149,7 @@ export default function WeeklyCalendar({
   eventos,
   onEventClick,
   showPreletorCards = false,
+  tituloCorBarraMap = {},
 }) {
   const getEventosForDay = (day) =>
     eventos
@@ -275,6 +283,7 @@ export default function WeeklyCalendar({
                             periodKey={key}
                             onSelect={onEventClick}
                             showPreletorCards={showPreletorCards}
+                            tituloCorBarraMap={tituloCorBarraMap}
                           />
                         ))}
                       </div>

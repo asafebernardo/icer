@@ -126,3 +126,74 @@ export async function listAuditLogsGlobal(db, opts = {}) {
   ]);
   return { rows, total };
 }
+
+export const AUDIT_LOG_RETENTION_KEY = "audit_log_retention_policy_v1";
+
+/** @typedef {"never" | "30" | "60" | "90"} AuditLogRetentionPolicy */
+
+/**
+ * @param {unknown} raw
+ * @returns {AuditLogRetentionPolicy}
+ */
+export function normalizeAuditLogRetentionPolicy(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (s === "30" || s === "60" || s === "90") return s;
+  return "never";
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @returns {Promise<AuditLogRetentionPolicy>}
+ */
+export async function getAuditLogRetentionPolicy(db) {
+  const row = await db.collection("app_kv").findOne({ key: AUDIT_LOG_RETENTION_KEY });
+  return normalizeAuditLogRetentionPolicy(row?.value);
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @param {unknown} policy
+ * @returns {Promise<AuditLogRetentionPolicy>}
+ */
+export async function setAuditLogRetentionPolicy(db, policy) {
+  const p = normalizeAuditLogRetentionPolicy(policy);
+  await db.collection("app_kv").updateOne(
+    { key: AUDIT_LOG_RETENTION_KEY },
+    {
+      $set: {
+        key: AUDIT_LOG_RETENTION_KEY,
+        value: p,
+        updated_at: nowIso(),
+      },
+    },
+    { upsert: true },
+  );
+  return p;
+}
+
+/**
+ * @param {AuditLogRetentionPolicy} policy
+ * @returns {number | null} milissegundos de idade máxima, ou null = sem limite
+ */
+export function retentionPolicyToMaxAgeMs(policy) {
+  if (policy === "never") return null;
+  const days = Number(policy);
+  if (!Number.isFinite(days) || days <= 0) return null;
+  return days * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * Remove linhas de auditoria mais antigas que a política atual (exceto "never").
+ * @param {import("mongodb").Db} db
+ * @returns {Promise<{ deleted: number }>}
+ */
+export async function purgeAuditLogsByPolicy(db) {
+  const policy = await getAuditLogRetentionPolicy(db);
+  const maxAge = retentionPolicyToMaxAgeMs(policy);
+  if (maxAge == null) return { deleted: 0 };
+  const cutoff = new Date(Date.now() - maxAge).toISOString();
+  const result = await db.collection("audit_logs").deleteMany({
+    created_at: { $lt: cutoff },
+  });
+  return { deleted: result.deletedCount || 0 };
+}

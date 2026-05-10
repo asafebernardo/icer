@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,16 +17,17 @@ import {
   X,
   User,
   LogOut,
-  ImagePlus,
   Trash2,
   Settings,
   Users,
   Globe,
-  FileText,
   ShieldAlert,
   ScrollText,
   ShieldCheck,
   ChevronDown,
+  BookMarked,
+  Server,
+  Sparkles,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
@@ -35,7 +36,6 @@ import {
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
-import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
@@ -65,7 +65,6 @@ export default function Navbar() {
   const { theme, toggle } = useTheme();
   const { navigateToLogin } = useAuth();
   const sessionUser = useSyncedAuthUser();
-  const logoInputRef = useRef(null);
   const setThemeMode = (next) => {
     const isDark = theme === "dark";
     if (next === "dark" && !isDark) toggle();
@@ -97,10 +96,12 @@ export default function Navbar() {
       profile: Settings,
       members: Users,
       site: Globe,
+      google: Sparkles,
+      server: Server,
       "login-blocks": ShieldAlert,
       "audit-log": ScrollText,
       "2fa": ShieldCheck,
-      content: FileText,
+      "cadastros-opcoes": BookMarked,
     }),
     [],
   );
@@ -120,31 +121,6 @@ export default function Navbar() {
         <div className="flex items-center justify-between gap-2 min-h-[4.25rem] sm:min-h-[4.5rem] min-w-0">
           {/* Logo */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0">
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) {
-                  void (async () => {
-                    try {
-                      const u = await imageFileToStorableUrl(f);
-                      try {
-                        await savePublicSiteConfigAdmin({ logoUrl: u });
-                        await refreshPublicSiteConfig();
-                      } catch {
-                        setSiteConfig({ logoUrl: u });
-                      }
-                    } catch (err) {
-                      console.warn(err);
-                    }
-                  })();
-                }
-                e.target.value = "";
-              }}
-            />
             <Link
               to="/Home"
               className="flex items-center gap-3 group min-w-0"
@@ -161,39 +137,25 @@ export default function Navbar() {
                 </span>
               </div>
             </Link>
-            {canEditLogo && (
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  title={`Editar — Logo do site. ${IMAGE_UPLOAD_RECOMMENDATION}`}
-                  onClick={() => logoInputRef.current?.click()}
-                >
-                  <ImagePlus className="w-4 h-4" />
-                </Button>
-                {logoUrl ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    title="Remover logo"
-                    onClick={() => {
-                      savePublicSiteConfigAdmin({ logoUrl: "" })
-                        .then(() => refreshPublicSiteConfig())
-                        .catch(() => {
-                          setSiteConfig({ logoUrl: "" });
-                        });
-                    }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 sm:mr-1" />
-                    <span className="hidden sm:inline">Remover</span>
-                  </Button>
-                ) : null}
-              </div>
-            )}
+            {canEditLogo && logoUrl ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive shrink-0"
+                title="Remover logo"
+                onClick={() => {
+                  savePublicSiteConfigAdmin({ logoUrl: "" })
+                    .then(() => refreshPublicSiteConfig())
+                    .catch(() => {
+                      setSiteConfig({ logoUrl: "" });
+                    });
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">Remover</span>
+              </Button>
+            ) : null}
           </div>
 
           {/* Desktop: navegação */}

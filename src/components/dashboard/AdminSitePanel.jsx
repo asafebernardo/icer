@@ -16,15 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Eye,
-  EyeOff,
+  ChevronLeft,
+  ChevronRight,
   ImagePlus,
   Lock,
   Palette,
   RefreshCw,
   LayoutGrid,
   Share2,
-  Trash2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,14 +35,11 @@ import {
   refreshPublicSiteConfig,
   savePublicSiteConfigAdmin,
 } from "@/lib/siteConfig";
-import { getPageBackgroundUrl } from "@/lib/usePageBackground";
 import SafeImg from "@/components/shared/SafeImg";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
-import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
 import { useAuth } from "@/lib/AuthContext";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
-import { fetchPublicWorkspaceJson, putAdminPublicWorkspace } from "@/lib/publicWorkspace";
 import {
   DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
   DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
@@ -54,9 +50,11 @@ import {
   DEFAULT_HOME_YOUTUBE_CARD_TITLE,
 } from "@/lib/homeContentDefaults";
 
+const HOME_VIEWS_PAGE_SIZE = 5;
+
 async function fetchHomeViewsAdmin(params) {
   const sp = new URLSearchParams();
-  sp.set("limit", String(params.limit || 200));
+  sp.set("limit", String(params.limit ?? HOME_VIEWS_PAGE_SIZE));
   sp.set("skip", String(params.skip || 0));
   if (params.q && String(params.q).trim()) sp.set("q", String(params.q).trim());
   const r = await fetch(`/api/admin/metrics/home-views?${sp.toString()}`, {
@@ -86,54 +84,23 @@ function formatTs(iso) {
   }
 }
 
-const MEMBER_MENUS = [
-  { key: "galeria", label: "Galeria de Fotos" },
-  { key: "materiais_tab", label: "Materiais (na aba Recursos)" },
-];
-
 export default function AdminSitePanel() {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
-  const [loginHeroUrl, setLoginHeroUrl] = useState(() =>
-    getPageBackgroundUrl("login"),
-  );
-  const [loginFormBgUrl, setLoginFormBgUrl] = useState(() =>
-    getPageBackgroundUrl("login_form"),
-  );
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [menuConfig, setMenuConfig] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("icer_member_menus") || "{}");
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    if (!isServerAuthEnabled()) return;
-    let cancelled = false;
-    fetchPublicWorkspaceJson()
-      .then((w) => {
-        if (cancelled || !w) return;
-        if (typeof w.member_menu_palettes === "object") {
-          setMenuConfig(w.member_menu_palettes);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const [paletteId, setPaletteId] = useState(
     () => getSiteConfig().colorPalette || "azul",
   );
   const [sessionTtl, setSessionTtl] = useState(120);
   const [loadingSessionTtl, setLoadingSessionTtl] = useState(true);
   const [savingSessionTtl, setSavingSessionTtl] = useState(false);
-  const [purgingLocal, setPurgingLocal] = useState(false);
   const logoRef = useRef();
   const [homeViewsSearch, setHomeViewsSearch] = useState("");
-  const [homeViewsApplied, setHomeViewsApplied] = useState({ q: "", skip: 0, limit: 200 });
+  const [homeViewsApplied, setHomeViewsApplied] = useState({
+    q: "",
+    skip: 0,
+    limit: HOME_VIEWS_PAGE_SIZE,
+  });
 
   const {
     data: homeViewsData,
@@ -159,12 +126,6 @@ export default function AdminSitePanel() {
       ? String(c.socialInstagramUrl ?? "")
       : String(c.instagramUrl ?? "");
   });
-  const [socialFacebook, setSocialFacebook] = useState(() =>
-    String(getSiteConfig().socialFacebookUrl ?? ""),
-  );
-  const [socialWhatsapp, setSocialWhatsapp] = useState(() =>
-    String(getSiteConfig().socialWhatsappUrl ?? ""),
-  );
   const [savingSocial, setSavingSocial] = useState(false);
 
   const cfgOwn = (c, k) => Object.prototype.hasOwnProperty.call(c, k);
@@ -266,8 +227,6 @@ export default function AdminSitePanel() {
         ? String(c.socialInstagramUrl ?? "")
         : String(c.instagramUrl ?? ""),
     );
-    setSocialFacebook(String(c.socialFacebookUrl ?? ""));
-    setSocialWhatsapp(String(c.socialWhatsappUrl ?? ""));
   };
 
   useEffect(() => {
@@ -310,8 +269,6 @@ export default function AdminSitePanel() {
       await savePublicSiteConfigAdmin({
         socialYoutubeUrl: socialYoutube.trim(),
         socialInstagramUrl: socialInstagram.trim(),
-        socialFacebookUrl: socialFacebook.trim(),
-        socialWhatsappUrl: socialWhatsapp.trim(),
       });
       await refreshPublicSiteConfig();
       toast.success("Redes sociais atualizadas.");
@@ -371,25 +328,6 @@ export default function AdminSitePanel() {
     }
   };
 
-  const purgeLocalUsers = async () => {
-    setPurgingLocal(true);
-    try {
-      const keep = String(import.meta.env.VITE_DEMO_ADMIN_EMAIL || "")
-        .toLowerCase()
-        .trim();
-      const { removed, kept } = purgeLegacyLocalAccounts({
-        keepEmails: keep ? [keep] : [],
-      });
-      toast.success(
-        `Limpeza concluída. Removidos: ${removed}${kept ? ` • Mantidos: ${kept}` : ""}`,
-      );
-    } catch (e) {
-      toast.error(e?.message || "Erro ao limpar usuários locais.");
-    } finally {
-      setPurgingLocal(false);
-    }
-  };
-
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -404,48 +342,6 @@ export default function AdminSitePanel() {
     } finally {
       setUploadingLogo(false);
       e.target.value = "";
-    }
-  };
-
-  const applyLoginBackground = async (e, key) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      const url = await imageFileToStorableUrl(file);
-      const cfg = getSiteConfig();
-      const nextBg = { ...(cfg.pageBackgrounds || {}), [key]: url };
-      await savePublicSiteConfigAdmin({ pageBackgrounds: nextBg });
-      await refreshPublicSiteConfig();
-      if (key === "login") setLoginHeroUrl(url);
-      else setLoginFormBgUrl(url);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const clearLoginBackground = (key) => {
-    const cfg = getSiteConfig();
-    const nextBg = { ...(cfg.pageBackgrounds || {}) };
-    delete nextBg[key];
-    savePublicSiteConfigAdmin({ pageBackgrounds: nextBg })
-      .then(() => refreshPublicSiteConfig())
-      .catch(() => {});
-    if (key === "login") setLoginHeroUrl("");
-    else setLoginFormBgUrl("");
-  };
-
-  const handleToggleMenu = async (key) => {
-    const updated = { ...menuConfig, [key]: !menuConfig[key] };
-    setMenuConfig(updated);
-    if (isServerAuthEnabled()) {
-      try {
-        await putAdminPublicWorkspace({ member_menu_palettes: updated });
-      } catch (e) {
-        toast.error(e?.message || "Erro ao guardar visibilidade dos menus.");
-      }
-    } else {
-      localStorage.setItem("icer_member_menus", JSON.stringify(updated));
     }
   };
 
@@ -521,9 +417,8 @@ export default function AdminSitePanel() {
           <div>
             <h2 className="font-semibold text-foreground text-lg">Redes sociais</h2>
             <p className="text-sm text-muted-foreground">
-              Ícones no rodapé. WhatsApp: número com DDI/DDD ou link{" "}
-              <span className="whitespace-nowrap">wa.me</span>. Os cartões da página
-              inicial (YouTube e Instagram) editam-se na secção seguinte.
+              Ícones no rodapé. Os cartões da página inicial (YouTube e Instagram)
+              editam-se na secção seguinte.
             </p>
           </div>
         </div>
@@ -546,26 +441,6 @@ export default function AdminSitePanel() {
               placeholder="https://www.instagram.com/…"
               value={socialInstagram}
               onChange={(e) => setSocialInstagram(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admin-social-fb">Facebook</Label>
-            <Input
-              id="admin-social-fb"
-              type="url"
-              placeholder="https://www.facebook.com/…"
-              value={socialFacebook}
-              onChange={(e) => setSocialFacebook(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admin-social-wa">WhatsApp</Label>
-            <Input
-              id="admin-social-wa"
-              type="text"
-              placeholder="5549999999999 ou https://wa.me/…"
-              value={socialWhatsapp}
-              onChange={(e) => setSocialWhatsapp(e.target.value)}
             />
           </div>
         </div>
@@ -825,7 +700,11 @@ export default function AdminSitePanel() {
             variant="outline"
             className="h-9"
             onClick={() =>
-              setHomeViewsApplied({ q: homeViewsSearch.trim(), skip: 0, limit: 200 })
+              setHomeViewsApplied({
+                q: homeViewsSearch.trim(),
+                skip: 0,
+                limit: HOME_VIEWS_PAGE_SIZE,
+              })
             }
           >
             Filtrar
@@ -840,7 +719,7 @@ export default function AdminSitePanel() {
 
         {homeViewsLoading ? (
           <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: HOME_VIEWS_PAGE_SIZE }).map((_, i) => (
               <Skeleton key={i} className="h-14 rounded-xl" />
             ))}
           </div>
@@ -849,177 +728,90 @@ export default function AdminSitePanel() {
             Nenhum acesso registrado ainda.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-sm min-w-[520px]">
-              <thead>
-                <tr className="bg-muted/50 border-b border-border">
-                  <th className="text-left font-medium p-3">IP</th>
-                  <th className="text-center font-medium p-3 w-28">Acessos</th>
-                  <th className="text-left font-medium p-3 w-44">Último acesso</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(homeViewsData?.rows || []).map((r) => (
-                  <tr
-                    key={r.ip}
-                    className="border-b border-border/60 last:border-0"
-                  >
-                    <td className="p-3 text-foreground">{r.ip}</td>
-                    <td className="p-3 text-center tabular-nums">
-                      {typeof r.count === "number" ? r.count : "—"}
-                    </td>
-                    <td className="p-3 text-muted-foreground">
-                      {formatTs(r.last_seen_at)}
-                    </td>
+          <>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="text-left font-medium p-3">IP</th>
+                    <th className="text-center font-medium p-3 w-28">Acessos</th>
+                    <th className="text-left font-medium p-3 w-44">Último acesso</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <LayoutGrid className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Página de login e visibilidade de menus
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Imagens do modal de início de sessão e quais secções extras os membros
-              vêem na navegação (guardado no servidor quando a auth MongoDB está ativa).
-            </p>
-          </div>
-        </div>
-        <p className="text-sm font-medium text-foreground mb-3">Fundos do login</p>
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground">1. Cabeçalho (hero)</p>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              id="login-hero-bg"
-              onChange={(e) => applyLoginBackground(e, "login")}
-            />
-            {loginHeroUrl ? (
-              <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
-                <SafeImg src={loginHeroUrl} alt="" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => document.getElementById("login-hero-bg")?.click()}
-              >
-                Carregar
-              </Button>
-              {loginHeroUrl ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => clearLoginBackground("login")}
-                >
-                  Remover
-                </Button>
-              ) : null}
+                </thead>
+                <tbody>
+                  {(homeViewsData?.rows || []).map((r) => (
+                    <tr
+                      key={r.ip}
+                      className="border-b border-border/60 last:border-0"
+                    >
+                      <td className="p-3 text-foreground">{r.ip}</td>
+                      <td className="p-3 text-center tabular-nums">
+                        {typeof r.count === "number" ? r.count : "—"}
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {formatTs(r.last_seen_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground">2. Zona do formulário</p>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              id="login-form-bg"
-              onChange={(e) => applyLoginBackground(e, "login_form")}
-            />
-            {loginFormBgUrl ? (
-              <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
-                <SafeImg src={loginFormBgUrl} alt="" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => document.getElementById("login-form-bg")?.click()}
-              >
-                Carregar
-              </Button>
-              {loginFormBgUrl ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => clearLoginBackground("login_form")}
-                >
-                  Remover
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-border mt-8 pt-8">
-          <p className="text-sm font-medium text-foreground mb-4">Menus para membros</p>
-        <div className="space-y-3">
-          {MEMBER_MENUS.map((menu) => {
-            const enabled = menuConfig[menu.key] !== false;
-            return (
-              <div
-                key={menu.key}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  {enabled ? (
-                    <Eye className="w-4 h-4 text-accent" />
-                  ) : (
-                    <EyeOff className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span className="font-medium text-foreground text-sm">
-                    {menu.label}
+            {(() => {
+              const totalIps = Number(homeViewsData?.unique_ips ?? 0);
+              const limit = homeViewsApplied.limit;
+              const skip = homeViewsApplied.skip;
+              const rowCount = (homeViewsData?.rows || []).length;
+              if (!totalIps || !limit) return null;
+              const totalPages = Math.max(1, Math.ceil(totalIps / limit));
+              const currentPage = Math.floor(skip / limit) + 1;
+              const from = skip + 1;
+              const to = skip + rowCount;
+              const canPrev = skip > 0;
+              const canNext = skip + limit < totalIps;
+              return (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>
+                    {from}–{to} de {totalIps} · Página {currentPage} de {totalPages}
                   </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      disabled={!canPrev || homeViewsFetching}
+                      onClick={() =>
+                        setHomeViewsApplied((prev) => ({
+                          ...prev,
+                          skip: Math.max(0, prev.skip - prev.limit),
+                        }))
+                      }
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Anterior
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      disabled={!canNext || homeViewsFetching}
+                      onClick={() =>
+                        setHomeViewsApplied((prev) => ({
+                          ...prev,
+                          skip: prev.skip + prev.limit,
+                        }))
+                      }
+                    >
+                      Seguinte
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleMenu(menu.key)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${
-                    enabled ? "bg-accent" : "bg-muted-foreground/30"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${
-                      enabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          * Com sessão no servidor, as opções aplicam-se ao site para todos os membros.
-        </p>
-        </div>
+              );
+            })()}
+          </>
+        )}
       </motion.div>
 
       <motion.div
@@ -1071,41 +863,10 @@ export default function AdminSitePanel() {
           })}
         </div>
         <p className="text-xs text-muted-foreground mt-4">
-          A paleta é guardada neste navegador (localStorage) com as permissões de
-          menus.
+          A paleta é guardada no servidor e aplicada a todo o site para todos os
+          visitantes; só um administrador pode alterá-la aqui. O navegador pode
+          guardar uma cópia em cache para carregar mais depressa.
         </p>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.12 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
-            <Trash2 className="w-5 h-5 text-destructive" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Remover usuários antigos (local)
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Apaga contas que eram criadas apenas neste navegador (antes do MongoDB).
-              Mantém o admin demo do .env (se existir).
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={purgeLocalUsers}
-          disabled={purgingLocal}
-          className="gap-2"
-        >
-          {purgingLocal ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-          Limpar agora
-        </Button>
       </motion.div>
     </div>
   );

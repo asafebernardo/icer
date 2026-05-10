@@ -31,6 +31,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { canEditPageBackground, canMenuAction, MENU } from "@/lib/auth";
 import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
+import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -53,6 +54,7 @@ export default function EventoPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const tituloCorBarraMap = useTituloCorBarraMap();
   const canEditEvento = canMenuAction(user, MENU.EVENTOS, "edit");
   const canEditBanner = canEditPageBackground(user, "evento");
   const { url: bannerBgUrl, handleFile, applyUrl } = usePageBackground("evento");
@@ -106,7 +108,7 @@ export default function EventoPage() {
     );
   }
 
-  const barColor = eventCardBarClass(evento, categoriaColorsBg);
+  const barColor = eventCardBarClass(evento, categoriaColorsBg, tituloCorBarraMap);
 
   return (
     <div className="min-h-screen bg-background">
@@ -291,9 +293,18 @@ export default function EventoPage() {
                 )}
                 {evento.pastor && (
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                      <User className="w-4 h-4 text-accent" />
-                    </div>
+                    {evento.pastor_avatar_url ? (
+                      <SafeImg
+                        src={evento.pastor_avatar_url}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover border border-border bg-muted shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-accent" />
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground">Presbítero</p>
                       <p className="text-sm font-semibold text-foreground">

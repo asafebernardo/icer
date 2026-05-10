@@ -1,5 +1,8 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { directoryFileStats } from "./directoryBytes.js";
+import { extractUploadZipFromFile, pipeUploadDirToZipResponse } from "./uploadZip.js";
 import express from "express";
 import cookieParser from "cookie-parser";
 import multer from "multer";
@@ -34,6 +37,9 @@ import {
   recordAudit,
   listAuditLogsForUser,
   listAuditLogsGlobal,
+  getAuditLogRetentionPolicy,
+  setAuditLogRetentionPolicy,
+  purgeAuditLogsByPolicy,
 } from "./auditLog.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
@@ -86,6 +92,19 @@ export function createApplication(db, options = {}) {
   const enableUpstreamProxy = options.enableUpstreamProxy === true;
   const loginRateLimit = options.loginRateLimit !== false;
   const enforceSingleSession = options.enforceSingleSession !== false;
+
+  /** Homologação / staging: sem limite de pedidos de login nem bloqueio por falhas (IP/utilizador). */
+  function envBoolTrue(name) {
+    const v = process.env[name];
+    if (v === undefined || v === null || String(v).trim() === "") return false;
+    const s = String(v).trim().toLowerCase();
+    return ["1", "true", "yes", "on"].includes(s);
+  }
+  const homologEnvRaw = String(process.env.ICER_ENV || "").trim().toLowerCase();
+  const skipLoginAttemptLock =
+    envBoolTrue("ICER_DISABLE_LOGIN_ATTEMPT_LOCK") ||
+    envBoolTrue("ICER_HOMOLOG") ||
+    ["homolog", "homologacao", "homologação", "staging", "hml"].includes(homologEnvRaw);
 
   fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -517,7 +536,8 @@ export function createApplication(db, options = {}) {
     },
   );
 
-  const loginMw = loginRateLimit ? rateLimitLogin : (_req, _res, next) => next();
+  const loginMw =
+    loginRateLimit && !skipLoginAttemptLock ? rateLimitLogin : (_req, _res, next) => next();
 
   app.post("/api/auth/login", loginMw, async (req, res) => {
     const schema = z.object({
@@ -535,7 +555,9 @@ export function createApplication(db, options = {}) {
     const isEnvAdmin = isEnvAdminEmail(email);
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
-    const blockRows = await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
+    const blockRows = skipLoginAttemptLock
+      ? []
+      : await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
     if (blockRows && blockRows.length > 0) {
       const hard = blockRows.some((b) => b.hard === true);
       const until =
@@ -573,14 +595,18 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      if (!skipLoginAttemptLock) {
+        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      }
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     if (!row.password_hash) {
       // Evita enumeração por estado de conta.
-      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      if (!skipLoginAttemptLock) {
+        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      }
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
@@ -588,7 +614,9 @@ export function createApplication(db, options = {}) {
     if (row.disabled === true) {
       // Conta seed do `.env`: nunca impedir login por flag disabled (serve como acesso de emergência).
       if (!isEnvAdmin) {
-        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        if (!skipLoginAttemptLock) {
+          await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        }
         await sleep(350);
         res.status(401).json({ message: "invalid_credentials" });
         return;
@@ -604,7 +632,9 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      if (!skipLoginAttemptLock) {
+        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      }
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
@@ -754,7 +784,9 @@ export function createApplication(db, options = {}) {
     const email = emailFromGoogle;
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
-    const blockRows = await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
+    const blockRows = skipLoginAttemptLock
+      ? []
+      : await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
     if (blockRows && blockRows.length > 0) {
       await recordAudit(db, {
         userId: null,
@@ -796,7 +828,9 @@ export function createApplication(db, options = {}) {
       },
     );
     if (!row || row.disabled === true) {
-      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      if (!skipLoginAttemptLock) {
+        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+      }
       await recordAudit(db, {
         userId: row?.id ?? null,
         actorUserId: null,
@@ -1393,8 +1427,133 @@ export function createApplication(db, options = {}) {
     res.json(result);
   });
 
+  app.get("/api/admin/audit-log-retention", requireAdmin, async (_req, res) => {
+    const retention = await getAuditLogRetentionPolicy(db);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ retention });
+  });
+
+  app.put("/api/admin/audit-log-retention", requireAdmin, async (req, res) => {
+    const schema = z.object({
+      retention: z.enum(["never", "30", "60", "90"]),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const retention = await setAuditLogRetentionPolicy(db, parsed.data.retention);
+    const { deleted } = await purgeAuditLogsByPolicy(db);
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.audit_log_retention_update",
+      details: { retention, deleted_count: deleted },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, retention, deleted });
+  });
+
+  app.get("/api/admin/server-info", requireAdmin, async (_req, res) => {
+    let pkg = { name: "icer", version: "0.0.0" };
+    try {
+      const raw = fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8");
+      const j = JSON.parse(raw);
+      if (typeof j.name === "string") pkg.name = j.name;
+      if (typeof j.version === "string") pkg.version = j.version;
+    } catch {
+      /* defaults */
+    }
+    const mem = process.memoryUsage();
+    const toMb = (n) => Math.round((n / 1024 / 1024) * 100) / 100;
+    let mongodb = { ok: false, ping_ms: null, error: null };
+    try {
+      const t0 = Date.now();
+      await db.command({ ping: 1 });
+      mongodb = { ok: true, ping_ms: Date.now() - t0, error: null };
+    } catch (e) {
+      mongodb = {
+        ok: false,
+        ping_ms: null,
+        error: e?.message || "ping_failed",
+      };
+    }
+
+    const logDir = process.env.ICER_LOG_DIR
+      ? path.resolve(process.env.ICER_LOG_DIR)
+      : path.join(process.cwd(), "logs");
+    const uploadsDisk = directoryFileStats(uploadDir);
+    const logsDisk = directoryFileStats(logDir);
+    const bytesToGb = (b) =>
+      Math.round((Number(b) / (1024 ** 3)) * 100000) / 100000;
+    const totalBytes = uploadsDisk.bytes + logsDisk.bytes;
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      app: { name: pkg.name, version: pkg.version },
+      environment: process.env.NODE_ENV || "development",
+      node: { version: process.version },
+      process: {
+        platform: process.platform,
+        arch: process.arch,
+        pid: process.pid,
+        uptime_seconds: Math.floor(process.uptime()),
+        cwd: process.cwd(),
+      },
+      memory_mb: {
+        rss: toMb(mem.rss),
+        heap_total: toMb(mem.heapTotal),
+        heap_used: toMb(mem.heapUsed),
+        external: toMb(mem.external),
+        array_buffers: toMb(mem.arrayBuffers ?? 0),
+      },
+      os: {
+        hostname: os.hostname(),
+        type: os.type(),
+        release: os.release(),
+        cpu_count: os.cpus()?.length ?? 0,
+        loadavg: process.platform === "win32" ? null : os.loadavg(),
+        total_mem_mb: Math.round(os.totalmem() / 1024 / 1024),
+        free_mem_mb: Math.round(os.freemem() / 1024 / 1024),
+      },
+      mongodb,
+      storage: {
+        uploads: {
+          path: uploadDir,
+          bytes: uploadsDisk.bytes,
+          files: uploadsDisk.files,
+          size_gb: bytesToGb(uploadsDisk.bytes),
+        },
+        logs: {
+          path: logDir,
+          bytes: logsDisk.bytes,
+          files: logsDisk.files,
+          size_gb: bytesToGb(logsDisk.bytes),
+        },
+        total_bytes: totalBytes,
+        total_gb: bytesToGb(totalBytes),
+      },
+      time_iso: new Date().toISOString(),
+    });
+  });
+
   // ── Admin: Rotinas de agendamento em massa (Eventos) ─────────────────────
   const BULK_RUNS_COLLECTION = "event_bulk_runs_v1";
+
+  function labelBulkRunUser(u, fallbackId) {
+    if (u && typeof u === "object") {
+      const name = String(u.full_name || "").trim();
+      const email = String(u.email || "").trim();
+      if (name) return name;
+      if (email) return email;
+    }
+    if (fallbackId != null && Number.isFinite(Number(fallbackId))) {
+      return `Utilizador #${fallbackId}`;
+    }
+    return null;
+  }
 
   app.get("/api/admin/eventos/bulk-runs", requireAuth, requireAdmin, async (req, res) => {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
@@ -1406,8 +1565,40 @@ export function createApplication(db, options = {}) {
       .skip(skip)
       .limit(limit)
       .toArray();
+    const ids = new Set();
+    for (const r of rows) {
+      if (r.created_by_user_id != null) ids.add(r.created_by_user_id);
+      if (r.undone_by_user_id != null) ids.add(r.undone_by_user_id);
+    }
+    const idList = [...ids];
+    const users =
+      idList.length === 0
+        ? []
+        : await db
+            .collection("users")
+            .find(
+              { id: { $in: idList } },
+              { projection: { _id: 0, id: 1, email: 1, full_name: 1 } },
+            )
+            .toArray();
+    const byId = new Map(users.map((u) => [u.id, u]));
+    const items = rows.map((r) => {
+      const creator = byId.get(r.created_by_user_id);
+      const undoer =
+        r.undone_by_user_id != null ? byId.get(r.undone_by_user_id) : null;
+      const operador = labelBulkRunUser(creator, r.created_by_user_id);
+      const undo_operador =
+        r.undone_at != null
+          ? labelBulkRunUser(undoer, r.undone_by_user_id)
+          : null;
+      return {
+        ...r,
+        operador,
+        undo_operador,
+      };
+    });
     res.setHeader("Cache-Control", "no-store");
-    res.json({ items: rows });
+    res.json({ items });
   });
 
   app.post("/api/admin/eventos/bulk-runs", requireAuth, requireAdmin, async (req, res) => {
@@ -1504,6 +1695,171 @@ export function createApplication(db, options = {}) {
       res.json({ ok: true, deleted: del.deletedCount || 0 });
     },
   );
+
+  // ── Admin: modelos de agendamento em massa (salvar / executar depois) ───
+  const BULK_SCHEDULE_TEMPLATES = "event_bulk_schedule_templates_v1";
+  const bulkSchedulePayloadSchema = z
+    .object({
+      titulo: z.string().optional(),
+      categoria: z.string().optional(),
+      corBarra: z.string().optional(),
+      local: z.string().optional(),
+      horario: z.string().optional(),
+      descricao: z.string().optional(),
+      repeatMode: z.enum(["weekly", "monthly_nth"]).optional(),
+      weekday: z.string().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      weekInterval: z.string().optional(),
+      monthNth: z.string().optional(),
+      presbiteroEnabled: z.boolean().optional(),
+      rowDefaults: z
+        .object({
+          preletor: z.string().optional(),
+          presbitero: z.string().optional(),
+        })
+        .optional(),
+      peopleByDate: z
+        .record(
+          z.object({
+            preletor: z.string().optional(),
+            presbitero: z.string().optional(),
+          }),
+        )
+        .optional(),
+    })
+    .passthrough();
+
+  app.get("/api/admin/eventos/bulk-schedules", requireAuth, requireAdmin, async (req, res) => {
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+    const rows = await db
+      .collection(BULK_SCHEDULE_TEMPLATES)
+      .find({}, { projection: { _id: 0 } })
+      .sort({ updated_at: -1 })
+      .limit(limit)
+      .toArray();
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ items: rows });
+  });
+
+  app.get("/api/admin/eventos/bulk-schedules/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = await db
+      .collection(BULK_SCHEDULE_TEMPLATES)
+      .findOne({ id }, { projection: { _id: 0 } });
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json(row);
+  });
+
+  app.post("/api/admin/eventos/bulk-schedules", requireAuth, requireAdmin, async (req, res) => {
+    const schema = z.object({
+      nome: z.string().max(200).optional(),
+      payload: bulkSchedulePayloadSchema,
+    });
+    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const now = nowIso();
+    const templateId = await nextSeq(db, "event_bulk_schedule_templates");
+    const nome =
+      String(parsed.data.nome || "").trim() ||
+      String(parsed.data.payload?.titulo || "").trim().slice(0, 200) ||
+      `Agendamento #${templateId}`;
+    const doc = {
+      id: templateId,
+      nome,
+      payload: parsed.data.payload || {},
+      created_at: now,
+      updated_at: now,
+      created_by_user_id: req.user.id,
+    };
+    await db.collection(BULK_SCHEDULE_TEMPLATES).insertOne(doc);
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.eventos.bulk_schedule.create",
+      details: { template_id: templateId },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.status(201).json(doc);
+  });
+
+  app.put("/api/admin/eventos/bulk-schedules/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const schema = z.object({
+      nome: z.string().max(200).optional(),
+      payload: bulkSchedulePayloadSchema.optional(),
+    });
+    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const existing = await db.collection(BULK_SCHEDULE_TEMPLATES).findOne({ id }, { projection: { id: 1 } });
+    if (!existing) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    const now = nowIso();
+    /** @type {Record<string, unknown>} */
+    const $set = { updated_at: now };
+    if (parsed.data.nome != null) {
+      $set.nome = String(parsed.data.nome).trim().slice(0, 200);
+    }
+    if (parsed.data.payload != null) {
+      $set.payload = parsed.data.payload;
+    }
+    await db.collection(BULK_SCHEDULE_TEMPLATES).updateOne({ id }, { $set });
+    const row = await db
+      .collection(BULK_SCHEDULE_TEMPLATES)
+      .findOne({ id }, { projection: { _id: 0 } });
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.eventos.bulk_schedule.update",
+      details: { template_id: id },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json(row);
+  });
+
+  app.delete("/api/admin/eventos/bulk-schedules/:id", requireAuth, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const r = await db.collection(BULK_SCHEDULE_TEMPLATES).deleteOne({ id });
+    if (r.deletedCount === 0) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.eventos.bulk_schedule.delete",
+      details: { template_id: id },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
+  });
 
   app.post("/api/admin/users", requireAdmin, async (req, res) => {
     const schema = z.object({
@@ -1862,6 +2218,85 @@ export function createApplication(db, options = {}) {
     limits: { fileSize: uploadMaxBytes },
   });
 
+  const restoreZipMaxMb = Number(process.env.ICER_UPLOAD_RESTORE_MAX_MB);
+  const restoreZipMaxBytes =
+    Number.isFinite(restoreZipMaxMb) && restoreZipMaxMb > 0
+      ? restoreZipMaxMb * 1024 * 1024
+      : 512 * 1024 * 1024;
+
+  const restoreZipUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+      filename: (_req, _file, cb) =>
+        cb(null, `icer-upload-restore-${Date.now()}-${randomToken().slice(0, 10)}.zip`),
+    }),
+    limits: { fileSize: restoreZipMaxBytes },
+    fileFilter: (_req, file, cb) => {
+      const name = String(file.originalname || "").toLowerCase();
+      const mime = String(file.mimetype || "");
+      const ok =
+        name.endsWith(".zip") ||
+        mime === "application/zip" ||
+        mime === "application/x-zip-compressed";
+      cb(null, ok);
+    },
+  });
+
+  app.get("/api/admin/uploads/archive", requireAdmin, async (req, res) => {
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.uploads_archive_download",
+      details: { upload_dir: uploadDir },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    try {
+      await pipeUploadDirToZipResponse(uploadDir, res);
+    } catch {
+      if (!res.headersSent) {
+        res.status(500).json({ message: "zip_failed" });
+      }
+    }
+  });
+
+  app.post(
+    "/api/admin/uploads/archive",
+    requireAdmin,
+    restoreZipUpload.single("archive"),
+    async (req, res) => {
+      const f = req.file;
+      if (!f?.path) {
+        res.status(400).json({ message: "archive_required_or_invalid" });
+        return;
+      }
+      const tmpPath = f.path;
+      try {
+        const result = extractUploadZipFromFile(tmpPath, uploadDir);
+        await recordAudit(db, {
+          userId: null,
+          actorUserId: req.user.id,
+          action: "admin.uploads_archive_restore",
+          details: result,
+          ip: clientIp(req),
+          ...auditCtx(req),
+        });
+        res.json({ ok: true, ...result });
+      } catch (e) {
+        res.status(500).json({
+          message: "restore_failed",
+          detail: String(e?.message || e),
+        });
+      } finally {
+        try {
+          fs.unlinkSync(tmpPath);
+        } catch {
+          /* */
+        }
+      }
+    },
+  );
+
   app.post("/api/files", requireAuth, upload.single("file"), async (req, res) => {
     const f = req.file;
     if (!f) {
@@ -2012,6 +2447,11 @@ export function createApplication(db, options = {}) {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  void purgeAuditLogsByPolicy(db).catch(() => {});
+  setInterval(() => {
+    void purgeAuditLogsByPolicy(db).catch(() => {});
+  }, 24 * 60 * 60 * 1000);
 
   return app;
 }

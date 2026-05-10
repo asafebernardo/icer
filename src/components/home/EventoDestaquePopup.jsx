@@ -8,6 +8,7 @@ import { Calendar, Clock, MapPin, ArrowRight, Star, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 import SafeImg from "@/components/shared/SafeImg";
 
@@ -25,6 +26,7 @@ const categoriaLabels = {
 };
 
 export default function EventoDestaquePopup() {
+  const tituloCorBarraMap = useTituloCorBarraMap();
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
@@ -37,12 +39,8 @@ export default function EventoDestaquePopup() {
     .filter((e) => e.data && isFuture(parseISO(e.data + "T23:59:59")))
     .sort((a, b) => a.data.localeCompare(b.data));
 
-  const destaque =
-    futuros.find((e) => e.destaque) ||
-    futuros.find(
-      (e) => e.categoria === "especial" || e.categoria === "conferencia",
-    ) ||
-    futuros[0];
+  /** Só eventos com «Destacar evento» ativo no formulário — sem fallback para «próximo» ou categoria. */
+  const destaque = futuros.find((e) => e.destaque);
 
   useEffect(() => {
     if (!destaque || dismissed) return;
@@ -59,7 +57,7 @@ export default function EventoDestaquePopup() {
   if (!destaque) return null;
 
   const date = parseISO(destaque.data);
-  const barColor = eventCardBarClass(destaque, categoriaBg);
+  const barColor = eventCardBarClass(destaque, categoriaBg, tituloCorBarraMap);
 
   return (
     <AnimatePresence>
