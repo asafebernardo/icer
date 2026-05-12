@@ -35,6 +35,7 @@ import {
   DEFAULT_HERO_EYEBROW,
   DEFAULT_HERO_TITLE,
 } from "@/lib/homeContentDefaults";
+import { toast } from "sonner";
 
 function formatSeconds(ms) {
   const s = Math.round((ms / 1000) * 10) / 10;
@@ -273,9 +274,14 @@ export default function HeroSection() {
                 if (canEditHome) {
                   savePublicSiteConfigAdmin({ heroEyebrow: e, heroTitle: t })
                     .then(() => refreshPublicSiteConfig())
-                    .catch(() => setSiteConfig({ heroEyebrow: e, heroTitle: t }));
+                    .then(() => toast.success("Textos do topo salvos com sucesso."))
+                    .catch(() => {
+                      setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                      toast.success("Textos do topo salvos com sucesso.");
+                    });
                 } else {
                   setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                  toast.success("Textos do topo salvos com sucesso.");
                 }
                 setHeroTextOpen(false);
               }}

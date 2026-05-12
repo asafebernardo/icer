@@ -76,11 +76,6 @@ export async function ensureMongoIndexes(db) {
   await db.collection("event_bulk_schedule_templates_v1").createIndex({ id: 1 }, { unique: true });
   await db.collection("event_bulk_schedule_templates_v1").createIndex({ updated_at: -1 });
   await db.collection("event_bulk_schedule_templates_v1").createIndex({ created_by_user_id: 1 });
-  await db.collection("auth_2fa_challenges_v1").createIndex(
-    { token_hash: 1 },
-    { unique: true },
-  );
-  await db.collection("auth_2fa_challenges_v1").createIndex({ expires_at: 1 });
   await db.collection("auth_google_login_oauth_states_v1").createIndex(
     { state: 1 },
     { unique: true },

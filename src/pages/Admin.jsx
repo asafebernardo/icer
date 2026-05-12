@@ -197,7 +197,7 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
                 className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <UserAvatar user={u} className="h-9 w-9 shrink-0" showTwoFactorBadge={false} />
+                  <UserAvatar user={u} className="h-9 w-9 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">
                       {u.full_name || "—"}

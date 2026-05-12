@@ -8,9 +8,9 @@ import {
 import ProfileSettings from "@/components/dashboard/ProfileSettings";
 import ServerUsersPanel from "@/components/dashboard/ServerUsersPanel";
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
+import AdminGooglePanel from "@/components/dashboard/AdminGooglePanel";
 import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
 import LoginBlocksPanel from "@/components/dashboard/LoginBlocksPanel";
-import TwoFactorPanel from "@/components/dashboard/TwoFactorPanel";
 import AdminCadastrosOpcoesPanel from "@/components/dashboard/AdminCadastrosOpcoesPanel";
 import AdminServerPanel from "@/components/dashboard/AdminServerPanel";
 import * as auth from "@/lib/auth";
@@ -126,6 +126,9 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           <TabsContent value="site">
             {canUseAdminTabs ? <AdminSitePanel /> : <LockedTabNotice />}
           </TabsContent>
+          <TabsContent value="google">
+            {canUseAdminTabs ? <AdminGooglePanel /> : <LockedTabNotice />}
+          </TabsContent>
           <TabsContent value="server">
             {canUseAdminTabs ? <AdminServerPanel /> : <LockedTabNotice />}
           </TabsContent>
@@ -137,9 +140,6 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           </TabsContent>
           <TabsContent value="login-blocks">
             {canUseAdminTabs ? <LoginBlocksPanel /> : <LockedTabNotice />}
-          </TabsContent>
-          <TabsContent value="2fa">
-            {canUseAdminTabs ? <TwoFactorPanel /> : <LockedTabNotice />}
           </TabsContent>
       </div>
     </Tabs>

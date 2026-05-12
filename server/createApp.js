@@ -2,7 +2,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { directoryFileStats } from "./directoryBytes.js";
-import { extractUploadZipFromFile, pipeUploadDirToZipResponse } from "./uploadZip.js";
 import express from "express";
 import cookieParser from "cookie-parser";
 import multer from "multer";
@@ -22,7 +21,6 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
-import qrcode from "qrcode";
 import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
 import {
   getPublicWorkspace,
@@ -47,19 +45,15 @@ import {
   consumeGoogleLoginOauthState,
   createGoogleLoginOauthState,
   exchangeGoogleLoginCodeForEmail,
+  getGoogleLoginConfig,
   googleLoginPublicBase,
   googleLoginRedirectUri,
   isEmailAllowedForGoogleLogin,
-  isGoogleLoginConfigured,
+  isGoogleLoginConfiguredValue,
+  parseGoogleLoginAllowedEmails,
+  publicGoogleLoginConfig,
+  saveGoogleLoginConfig,
 } from "./googleLogin.js";
-import {
-  decryptTotpSecret,
-  encryptTotpSecret,
-  generateRecoveryCodes,
-  generateTotpSecret,
-  hashRecoveryCode,
-  totpVerify,
-} from "./totp.js";
 
 /**
  * @param {import("express").Response} res
@@ -70,6 +64,48 @@ function respondIfPasswordPolicyFails(res, result) {
   if (result.ok) return false;
   res.status(400).json({ message: result.code });
   return true;
+}
+
+function classifyFileMime(mime, name = "") {
+  const m = String(mime || "").toLowerCase();
+  const n = String(name || "").toLowerCase();
+  if (m.startsWith("image/")) return "image";
+  if (m.startsWith("video/")) return "video";
+  if (m.startsWith("audio/")) return "audio";
+  if (m === "application/pdf" || n.endsWith(".pdf")) return "pdf";
+  if (
+    m.startsWith("text/") ||
+    m.includes("word") ||
+    m.includes("excel") ||
+    m.includes("powerpoint") ||
+    m.includes("spreadsheet") ||
+    m.includes("presentation") ||
+    /\.(docx?|xlsx?|pptx?|txt|csv)$/i.test(n)
+  ) {
+    return "document";
+  }
+  return "other";
+}
+
+function diskSpaceStats(dirPath) {
+  try {
+    if (typeof fs.statfsSync !== "function") return null;
+    const st = fs.statfsSync(dirPath, { bigint: false });
+    const blockSize = Number(st.bsize || 0);
+    const total = Number(st.blocks || 0) * blockSize;
+    const free = Number(st.bavail || st.bfree || 0) * blockSize;
+    const used = Math.max(0, total - free);
+    if (!Number.isFinite(total) || total <= 0) return null;
+    return {
+      total_bytes: total,
+      free_bytes: Math.max(0, free),
+      used_bytes: used,
+      used_pct: Math.round((used / total) * 1000) / 10,
+      free_pct: Math.round((Math.max(0, free) / total) * 1000) / 10,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -672,26 +708,6 @@ export function createApplication(db, options = {}) {
       { $set: { last_login_at: loginStamp } },
     );
 
-    // Se 2FA estiver ativo, não cria sessão: exige confirmação do TOTP.
-    const two = await db.collection("users").findOne(
-      { id: row.id },
-      { projection: { _id: 0, totp_enabled: 1, totp_secret_enc: 1 } },
-    );
-    if (two?.totp_enabled === true && String(two?.totp_secret_enc || "").trim()) {
-      const loginToken = randomToken();
-      const tokenHash = sha256Hex(loginToken);
-      const now = nowIso();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await db.collection("auth_2fa_challenges_v1").insertOne({
-        token_hash: tokenHash,
-        user_id: row.id,
-        created_at: now,
-        expires_at: expiresAt,
-      });
-      res.json({ message: "2fa_required", login_token: loginToken, expires_at: expiresAt });
-      return;
-    }
-
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
     setSessionCookie(res, token);
@@ -707,21 +723,113 @@ export function createApplication(db, options = {}) {
     res.json({ ok: true });
   });
 
-  app.get("/api/auth/google-login/config", (_req, res) => {
+  app.get("/api/admin/google-login/config", requireAuth, requireAdmin, async (_req, res) => {
+    const cfg = await getGoogleLoginConfig(db);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ enabled: isGoogleLoginConfigured() });
+    res.json(publicGoogleLoginConfig(cfg));
+  });
+
+  app.put("/api/admin/google-login/config", requireAuth, requireAdmin, async (req, res) => {
+    const schema = z.object({
+      enabled: z.boolean().optional(),
+      public_base_url: z.string().max(2048).optional(),
+      client_id: z.string().max(512).optional(),
+      client_secret: z.string().max(4096).optional(),
+      clear_client_secret: z.boolean().optional(),
+      allowed_emails: z.union([z.string(), z.array(z.string())]).optional(),
+      backup: z
+        .object({
+          enabled: z.boolean().optional(),
+          drive_folder_id: z.string().max(512).optional(),
+          account_email: z.string().email().or(z.literal("")).optional(),
+          schedule_enabled: z.boolean().optional(),
+          time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+          days: z
+            .array(z.enum(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]))
+            .optional(),
+          timezone: z.string().trim().min(1).max(80).optional(),
+        })
+        .optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+
+    const base = String(parsed.data.public_base_url || "").trim();
+    if (base) {
+      try {
+        const u = new URL(base);
+        if (!["http:", "https:"].includes(u.protocol)) {
+          res.status(400).json({ message: "invalid_public_base_url" });
+          return;
+        }
+      } catch {
+        res.status(400).json({ message: "invalid_public_base_url" });
+        return;
+      }
+    }
+    const allowedEmails = parseGoogleLoginAllowedEmails(parsed.data.allowed_emails || "");
+    for (const email of allowedEmails) {
+      const check = z.string().email().safeParse(email);
+      if (!check.success) {
+        res.status(400).json({ message: "invalid_allowed_email" });
+        return;
+      }
+    }
+    if (
+      parsed.data.backup?.schedule_enabled === true &&
+      Array.isArray(parsed.data.backup.days) &&
+      parsed.data.backup.days.length === 0
+    ) {
+      res.status(400).json({ message: "invalid_backup_schedule" });
+      return;
+    }
+
+    const cfg = await saveGoogleLoginConfig(db, {
+      ...parsed.data,
+      allowed_emails: allowedEmails,
+    });
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.google_login_config_update",
+      details: {
+        enabled: cfg.enabled !== false,
+        configured: isGoogleLoginConfiguredValue(cfg),
+        allowed_count: cfg.allowed_emails.length,
+        public_base_url: cfg.public_base_url,
+        client_id_set: Boolean(cfg.client_id),
+        client_secret_set: Boolean(cfg.client_secret),
+        google_backup_enabled: cfg.backup.enabled === true,
+        google_backup_schedule_enabled: cfg.backup.schedule_enabled === true,
+        google_backup_days: cfg.backup.days,
+        google_backup_time: cfg.backup.time,
+      },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json(publicGoogleLoginConfig(cfg));
+  });
+
+  app.get("/api/auth/google-login/config", async (_req, res) => {
+    const cfg = await getGoogleLoginConfig(db);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ enabled: isGoogleLoginConfiguredValue(cfg) });
   });
 
   app.get("/api/auth/google-login/start", loginMw, async (req, res) => {
-    if (!isGoogleLoginConfigured()) {
+    const googleConfig = await getGoogleLoginConfig(db);
+    if (!isGoogleLoginConfiguredValue(googleConfig)) {
       res.status(503).json({ message: "google_login_unavailable" });
       return;
     }
-    const redirectUri = googleLoginRedirectUri();
-    const force = String(req.query.force_new_session || "").trim() === "1";
+    const redirectUri = googleLoginRedirectUri(googleConfig);
     try {
-      const state = await createGoogleLoginOauthState(db, { force_new_session: force });
-      const url = buildGoogleLoginAuthorizeUrl({ state, redirectUri });
+      const state = await createGoogleLoginOauthState(db);
+      const url = buildGoogleLoginAuthorizeUrl({ state, redirectUri, config: googleConfig });
       res.setHeader("Cache-Control", "no-store");
       res.json({ auth_url: url });
     } catch {
@@ -730,12 +838,13 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/auth/google-login/callback", async (req, res) => {
-    const base = googleLoginPublicBase();
-    if (!base || !isGoogleLoginConfigured()) {
+    const googleConfig = await getGoogleLoginConfig(db);
+    const base = googleLoginPublicBase(googleConfig);
+    if (!base || !isGoogleLoginConfiguredValue(googleConfig)) {
       res.status(400).type("text/plain").send("Login Google não configurado.");
       return;
     }
-    const redirectUri = googleLoginRedirectUri();
+    const redirectUri = googleLoginRedirectUri(googleConfig);
     const code = String(req.query.code || "").trim();
     const state = String(req.query.state || "").trim();
     const oauthErr = String(req.query.error || "").trim();
@@ -767,6 +876,7 @@ export function createApplication(db, options = {}) {
       ({ email: emailFromGoogle } = await exchangeGoogleLoginCodeForEmail({
         code,
         redirectUri,
+        config: googleConfig,
       }));
     } catch {
       await recordAudit(db, {
@@ -800,7 +910,7 @@ export function createApplication(db, options = {}) {
       return;
     }
 
-    if (!isEmailAllowedForGoogleLogin(email)) {
+    if (!isEmailAllowedForGoogleLogin(email, googleConfig)) {
       await recordAudit(db, {
         userId: null,
         actorUserId: null,
@@ -849,7 +959,7 @@ export function createApplication(db, options = {}) {
         user_id: row.id,
         expires_at: { $gt: nowIsoStr },
       });
-      if (active && !st.force_new_session) {
+      if (active) {
         await recordAudit(db, {
           userId: row.id,
           actorUserId: row.id,
@@ -861,17 +971,6 @@ export function createApplication(db, options = {}) {
         errRedirect("session_active");
         return;
       }
-      if (active && st.force_new_session) {
-        await db.collection("sessions").deleteMany({ user_id: row.id });
-        await recordAudit(db, {
-          userId: row.id,
-          actorUserId: row.id,
-          action: "auth.sessions_revoked_by_login",
-          details: { reason: "google_force_new_session" },
-          ip: clientIp(req),
-          ...auditCtx(req),
-        });
-      }
     }
 
     await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
@@ -880,28 +979,6 @@ export function createApplication(db, options = {}) {
       { id: row.id },
       { $set: { last_login_at: loginStamp } },
     );
-
-    const two = await db.collection("users").findOne(
-      { id: row.id },
-      { projection: { _id: 0, totp_enabled: 1, totp_secret_enc: 1 } },
-    );
-    if (two?.totp_enabled === true && String(two?.totp_secret_enc || "").trim()) {
-      const loginToken = randomToken();
-      const tokenHash = sha256Hex(loginToken);
-      const now = nowIso();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await db.collection("auth_2fa_challenges_v1").insertOne({
-        token_hash: tokenHash,
-        user_id: row.id,
-        created_at: now,
-        expires_at: expiresAt,
-      });
-      const u = new URL(`${base}/Home`);
-      u.searchParams.set("google_login", "2fa");
-      u.searchParams.set("login_token", loginToken);
-      res.redirect(302, u.toString());
-      return;
-    }
 
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
@@ -918,196 +995,6 @@ export function createApplication(db, options = {}) {
     const okUrl = new URL(`${base}/Home`);
     okUrl.searchParams.set("google_login", "ok");
     res.redirect(302, okUrl.toString());
-  });
-
-  app.post("/api/auth/login-2fa", async (req, res) => {
-    const schema = z.object({
-      login_token: z.string().min(10),
-      code: z.string().min(4).max(12).optional(),
-      recovery_code: z.string().min(6).max(64).optional(),
-    });
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ message: "invalid_request" });
-      return;
-    }
-    const tokenHash = sha256Hex(parsed.data.login_token);
-    const now = nowIso();
-    const ch = await db.collection("auth_2fa_challenges_v1").findOne({
-      token_hash: tokenHash,
-      expires_at: { $gt: now },
-    });
-    if (!ch) {
-      res.status(400).json({ message: "invalid_or_expired_2fa" });
-      return;
-    }
-    const u = await db.collection("users").findOne(
-      { id: ch.user_id },
-      { projection: { _id: 0, id: 1, email: 1, totp_enabled: 1, totp_secret_enc: 1, totp_recovery_codes_hash: 1 } },
-    );
-    if (!u || u.totp_enabled !== true || !u.totp_secret_enc) {
-      res.status(400).json({ message: "2fa_not_enabled" });
-      return;
-    }
-    const secret = decryptTotpSecret(u.totp_secret_enc);
-    if (!secret) {
-      res.status(500).json({ message: "2fa_secret_unavailable" });
-      return;
-    }
-    const code = String(parsed.data.code || "").trim();
-    const rec = String(parsed.data.recovery_code || "").trim();
-    let ok = false;
-    let usedRecoveryHash = null;
-    if (code) {
-      ok = totpVerify(secret, code);
-    } else if (rec) {
-      const h = hashRecoveryCode(rec);
-      const list = Array.isArray(u.totp_recovery_codes_hash) ? u.totp_recovery_codes_hash : [];
-      if (list.includes(h)) {
-        ok = true;
-        usedRecoveryHash = h;
-      }
-    }
-    if (!ok) {
-      res.status(401).json({ message: "invalid_2fa_code" });
-      return;
-    }
-    if (usedRecoveryHash) {
-      await db.collection("users").updateOne(
-        { id: u.id },
-        { $pull: { totp_recovery_codes_hash: usedRecoveryHash }, $set: { updated_at: nowIso() } },
-      );
-    }
-    await db.collection("auth_2fa_challenges_v1").deleteOne({ token_hash: tokenHash });
-    const ttlMinutes = await getSessionTtlMinutes();
-    const { token } = await createSession(db, u.id, { minutes: ttlMinutes });
-    setSessionCookie(res, token);
-    ensureCsrfCookie(req, res);
-    await recordAudit(db, {
-      userId: u.id,
-      actorUserId: u.id,
-      action: "auth.login_2fa",
-      details: { email: u.email, used_recovery: Boolean(usedRecoveryHash) },
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    res.json({ ok: true });
-  });
-
-  app.post("/api/auth/2fa/setup", requireAuth, async (req, res) => {
-    const issuer = String(process.env.ICER_TOTP_ISSUER || "ICER").trim() || "ICER";
-    const secret = generateTotpSecret();
-    const otpauth = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(req.user.email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
-    const qr = await qrcode.toDataURL(otpauth, { margin: 1, scale: 6 });
-    const enc = encryptTotpSecret(secret);
-    const now = nowIso();
-    await db.collection("users").updateOne(
-      { id: req.user.id },
-      { $set: { totp_pending_secret_enc: enc, totp_pending_created_at: now, updated_at: now } },
-    );
-    res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, otpauth_url: otpauth, qr_data_url: qr, secret });
-  });
-
-  app.post("/api/auth/2fa/verify", requireAuth, async (req, res) => {
-    const schema = z.object({ code: z.string().min(4).max(12) });
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ message: "invalid_request" });
-      return;
-    }
-    const row = await db.collection("users").findOne(
-      { id: req.user.id },
-      { projection: { _id: 0, totp_pending_secret_enc: 1 } },
-    );
-    const pending = String(row?.totp_pending_secret_enc || "").trim();
-    if (!pending) {
-      res.status(400).json({ message: "2fa_setup_not_started" });
-      return;
-    }
-    const secret = decryptTotpSecret(pending);
-    if (!secret) {
-      res.status(500).json({ message: "2fa_secret_unavailable" });
-      return;
-    }
-    const ok = totpVerify(secret, parsed.data.code);
-    if (!ok) {
-      res.status(401).json({ message: "invalid_2fa_code" });
-      return;
-    }
-    const codes = generateRecoveryCodes(10);
-    const hashes = codes.map(hashRecoveryCode);
-    const now = nowIso();
-    await db.collection("users").updateOne(
-      { id: req.user.id },
-      {
-        $set: {
-          totp_enabled: true,
-          totp_secret_enc: pending,
-          totp_verified_at: now,
-          totp_recovery_codes_hash: hashes,
-          updated_at: now,
-        },
-        $unset: { totp_pending_secret_enc: "", totp_pending_created_at: "" },
-      },
-    );
-    await recordAudit(db, {
-      userId: req.user.id,
-      actorUserId: req.user.id,
-      action: "auth.2fa_enabled",
-      details: {},
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    res.json({ ok: true, recovery_codes: codes });
-  });
-
-  app.post("/api/auth/2fa/disable", requireAuth, async (req, res) => {
-    const schema = z.object({
-      code: z.string().min(4).max(12).optional(),
-      recovery_code: z.string().min(6).max(64).optional(),
-    });
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ message: "invalid_request" });
-      return;
-    }
-    const u = await db.collection("users").findOne(
-      { id: req.user.id },
-      { projection: { _id: 0, totp_enabled: 1, totp_secret_enc: 1, totp_recovery_codes_hash: 1 } },
-    );
-    if (!u?.totp_enabled || !u.totp_secret_enc) {
-      res.status(400).json({ message: "2fa_not_enabled" });
-      return;
-    }
-    const secret = decryptTotpSecret(u.totp_secret_enc);
-    const code = String(parsed.data.code || "").trim();
-    const rec = String(parsed.data.recovery_code || "").trim();
-    let ok = false;
-    if (code && secret) ok = totpVerify(secret, code);
-    if (!ok && rec) {
-      const h = hashRecoveryCode(rec);
-      const list = Array.isArray(u.totp_recovery_codes_hash) ? u.totp_recovery_codes_hash : [];
-      ok = list.includes(h);
-    }
-    if (!ok) {
-      res.status(401).json({ message: "invalid_2fa_code" });
-      return;
-    }
-    const now = nowIso();
-    await db.collection("users").updateOne(
-      { id: req.user.id },
-      { $set: { totp_enabled: false, updated_at: now }, $unset: { totp_secret_enc: "", totp_verified_at: "", totp_recovery_codes_hash: "" } },
-    );
-    await recordAudit(db, {
-      userId: req.user.id,
-      actorUserId: req.user.id,
-      action: "auth.2fa_disabled",
-      details: {},
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    res.json({ ok: true });
   });
 
   app.post("/api/auth/logout", async (req, res) => {
@@ -1258,8 +1145,6 @@ export function createApplication(db, options = {}) {
           role: 1,
           funcao: 1,
           avatar_url: 1,
-          totp_enabled: 1,
-          totp_grace_started_at: 1,
         },
       },
     );
@@ -1468,16 +1353,87 @@ export function createApplication(db, options = {}) {
     }
     const mem = process.memoryUsage();
     const toMb = (n) => Math.round((n / 1024 / 1024) * 100) / 100;
-    let mongodb = { ok: false, ping_ms: null, error: null };
+    const bytesToGb = (b) =>
+      Math.round((Number(b) / (1024 ** 3)) * 100000) / 100000;
+    const bytesToMb = (b) =>
+      Math.round((Number(b) / (1024 ** 2)) * 100) / 100;
+
+    let mongodb = {
+      ok: false,
+      ping_ms: null,
+      error: null,
+      stats: null,
+      collections: [],
+    };
     try {
       const t0 = Date.now();
       await db.command({ ping: 1 });
-      mongodb = { ok: true, ping_ms: Date.now() - t0, error: null };
+      const pingMs = Date.now() - t0;
+      let dbStats = null;
+      try {
+        const s = await db.command({ dbStats: 1, scale: 1 });
+        dbStats = {
+          collections: Number(s.collections || 0),
+          objects: Number(s.objects || 0),
+          data_bytes: Number(s.dataSize || 0),
+          storage_bytes: Number(s.storageSize || 0),
+          index_bytes: Number(s.indexSize || 0),
+          total_bytes:
+            Number(s.storageSize || 0) + Number(s.indexSize || 0),
+          data_mb: bytesToMb(s.dataSize || 0),
+          storage_mb: bytesToMb(s.storageSize || 0),
+          index_mb: bytesToMb(s.indexSize || 0),
+        };
+      } catch {
+        dbStats = null;
+      }
+
+      const collectionNames = [
+        "posts",
+        "eventos",
+        "materiais",
+        "fotos_galeria",
+        "files",
+        "users",
+        "sessions",
+        "audit_logs",
+        "app_kv",
+      ];
+      const collectionRows = await Promise.all(
+        collectionNames.map(async (name) => {
+          try {
+            const [count, stats] = await Promise.all([
+              db.collection(name).estimatedDocumentCount(),
+              db.command({ collStats: name, scale: 1 }).catch(() => null),
+            ]);
+            return {
+              name,
+              count,
+              storage_bytes: Number(stats?.storageSize || 0),
+              index_bytes: Number(stats?.totalIndexSize || 0),
+              total_bytes:
+                Number(stats?.storageSize || 0) +
+                Number(stats?.totalIndexSize || 0),
+            };
+          } catch {
+            return { name, count: 0, storage_bytes: 0, index_bytes: 0, total_bytes: 0 };
+          }
+        }),
+      );
+      mongodb = {
+        ok: true,
+        ping_ms: pingMs,
+        error: null,
+        stats: dbStats,
+        collections: collectionRows.sort((a, b) => b.total_bytes - a.total_bytes),
+      };
     } catch (e) {
       mongodb = {
         ok: false,
         ping_ms: null,
         error: e?.message || "ping_failed",
+        stats: null,
+        collections: [],
       };
     }
 
@@ -1486,9 +1442,65 @@ export function createApplication(db, options = {}) {
       : path.join(process.cwd(), "logs");
     const uploadsDisk = directoryFileStats(uploadDir);
     const logsDisk = directoryFileStats(logDir);
-    const bytesToGb = (b) =>
-      Math.round((Number(b) / (1024 ** 3)) * 100000) / 100000;
     const totalBytes = uploadsDisk.bytes + logsDisk.bytes;
+    const disk = diskSpaceStats(uploadDir);
+    const fileRows = await db
+      .collection("files")
+      .find(
+        {},
+        {
+          projection: {
+            _id: 0,
+            id: 1,
+            original_name: 1,
+            mime: 1,
+            size: 1,
+            created_at: 1,
+            public: 1,
+          },
+        },
+      )
+      .sort({ size: -1 })
+      .limit(12)
+      .toArray();
+    const filesByMime = await db
+      .collection("files")
+      .aggregate([
+        {
+          $group: {
+            _id: { mime: "$mime", original_name: "$original_name" },
+            bytes: { $sum: { $ifNull: ["$size", 0] } },
+            files: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray();
+    const byTypeMap = new Map();
+    for (const row of filesByMime) {
+      const type = classifyFileMime(row?._id?.mime, row?._id?.original_name);
+      const cur = byTypeMap.get(type) || { type, bytes: 0, files: 0 };
+      cur.bytes += Number(row.bytes || 0);
+      cur.files += Number(row.files || 0);
+      byTypeMap.set(type, cur);
+    }
+    const fileRegisteredBytes = [...byTypeMap.values()].reduce(
+      (sum, row) => sum + row.bytes,
+      0,
+    );
+    const byType = [...byTypeMap.values()]
+      .map((row) => ({
+        ...row,
+        pct_of_uploads:
+          fileRegisteredBytes > 0
+            ? Math.round((row.bytes / fileRegisteredBytes) * 1000) / 10
+            : 0,
+        pct_of_disk:
+          disk?.total_bytes > 0
+            ? Math.round((row.bytes / disk.total_bytes) * 1000) / 10
+            : null,
+      }))
+      .sort((a, b) => b.bytes - a.bytes);
+    const fileRegisteredCount = byType.reduce((sum, row) => sum + row.files, 0);
 
     res.setHeader("Cache-Control", "no-store");
     res.json({
@@ -1534,6 +1546,21 @@ export function createApplication(db, options = {}) {
         },
         total_bytes: totalBytes,
         total_gb: bytesToGb(totalBytes),
+        disk,
+        site_files: {
+          total_bytes: fileRegisteredBytes,
+          total_files: fileRegisteredCount,
+          by_type: byType,
+          largest: fileRows.map((f) => ({
+            id: f.id,
+            name: f.original_name || `Arquivo #${f.id}`,
+            mime: f.mime || "application/octet-stream",
+            type: classifyFileMime(f.mime, f.original_name),
+            bytes: Number(f.size || 0),
+            public: f.public !== false,
+            created_at: f.created_at || null,
+          })),
+        },
       },
       time_iso: new Date().toISOString(),
     });
@@ -2217,85 +2244,6 @@ export function createApplication(db, options = {}) {
     dest: uploadDir,
     limits: { fileSize: uploadMaxBytes },
   });
-
-  const restoreZipMaxMb = Number(process.env.ICER_UPLOAD_RESTORE_MAX_MB);
-  const restoreZipMaxBytes =
-    Number.isFinite(restoreZipMaxMb) && restoreZipMaxMb > 0
-      ? restoreZipMaxMb * 1024 * 1024
-      : 512 * 1024 * 1024;
-
-  const restoreZipUpload = multer({
-    storage: multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, os.tmpdir()),
-      filename: (_req, _file, cb) =>
-        cb(null, `icer-upload-restore-${Date.now()}-${randomToken().slice(0, 10)}.zip`),
-    }),
-    limits: { fileSize: restoreZipMaxBytes },
-    fileFilter: (_req, file, cb) => {
-      const name = String(file.originalname || "").toLowerCase();
-      const mime = String(file.mimetype || "");
-      const ok =
-        name.endsWith(".zip") ||
-        mime === "application/zip" ||
-        mime === "application/x-zip-compressed";
-      cb(null, ok);
-    },
-  });
-
-  app.get("/api/admin/uploads/archive", requireAdmin, async (req, res) => {
-    await recordAudit(db, {
-      userId: null,
-      actorUserId: req.user.id,
-      action: "admin.uploads_archive_download",
-      details: { upload_dir: uploadDir },
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    try {
-      await pipeUploadDirToZipResponse(uploadDir, res);
-    } catch {
-      if (!res.headersSent) {
-        res.status(500).json({ message: "zip_failed" });
-      }
-    }
-  });
-
-  app.post(
-    "/api/admin/uploads/archive",
-    requireAdmin,
-    restoreZipUpload.single("archive"),
-    async (req, res) => {
-      const f = req.file;
-      if (!f?.path) {
-        res.status(400).json({ message: "archive_required_or_invalid" });
-        return;
-      }
-      const tmpPath = f.path;
-      try {
-        const result = extractUploadZipFromFile(tmpPath, uploadDir);
-        await recordAudit(db, {
-          userId: null,
-          actorUserId: req.user.id,
-          action: "admin.uploads_archive_restore",
-          details: result,
-          ip: clientIp(req),
-          ...auditCtx(req),
-        });
-        res.json({ ok: true, ...result });
-      } catch (e) {
-        res.status(500).json({
-          message: "restore_failed",
-          detail: String(e?.message || e),
-        });
-      } finally {
-        try {
-          fs.unlinkSync(tmpPath);
-        } catch {
-          /* */
-        }
-      }
-    },
-  );
 
   app.post("/api/files", requireAuth, upload.single("file"), async (req, res) => {
     const f = req.file;
