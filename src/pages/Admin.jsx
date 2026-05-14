@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
+import EmptyState from "../components/shared/EmptyState";
 import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
 import { isAdminUser, getUser } from "@/lib/auth";
 import UserAvatar from "@/components/shared/UserAvatar";
@@ -186,9 +187,12 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
               ))}
           </div>
         ) : users.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-8">
-            Nenhum usuário cadastrado.
-          </p>
+          <EmptyState
+            icon={Users}
+            title="Nenhum usuário cadastrado"
+            description="Quando alguém se registar ou for convidado, aparece aqui."
+            compact
+          />
         ) : (
           <div className="space-y-2">
             {users.map((u) => (

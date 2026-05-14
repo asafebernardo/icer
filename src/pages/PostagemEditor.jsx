@@ -18,12 +18,15 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   GripVertical,
   Film,
   Headphones,
   Image,
+  Youtube,
   Maximize2,
+  Globe,
+  Link2,
+  Lock,
 } from "lucide-react";
 import {
   DragDropContext,
@@ -85,18 +88,6 @@ import { toast } from "sonner";
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
-
-/** Limite total de vídeos anexados (soma dos ficheiros). */
-const MAX_VIDEO_TOTAL_BYTES = 50 * 1024 * 1024;
-
-function totalVideoBytesInAnexos(anexos) {
-  if (!Array.isArray(anexos)) return 0;
-  return anexos.reduce((sum, a) => {
-    const m = String(a?.mime || "");
-    if (!m.startsWith("video/")) return sum;
-    return sum + (Number(a?.size) || 0);
-  }, 0);
-}
 
 const POST_EDITOR_STEPS = [
   { id: 1, title: "Texto" },
@@ -166,7 +157,7 @@ function getStep2FieldErrors(anexos, video_urls) {
   const hasVideoUrl = ytClean.length > 0;
   if (!hasAttachments && !hasVideoUrl) {
     errs.midia =
-      "Adicione pelo menos um ficheiro ou um URL de vídeo.";
+      "Adicione pelo menos uma imagem ou um URL do YouTube.";
     return errs;
   }
   video_urls.forEach((raw, i) => {
@@ -193,7 +184,7 @@ function getGaleriaPorSecoesFieldErrors(usarGaleriaPorDia, anexos, diasGaleria) 
   const visualUrls = collectVisualMediaUrlsFromAnexos(anexos);
   if (!visualUrls.length) {
     errs.galeriaGlobal =
-      "Adicione fotos ou vídeos nos anexos para usar galeria por secções.";
+      "Adicione imagens nos anexos para usar galeria por secções.";
     return errs;
   }
   if (!diasGaleria.length) {
@@ -238,7 +229,6 @@ function sortFieldHintKeysForScroll(keys) {
     "descricao",
     "dataPublicacao",
     "midia",
-    "midiaRegraVideo",
     "galeriaGlobal",
   ];
   const rank = (k) => {
@@ -423,10 +413,12 @@ export default function PostagemEditor() {
   const [imagemDestaqueUrl, setImagemDestaqueUrl] = useState("");
   const [usarGaleriaPorDia, setUsarGaleriaPorDia] = useState(false);
   const [diasGaleria, setDiasGaleria] = useState([]);
+  /** Visibilidade: "public" (qualquer pessoa) | "unlisted" (só com link) | "private" (só admin/dono). */
+  const [visibility, setVisibility] = useState("public");
   /** Modal «Por atribuir» — pré-visualização ampliada */
   const [poolAssignPreviewUrl, setPoolAssignPreviewUrl] = useState(null);
 
-  /** Fotos e vídeos anexos (para secções e «por atribuir»). */
+  /** Fotos e outros anexos visuais (para secções e «por atribuir»). */
   const visualMediaUrlsForDias = useMemo(
     () => collectVisualMediaUrlsFromAnexos(anexos),
     [anexos],
@@ -477,6 +469,7 @@ export default function PostagemEditor() {
     setDiasGaleria([]);
     setAudioAmbienteUrl("");
     setAudioAmbienteEscopo("todas_secoes");
+    setVisibility("public");
     setError("");
     setFieldHints({});
     Object.values(fieldHintTimersRef.current).forEach((t) => clearTimeout(t));
@@ -510,6 +503,11 @@ export default function PostagemEditor() {
     setAudioAmbienteUrl(String(p.audio_ambiente_url ?? "").trim());
     setAudioAmbienteEscopo(
       p.audio_ambiente_escopo === "por_secao" ? "por_secao" : "todas_secoes",
+    );
+    setVisibility(
+      p.visibility === "private" || p.visibility === "unlisted"
+        ? p.visibility
+        : "public",
     );
     setError("");
     setFieldHints({});
@@ -634,7 +632,7 @@ export default function PostagemEditor() {
     clearFieldHint,
   ]);
 
-  /** Remove aviso «adicione ficheiro ou vídeo» assim que a condição deixa de falhar. */
+  /** Remove aviso «adicione imagem ou YouTube» assim que a condição deixa de falhar. */
   useEffect(() => {
     if (!fieldHints.midia) return;
     const errs = getStep2FieldErrors(anexos, video_urls);
@@ -684,53 +682,27 @@ export default function PostagemEditor() {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    clearFieldHint("midiaRegraVideo");
     setError("");
 
     const imageFiles = files.filter((f) =>
       String(f?.type || "").startsWith("image/"),
     );
-    const videoFiles = files.filter((f) =>
-      String(f?.type || "").startsWith("video/"),
-    );
-
-    if (imageFiles.length > 0 && videoFiles.length > 0) {
-      setError(
-        "Selecione só imagens ou só vídeos de cada vez, conforme o botão.",
-      );
+    if (imageFiles.length !== files.length) {
+      setError("Só são permitidas imagens neste envio.");
       e.target.value = "";
       return;
-    }
-
-    if (videoFiles.length > 0) {
-      const existingBytes = totalVideoBytesInAnexos(anexos);
-      const novosBytes = videoFiles.reduce(
-        (s, f) => s + (Number(f?.size) || 0),
-        0,
-      );
-      if (existingBytes + novosBytes > MAX_VIDEO_TOTAL_BYTES) {
-        const limiteMb = Math.round(MAX_VIDEO_TOTAL_BYTES / (1024 * 1024));
-        showFieldHintsBatch({
-          midiaRegraVideo: `O total dos vídeos não pode exceder ${limiteMb} MB (inclui os já anexados).`,
-        });
-        e.target.value = "";
-        return;
-      }
     }
 
     setUploading(true);
     setUploadProgress(0);
     try {
       const next = [...anexos];
-      const total = files.length;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      const total = imageFiles.length;
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
         const mime = String(file?.type || "");
-        const isVisual = mime.startsWith("image/") || mime.startsWith("video/");
-        if (!isVisual) {
-          throw new Error(
-            "Em postagens, só é permitido enviar imagens e vídeos.",
-          );
+        if (!mime.startsWith("image/")) {
+          throw new Error("Em postagens, só é permitido enviar imagens.");
         }
         const { file_url } = await uploadIntegrationFile(file, {
           purpose: "post_media",
@@ -751,7 +723,6 @@ export default function PostagemEditor() {
       setAnexos(next);
       setUploadProgress(100);
       clearFieldHint("midia");
-      clearFieldHint("midiaRegraVideo");
     } catch (err) {
       setError(
         err?.message ||
@@ -1054,6 +1025,10 @@ export default function PostagemEditor() {
             return base;
           })
         : [],
+      visibility:
+        visibility === "private" || visibility === "unlisted"
+          ? visibility
+          : "public",
       status: mode === "draft" ? "draft" : "published",
     };
   };
@@ -1150,7 +1125,7 @@ export default function PostagemEditor() {
         title={isEditMode ? "Editar post" : "Novo post"}
       />
 
-      <section className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
+      <section className="mx-auto max-w-7xl px-3 pb-28 pt-2 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8">
         <div className="mb-6">
           <Button variant="ghost" className="gap-2 -ml-2" asChild>
             <Link to="/Postagens">
@@ -1167,30 +1142,36 @@ export default function PostagemEditor() {
             </p>
           )}
 
-          <nav aria-label="Etapas do formulário" className="mb-2">
-            <ol className="m-0 flex list-none flex-col gap-0 p-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-1 sm:gap-y-3">
+          <nav
+            aria-label="Etapas do formulário"
+            className="-mx-4 mb-3 border-b border-border/70 bg-muted/20 px-3 py-2 sm:mx-0 sm:mb-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+          >
+            <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:hidden">
+              Etapa {step} de {POST_EDITOR_STEPS.length} ·{" "}
+              {POST_EDITOR_STEPS.find((s) => s.id === step)?.title ?? ""}
+            </p>
+            <ol className="m-0 flex list-none flex-nowrap items-stretch gap-1.5 overflow-x-auto overscroll-x-contain p-0 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:gap-x-1 sm:gap-y-2 sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
               {POST_EDITOR_STEPS.map(({ id: sid, title }, idx) => (
                 <Fragment key={sid}>
                   {idx > 0 ? (
                     <li
                       aria-hidden="true"
-                      className="flex shrink-0 justify-center py-1.5 sm:flex sm:items-center sm:self-stretch sm:px-0.5 sm:py-0"
+                      className="flex w-4 shrink-0 items-center justify-center self-center sm:w-5"
                     >
-                      <ChevronDown className="h-5 w-5 text-muted-foreground/70 sm:hidden" />
-                      <ChevronRight className="hidden h-5 w-5 shrink-0 text-muted-foreground/70 sm:block" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
                     </li>
                   ) : null}
                   <li
                     className={cn(
-                      "flex min-h-[3rem] min-w-0 flex-1 items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors sm:min-w-[7.5rem]",
+                      "flex min-h-[2.75rem] min-w-[6.75rem] max-w-[9.5rem] shrink-0 snap-start flex-col justify-center gap-1 rounded-lg border px-2.5 py-2 text-xs transition-colors sm:min-h-[3rem] sm:min-w-[7.5rem] sm:max-w-none sm:flex-1 sm:flex-row sm:items-center sm:gap-2.5 sm:rounded-xl sm:px-3 sm:py-2.5 sm:text-sm",
                       step === sid
                         ? "border-accent bg-accent/10 shadow-sm"
-                        : "border-border bg-muted/20 text-muted-foreground",
+                        : "border-border bg-background/90 text-muted-foreground sm:bg-muted/20",
                     )}
                   >
                     <span
                       className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold sm:h-8 sm:w-8 sm:text-sm",
                         step === sid
                           ? "bg-accent text-accent-foreground"
                           : "bg-muted text-muted-foreground",
@@ -1199,7 +1180,7 @@ export default function PostagemEditor() {
                     >
                       {sid}
                     </span>
-                    <span className="min-w-0 font-medium leading-snug">
+                    <span className="min-w-0 leading-tight sm:font-medium">
                       {title}
                     </span>
                   </li>
@@ -1371,97 +1352,23 @@ export default function PostagemEditor() {
             aria-hidden={step !== 2}
           >
           <div className="space-y-6">
-
-              <div className="space-y-2">
-                <Label>Intervalo do carrossel (s)</Label>
-                <div className="flex items-center gap-3">
-                  <Slider
-                    value={[carousel_interval_sec]}
-                    onValueChange={(v) => setCarouselInterval(v[0])}
-                    min={2}
-                    max={20}
-                    step={1}
-                    className="flex-1"
-                  />
-                  <span className="text-sm tabular-nums w-10">
-                    {carousel_interval_sec}s
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Usado quando houver múltiplas imagens anexadas.
-                </p>
+            <section className="space-y-2 rounded-xl border border-border bg-muted/15 p-4">
+              <Label>Intervalo do carrossel (s)</Label>
+              <div className="flex items-center gap-3">
+                <Slider
+                  value={[carousel_interval_sec]}
+                  onValueChange={(v) => setCarouselInterval(v[0])}
+                  min={2}
+                  max={20}
+                  step={1}
+                  className="flex-1"
+                />
+                <span className="w-10 text-sm tabular-nums">{carousel_interval_sec}s</span>
               </div>
-
-            <div className="space-y-2">
-              <Label>URLs do YouTube (opcional)</Label>
               <p className="text-xs text-muted-foreground">
-                Pode adicionar vários vídeos; surgem como slides depois dos ficheiros anexados.
+                Usado quando houver múltiplas imagens anexadas.
               </p>
-              <div className="space-y-2">
-                {video_urls.map((urlRow, idx) => (
-                  <div
-                    key={idx}
-                    ref={setFieldHintAnchor(`youtube_${idx}`)}
-                    className="flex scroll-mt-28 flex-col gap-1 sm:flex-row sm:items-start sm:gap-2"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <Input
-                        id={idx === 0 ? "post-video-0" : undefined}
-                        value={urlRow}
-                        onChange={(e) => {
-                          setVideoUrls((rows) =>
-                            rows.map((r, i) =>
-                              i === idx ? e.target.value : r,
-                            ),
-                          );
-                          clearFieldHint(`youtube_${idx}`);
-                        }}
-                        placeholder="https://www.youtube.com/watch?v=…"
-                        aria-invalid={!!fieldHints[`youtube_${idx}`]}
-                        className={cn(
-                          "min-w-0 w-full",
-                          fieldHints[`youtube_${idx}`] &&
-                            "border-destructive ring-2 ring-destructive/30 focus-visible:ring-destructive/40",
-                        )}
-                      />
-                      <FieldHintMessage
-                        message={fieldHints[`youtube_${idx}`]}
-                        className="text-xs text-destructive"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0 self-start sm:mt-0"
-                      onClick={() => {
-                        setVideoUrls((rows) =>
-                          rows.length <= 1 ? [""] : rows.filter((_, i) => i !== idx),
-                        );
-                        clearFieldHint(`youtube_${idx}`);
-                      }}
-                      aria-label={
-                        video_urls.length <= 1
-                          ? "Limpar URL"
-                          : `Remover linha de URL ${idx + 1}`
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => setVideoUrls((rows) => [...rows, ""])}
-                >
-                  <Plus className="h-4 w-4" aria-hidden />
-                  Adicionar URL de vídeo
-                </Button>
-              </div>
-            </div>
+            </section>
 
             <div
               className={cn(
@@ -1472,19 +1379,18 @@ export default function PostagemEditor() {
               ref={setFieldHintAnchor("midia")}
             >
               <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3">
-                <Label>Ficheiros multimídia</Label>
+                <Label>Imagens e vídeo (YouTube)</Label>
                 <FieldHintMessage
                   message={fieldHints.midia}
                   className="text-sm text-destructive"
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Imagens e vídeos entram na publicação. Opcionalmente pode enviar um
-                único ficheiro de áudio para música de fundo na apresentação (vídeos
-                ficam mudos por defeito).
+                Envie imagens para o carrossel, opcionalmente URLs do YouTube (como slides) e,
+                se quiser, um ficheiro de áudio para música de fundo na apresentação.
               </p>
 
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {/* Secção: imagens */}
                 <section className="flex flex-col gap-3 rounded-xl border border-border bg-muted/15 p-4">
                   <div className="flex items-center gap-2 border-b border-border/60 pb-2">
@@ -1567,105 +1473,84 @@ export default function PostagemEditor() {
                   ) : null}
                 </section>
 
-                {/* Secção: vídeos */}
-                <section
-                  ref={setFieldHintAnchor("midiaRegraVideo")}
-                  className={cn(
-                    "flex flex-col gap-3 rounded-xl border border-border bg-muted/15 p-4",
-                    fieldHints.midiaRegraVideo &&
-                      "ring-2 ring-destructive/25 border-destructive/35",
-                  )}
-                >
-                  <div className="flex flex-col gap-1 border-b border-border/60 pb-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-2">
-                    <div className="flex items-center gap-2">
-                      <Film
-                        className="h-4 w-4 shrink-0 text-muted-foreground/70"
-                        aria-hidden
-                      />
-                      <h3 className="text-sm font-medium text-foreground">
-                        Vídeos
-                      </h3>
-                    </div>
-                    <FieldHintMessage
-                      message={fieldHints.midiaRegraVideo}
-                      className="text-xs text-destructive sm:max-w-[min(100%,20rem)] sm:text-right"
+                <section className="flex flex-col gap-3 rounded-xl border border-border bg-muted/15 p-4">
+                  <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                    <Youtube
+                      className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
+                      aria-hidden
                     />
+                    <h3 className="text-sm font-medium text-foreground">YouTube</h3>
                   </div>
-                  <label
-                    className={cn(
-                      "inline-flex min-h-[2.75rem] w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium shadow-sm transition-colors hover:border-accent/50 hover:bg-accent/5",
-                      uploading || uploadAudioBusy
-                        ? "pointer-events-none opacity-50"
-                        : "",
-                    )}
-                  >
-                    <Upload className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    Enviar vídeos
-                    <input
-                      type="file"
-                      accept="video/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleAddMedia}
-                      disabled={uploading || uploadAudioBusy}
-                    />
-                  </label>
-                  <div className="min-h-[2.5rem] space-y-1">
-                    {anexosComIndiceVideos.length === 0 ? (
-                      <p className="text-xs text-muted-foreground/90">
-                        Nenhum vídeo anexado.
-                      </p>
-                    ) : (
-                      <ul className="max-h-36 space-y-0.5 overflow-y-auto text-sm">
-                        {anexosComIndiceVideos.map(({ anexo: a, idx: i }) => (
-                          <li
-                            key={`vid-${a?.url || "f"}-${i}`}
-                            className="flex items-center gap-2 rounded-md py-1 pl-1 pr-0"
-                          >
-                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                              {a?.name || "Vídeo"}
-                            </span>
-                            <button
-                              type="button"
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() =>
-                                setAnexos((arr) =>
-                                  arr.filter((_, j) => j !== i),
-                                )
-                              }
-                              aria-label={`Remover ${a?.name || "vídeo"}`}
-                              title="Remover"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {anexosComIndiceVideos.length > 1 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Vários URLs são permitidos; surgem como slides depois das imagens.
+                  </p>
+                  <div className="space-y-2">
+                    {video_urls.map((urlRow, idx) => (
+                      <div
+                        key={idx}
+                        ref={setFieldHintAnchor(`youtube_${idx}`)}
+                        className="flex scroll-mt-28 flex-col gap-1 sm:flex-row sm:items-start sm:gap-2"
+                      >
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <Input
+                            id={idx === 0 ? "post-video-0" : undefined}
+                            value={urlRow}
+                            onChange={(e) => {
+                              setVideoUrls((rows) =>
+                                rows.map((r, i) =>
+                                  i === idx ? e.target.value : r,
+                                ),
+                              );
+                              clearFieldHint(`youtube_${idx}`);
+                            }}
+                            placeholder="https://www.youtube.com/watch?v=…"
+                            aria-invalid={!!fieldHints[`youtube_${idx}`]}
+                            className={cn(
+                              "min-w-0 w-full",
+                              fieldHints[`youtube_${idx}`] &&
+                                "border-destructive ring-2 ring-destructive/30 focus-visible:ring-destructive/40",
+                            )}
+                          />
+                          <FieldHintMessage
+                            message={fieldHints[`youtube_${idx}`]}
+                            className="text-xs text-destructive"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0 self-start sm:mt-0"
+                          onClick={() => {
+                            setVideoUrls((rows) =>
+                              rows.length <= 1 ? [""] : rows.filter((_, i) => i !== idx),
+                            );
+                            clearFieldHint(`youtube_${idx}`);
+                          }}
+                          aria-label={
+                            video_urls.length <= 1
+                              ? "Limpar URL"
+                              : `Remover linha de URL ${idx + 1}`
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </div>
+                    ))}
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1.5 self-start text-xs text-muted-foreground/90 transition hover:text-destructive"
-                      onClick={() =>
-                        setAnexos((arr) =>
-                          arr.filter(
-                            (x) =>
-                              !(
-                                typeof x?.mime === "string" &&
-                                x.mime.startsWith("video/")
-                              ),
-                          ),
-                        )
-                      }
+                      className={cn(
+                        "inline-flex min-h-[2.75rem] w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-medium shadow-sm transition-colors hover:border-accent/50 hover:bg-accent/5",
+                        uploading || uploadAudioBusy
+                          ? "pointer-events-none opacity-50"
+                          : "",
+                      )}
+                      onClick={() => setVideoUrls((rows) => [...rows, ""])}
                     >
-                      <Trash2
-                        className="h-3 w-3 opacity-60"
-                        aria-hidden
-                      />
-                      Remover todos os vídeos
+                      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                      Adicionar URL do YouTube
                     </button>
-                  ) : null}
+                  </div>
                 </section>
 
                 {/* Secção: áudio */}
@@ -1730,6 +1615,68 @@ export default function PostagemEditor() {
                 </section>
               </div>
 
+              {anexosComIndiceVideos.length > 0 ? (
+                <section className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/[0.07] p-4 dark:bg-amber-950/25">
+                  <div className="flex flex-col gap-2 border-b border-amber-500/25 pb-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <Film
+                        className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-200"
+                        aria-hidden
+                      />
+                      <h3 className="text-sm font-medium text-foreground">
+                        Vídeos em ficheiro (legado)
+                      </h3>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Esta publicação ainda tem vídeo(s) enviado(s) como ficheiro. O envio de novos
+                    vídeos por ficheiro foi descontinuado — use URLs do YouTube. Pode remover os
+                    ficheiros abaixo.
+                  </p>
+                  <ul className="max-h-36 space-y-0.5 overflow-y-auto text-sm">
+                    {anexosComIndiceVideos.map(({ anexo: a, idx: i }) => (
+                      <li
+                        key={`vid-legacy-${a?.url || "f"}-${i}`}
+                        className="flex items-center gap-2 rounded-md py-1 pl-1 pr-0"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                          {a?.name || "Vídeo"}
+                        </span>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setAnexos((arr) => arr.filter((_, j) => j !== i))}
+                          aria-label={`Remover ${a?.name || "vídeo"}`}
+                          title="Remover"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {anexosComIndiceVideos.length > 1 ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 self-start text-xs text-muted-foreground/90 transition hover:text-destructive"
+                      onClick={() =>
+                        setAnexos((arr) =>
+                          arr.filter(
+                            (x) =>
+                              !(
+                                typeof x?.mime === "string" &&
+                                x.mime.startsWith("video/")
+                              ),
+                          ),
+                        )
+                      }
+                    >
+                      <Trash2 className="h-3 w-3 opacity-60" aria-hidden />
+                      Remover todos os vídeos em ficheiro
+                    </button>
+                  ) : null}
+                </section>
+              ) : null}
+
               {uploading ? (
                 <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -1737,7 +1684,7 @@ export default function PostagemEditor() {
                       className="h-4 w-4 shrink-0 animate-pulse text-accent"
                       aria-hidden
                     />
-                    A enviar imagens ou vídeos…
+                    A enviar imagens…
                   </div>
                   <Progress
                     value={uploadProgress}
@@ -1909,7 +1856,7 @@ export default function PostagemEditor() {
                         <DragDropContext onDragEnd={handleSecoesGaleriaDragEnd}>
                           <div className="flex flex-col gap-8 pt-1">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
-                              <div className="min-w-0 flex-1 space-y-4">
+                              <div className="order-2 min-w-0 flex-1 space-y-4 lg:order-1">
                             {diasGaleria.map((sec, secIdx) => (
                               <div
                                 key={`sec-${secIdx}`}
@@ -1995,8 +1942,8 @@ export default function PostagemEditor() {
                                 ) : null}
                                 <div className="space-y-2">
                                   <p className="text-xs font-medium text-muted-foreground">
-                                    Área desta secção — arraste desde «Por atribuir» (à
-                                    direita) ou reorganize aqui
+                                    Área desta secção — arraste desde «Por atribuir» ou
+                                    reorganize aqui
                                   </p>
                                   <Droppable
                                     droppableId={`section-${secIdx}`}
@@ -2103,16 +2050,16 @@ export default function PostagemEditor() {
                                 </Button>
                               </div>
 
-                              <div className="w-full shrink-0 lg:sticky lg:top-4 lg:w-[min(22rem,40vw)] xl:max-w-sm lg:max-h-[min(75vh,calc(100vh-9rem))] lg:overflow-y-auto">
+                              <div className="order-1 w-full shrink-0 lg:order-2 lg:sticky lg:top-4 lg:w-[min(22rem,40vw)] xl:max-w-sm lg:max-h-[min(75vh,calc(100vh-9rem))] lg:overflow-y-auto">
                                 <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/25 p-3">
                                   <p className="text-sm font-medium text-foreground">
                                     Por atribuir
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     Mosaico — use o ícone de ampliar no canto para ver a
-                                    imagem ou o vídeo em modal. Arraste cada miniatura para
-                                    uma secção à esquerda; para retirar da secção, arraste
-                                    de volta para aqui.
+                                    imagem ou o vídeo (YouTube / ficheiro legado) em modal.
+                                    Arraste cada miniatura para uma secção; para retirar da
+                                    secção, arraste de volta para aqui.
                                   </p>
                                   <Droppable
                                     droppableId="pool-unassigned"
@@ -2233,9 +2180,9 @@ export default function PostagemEditor() {
                                 />
                               ) : (
                                 <div className="rounded-xl border border-dashed border-border bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
-                                  Coloque imagens ou vídeos nas secções para ver o
-                                  resultado aqui (ou volte ao «Por atribuir» se ainda não
-                                  distribuiu os ficheiros).
+                                  Coloque imagens nas secções para ver o resultado aqui (ou
+                                  volte ao «Por atribuir» se ainda não distribuiu os
+                                  ficheiros).
                                 </div>
                               )}
                             </div>
@@ -2243,7 +2190,7 @@ export default function PostagemEditor() {
                         </DragDropContext>
                       ) : usarGaleriaPorDia ? (
                         <p className="text-xs text-amber-800 dark:text-amber-200">
-                          Adicione fotos ou vídeos na etapa 2 (ficheiros) para poder atribuí-los
+                          Adicione imagens ou URLs do YouTube na etapa 2 para poder atribuí-los
                           às secções.
                         </p>
                       ) : null}
@@ -2569,8 +2516,8 @@ export default function PostagemEditor() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Não há anexos para ordenar (por exemplo só indicou URL de vídeo na
-                  etapa 2). Se enviar ficheiros, voltará aqui para definir ordem e
+                  Não há ficheiros de imagem para ordenar (por exemplo só indicou URL do
+                  YouTube na etapa 2). Se anexar imagens, voltará aqui para definir ordem e
                   miniatura de destaque.
                 </p>
               )}
@@ -2590,6 +2537,106 @@ export default function PostagemEditor() {
                 apenas na página do post depois de publicar.
               </p>
             </div>
+
+            <section
+              aria-labelledby="visibility-heading"
+              className="rounded-2xl border border-border bg-card p-5"
+            >
+              <div className="mb-3">
+                <h3
+                  id="visibility-heading"
+                  className="text-base font-semibold text-foreground"
+                >
+                  Visibilidade
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Quem pode encontrar e abrir esta postagem depois de publicada.
+                </p>
+              </div>
+              <RadioGroup
+                value={visibility}
+                onValueChange={(v) =>
+                  setVisibility(
+                    v === "private" || v === "unlisted" ? v : "public",
+                  )
+                }
+                className="grid gap-2 sm:grid-cols-3"
+              >
+                <label
+                  htmlFor="visibility-public"
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40",
+                    visibility === "public"
+                      ? "border-accent bg-accent/5"
+                      : "border-border",
+                  )}
+                >
+                  <RadioGroupItem
+                    id="visibility-public"
+                    value="public"
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <Globe className="h-4 w-4" aria-hidden /> Pública
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Aparece na lista de postagens e fica acessível a qualquer
+                      pessoa.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  htmlFor="visibility-unlisted"
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40",
+                    visibility === "unlisted"
+                      ? "border-accent bg-accent/5"
+                      : "border-border",
+                  )}
+                >
+                  <RadioGroupItem
+                    id="visibility-unlisted"
+                    value="unlisted"
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <Link2 className="h-4 w-4" aria-hidden /> Não-listado
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Não aparece na listagem; só quem tiver o link consegue
+                      abrir.
+                    </span>
+                  </span>
+                </label>
+
+                <label
+                  htmlFor="visibility-private"
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40",
+                    visibility === "private"
+                      ? "border-accent bg-accent/5"
+                      : "border-border",
+                  )}
+                >
+                  <RadioGroupItem
+                    id="visibility-private"
+                    value="private"
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <Lock className="h-4 w-4" aria-hidden /> Privada
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Apenas o autor e administradores conseguem abrir.
+                    </span>
+                  </span>
+                </label>
+              </RadioGroup>
+            </section>
 
             <article className="space-y-4 rounded-2xl border border-border bg-card p-6">
               <header className="space-y-2">
@@ -2642,13 +2689,13 @@ export default function PostagemEditor() {
             </article>
           </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6">
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-10 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
             {step > 1 ? (
               <Button
                 type="button"
                 variant="outline"
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
                 onClick={() => {
                   setError("");
                   clearAllFieldHints();
@@ -2662,15 +2709,17 @@ export default function PostagemEditor() {
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => navigate("/Postagens")}
             >
               Cancelar
             </Button>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={handleSaveDraft}
               disabled={uploading || saving}
             >
@@ -2680,7 +2729,7 @@ export default function PostagemEditor() {
               <Button
                 type="button"
                 variant="default"
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
                 onClick={goToStep2}
               >
                 Continuar
@@ -2690,7 +2739,7 @@ export default function PostagemEditor() {
               <Button
                 type="button"
                 variant="default"
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
                 onClick={goToStep3}
               >
                 Continuar
@@ -2700,7 +2749,7 @@ export default function PostagemEditor() {
               <Button
                 type="button"
                 variant="default"
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
                 onClick={goToStep4}
               >
                 Continuar
@@ -2710,7 +2759,7 @@ export default function PostagemEditor() {
               <Button
                 type="button"
                 variant="default"
-                className="gap-2"
+                className="w-full gap-2 sm:w-auto"
                 onClick={goToStep5}
               >
                 Continuar
@@ -2720,6 +2769,7 @@ export default function PostagemEditor() {
               <Button
                 type="button"
                 variant="success"
+                className="w-full sm:w-auto"
                 onClick={handleSubmit}
                 disabled={uploading || saving}
               >

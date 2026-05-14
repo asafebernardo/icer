@@ -6,6 +6,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  ADMIN_NAV_GROUP_MARKER,
+  getAdminNavItemIconToneClass,
+} from "@/lib/adminNavConfig";
+
+function NavIconWrap({ Icon, itemId, isActive, disabled }) {
+  if (!Icon) return null;
+  return (
+    <span
+      className={cn(
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+        disabled && "opacity-45 grayscale",
+        isActive
+          ? "bg-primary-foreground/20 text-primary-foreground"
+          : getAdminNavItemIconToneClass(itemId),
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" aria-hidden />
+    </span>
+  );
+}
 
 function NavLabel({ item }) {
   return (
@@ -89,7 +110,7 @@ export default function AdminNavLinks({
           aria-disabled="true"
           className={cn(sheetItemClass(false, true), "select-none")}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-60" /> : null}
+          <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled />
           <NavLabel item={item} />
         </span>
       );
@@ -106,7 +127,7 @@ export default function AdminNavLinks({
           onClick={() => onTabPick?.(item.id)}
           className={sheetItemClass(isActive, false)}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
+          <NavIconWrap Icon={Icon} itemId={item.id} isActive={isActive} disabled={false} />
           <NavLabel item={item} />
         </Link>
       );
@@ -120,7 +141,7 @@ export default function AdminNavLinks({
           onClick={() => onTabPick?.(item.id)}
           className={sheetItemClass(isActive, false)}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
+          <NavIconWrap Icon={Icon} itemId={item.id} isActive={isActive} disabled={false} />
           <NavLabel item={item} />
         </button>
       );
@@ -132,7 +153,7 @@ export default function AdminNavLinks({
         title="Apenas com sessão no servidor (MongoDB)"
         className={sheetItemClass(false, true)}
       >
-        {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+        <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled />
         <NavLabel item={item} />
       </span>
     );
@@ -148,7 +169,7 @@ export default function AdminNavLinks({
           className="min-w-0 cursor-not-allowed gap-2 opacity-70"
           onSelect={(e) => e.preventDefault()}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+          <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled />
           <NavLabel item={item} />
         </DropdownMenuItem>
       );
@@ -164,7 +185,7 @@ export default function AdminNavLinks({
             onClick={() => onTabPick?.(item.id)}
             className="flex min-w-0 w-full cursor-pointer items-center gap-2"
           >
-            {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+            <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled={false} />
             <NavLabel item={item} />
           </Link>
         </DropdownMenuItem>
@@ -178,7 +199,7 @@ export default function AdminNavLinks({
           onClick={() => onTabPick?.(item.id)}
           className="flex cursor-pointer items-center gap-2"
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+          <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled={false} />
           <NavLabel item={item} />
         </DropdownMenuItem>
       );
@@ -186,7 +207,7 @@ export default function AdminNavLinks({
 
     return (
       <DropdownMenuItem key={item.id} disabled className="gap-2 opacity-60">
-        {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+        <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled />
         <NavLabel item={item} />
       </DropdownMenuItem>
     );
@@ -198,7 +219,13 @@ export default function AdminNavLinks({
         {groups.map((g, idx) => (
           <div key={g.id}>
             {idx > 0 ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <DropdownMenuLabel className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                  ADMIN_NAV_GROUP_MARKER[g.id] || "bg-muted-foreground/45",
+                )}
+              />
               {g.label}
             </DropdownMenuLabel>
             {g.items.map((item) => renderDropdownRow(item))}
@@ -213,7 +240,13 @@ export default function AdminNavLinks({
       {groups.map((g) => (
         <div key={g.id}>
           {!hideGroupTitles ? (
-            <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="mb-2 flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <span
+                className={cn(
+                  "h-2 w-2 shrink-0 rounded-full",
+                  ADMIN_NAV_GROUP_MARKER[g.id] || "bg-muted-foreground/40",
+                )}
+              />
               {g.label}
             </p>
           ) : null}

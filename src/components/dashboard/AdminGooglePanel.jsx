@@ -3,8 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   CalendarClock,
+  CalendarRange,
   CheckCircle2,
+  Cloud,
   Copy,
+  HardDriveDownload,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -19,7 +22,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { fetchJson } from "@/lib/serverAuth";
+
+const CALENDAR_SYNC_OPTIONS = [
+  {
+    value: "push",
+    label: "Enviar para o Google",
+    description: "Apenas envia os eventos do site para a agenda Google.",
+  },
+  {
+    value: "pull",
+    label: "Receber do Google",
+    description: "Apenas lê eventos da agenda Google e mostra no site.",
+  },
+  {
+    value: "two_way",
+    label: "Dois sentidos",
+    description: "Sincroniza eventos em ambas as direções (avançado).",
+  },
+];
 
 function splitAllowedEmails(value) {
   return [...new Set(String(value || "")
@@ -66,7 +100,16 @@ export default function AdminGooglePanel() {
   const [backupTime, setBackupTime] = useState("02:00");
   const [backupDays, setBackupDays] = useState(["mon", "tue", "wed", "thu", "fri"]);
   const [backupTimezone, setBackupTimezone] = useState("America/Sao_Paulo");
+  const [calendarEnabled, setCalendarEnabled] = useState(false);
+  const [calendarId, setCalendarId] = useState("primary");
+  const [calendarAccountEmail, setCalendarAccountEmail] = useState("");
+  const [calendarSyncDirection, setCalendarSyncDirection] = useState("push");
+  const [calendarAutoSyncOnSave, setCalendarAutoSyncOnSave] = useState(true);
+  const [calendarDefaultTimezone, setCalendarDefaultTimezone] =
+    useState("America/Sao_Paulo");
   const [saving, setSaving] = useState(false);
+  /** Sub-aba ativa: "login" | "cloud" | "backup" | "calendar". */
+  const [activeTab, setActiveTab] = useState("login");
 
   const {
     data,
@@ -103,6 +146,18 @@ export default function AdminGooglePanel() {
         : ["mon", "tue", "wed", "thu", "fri"],
     );
     setBackupTimezone(String(data.backup?.timezone || "America/Sao_Paulo"));
+    setCalendarEnabled(data.calendar?.enabled === true);
+    setCalendarId(String(data.calendar?.calendar_id || "primary"));
+    setCalendarAccountEmail(String(data.calendar?.account_email || ""));
+    setCalendarSyncDirection(
+      ["push", "pull", "two_way"].includes(data.calendar?.sync_direction)
+        ? data.calendar.sync_direction
+        : "push",
+    );
+    setCalendarAutoSyncOnSave(data.calendar?.auto_sync_on_save !== false);
+    setCalendarDefaultTimezone(
+      String(data.calendar?.default_timezone || "America/Sao_Paulo"),
+    );
   }, [data]);
 
   const redirectUri = useMemo(() => {
@@ -203,6 +258,15 @@ export default function AdminGooglePanel() {
           days: backupDays,
           timezone: backupTimezone.trim() || "America/Sao_Paulo",
         },
+        calendar: {
+          enabled: calendarEnabled,
+          calendar_id: calendarId.trim() || "primary",
+          account_email: calendarAccountEmail.toLowerCase().trim(),
+          sync_direction: calendarSyncDirection,
+          auto_sync_on_save: calendarAutoSyncOnSave,
+          default_timezone:
+            calendarDefaultTimezone.trim() || "America/Sao_Paulo",
+        },
       };
       if (clientSecret.trim()) {
         body.client_secret = clientSecret.trim();
@@ -222,6 +286,7 @@ export default function AdminGooglePanel() {
         invalid_public_base_url: "URL pública inválida.",
         invalid_allowed_email: "A allowlist contém um e-mail inválido.",
         invalid_backup_schedule: "Selecione pelo menos um dia de backup.",
+        invalid_calendar: "Configuração da agenda inválida.",
         invalid_request: "Dados inválidos.",
       };
       toast.error(messages[code] || e?.message || "Não foi possível salvar.");
@@ -282,6 +347,47 @@ export default function AdminGooglePanel() {
           </div>
         ) : (
           <>
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 sm:inline-flex sm:w-auto h-auto p-1 gap-1">
+                <TabsTrigger
+                  value="login"
+                  className="gap-2 px-3 py-1.5"
+                  aria-label="Login com Google"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>Login</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="cloud"
+                  className="gap-2 px-3 py-1.5"
+                  aria-label="Configuração do Google Cloud"
+                >
+                  <Cloud className="w-4 h-4" />
+                  <span>Google Cloud</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="backup"
+                  className="gap-2 px-3 py-1.5"
+                  aria-label="Backup automático"
+                >
+                  <HardDriveDownload className="w-4 h-4" />
+                  <span>Backup</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="calendar"
+                  className="gap-2 px-3 py-1.5"
+                  aria-label="Agenda Google"
+                >
+                  <CalendarRange className="w-4 h-4" />
+                  <span>Agenda</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="login" className="mt-6 space-y-6">
             <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/30 p-4">
               <div>
                 <Label className="text-sm font-medium">Ativar login Google</Label>
@@ -405,6 +511,27 @@ export default function AdminGooglePanel() {
                 Para migrar um membro existente, altere o e-mail da conta em Membros para o Gmail que ele usa no Google e depois adicione esse mesmo Gmail aqui.
               </p>
             </div>
+              </TabsContent>
+
+              <TabsContent value="cloud" className="mt-6 space-y-6">
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Cloud className="w-4 h-4 text-accent" />
+                    Configuração no Google Cloud Console
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Copie os valores abaixo e cole no ecrã{" "}
+                    <a
+                      href="https://console.cloud.google.com/apis/credentials"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 text-foreground hover:text-accent"
+                    >
+                      Credenciais OAuth 2.0
+                    </a>{" "}
+                    do projeto.
+                  </p>
+                </div>
 
             <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -436,7 +563,9 @@ export default function AdminGooglePanel() {
                 </div>
               </div>
             </div>
+              </TabsContent>
 
+              <TabsContent value="backup" className="mt-6 space-y-6">
             <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -540,8 +669,156 @@ export default function AdminGooglePanel() {
                 Esta seção salva a configuração de agendamento. A rotina que envia o arquivo para o Google Drive deve usar estes dados para executar o backup.
               </p>
             </div>
+              </TabsContent>
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
+              <TabsContent value="calendar" className="mt-6 space-y-6">
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <CalendarRange className="w-4 h-4 text-accent" />
+                    Integração com a Agenda Google
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Liga os eventos do site a uma agenda do Google. A rotina de
+                    sincronização (cron / job) deve usar estes dados para criar,
+                    atualizar e remover eventos na agenda escolhida.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/30 p-4">
+                  <div>
+                    <Label className="text-sm font-medium">
+                      Ativar integração com a Agenda Google
+                    </Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Quando desligado, os eventos do site não são sincronizados
+                      com o Google.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={calendarEnabled}
+                    onCheckedChange={setCalendarEnabled}
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="google-calendar-account">
+                      Conta Google da agenda
+                    </Label>
+                    <Input
+                      id="google-calendar-account"
+                      type="email"
+                      value={calendarAccountEmail}
+                      onChange={(e) =>
+                        setCalendarAccountEmail(e.target.value)
+                      }
+                      placeholder="agenda@gmail.com"
+                      disabled={!calendarEnabled}
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Conta dona da agenda. Costuma ser a mesma usada para o
+                      backup.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="google-calendar-id">ID da agenda</Label>
+                    <Input
+                      id="google-calendar-id"
+                      value={calendarId}
+                      onChange={(e) => setCalendarId(e.target.value)}
+                      placeholder="primary ou xxx@group.calendar.google.com"
+                      disabled={!calendarEnabled}
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use{" "}
+                      <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+                        primary
+                      </code>{" "}
+                      para a agenda principal da conta, ou cole o ID de uma
+                      agenda secundária.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="google-calendar-direction">
+                    Direção da sincronização
+                  </Label>
+                  <Select
+                    value={calendarSyncDirection}
+                    onValueChange={(v) => setCalendarSyncDirection(v)}
+                    disabled={!calendarEnabled}
+                  >
+                    <SelectTrigger id="google-calendar-direction">
+                      <SelectValue placeholder="Escolha a direção" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CALENDAR_SYNC_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {
+                      CALENDAR_SYNC_OPTIONS.find(
+                        (o) => o.value === calendarSyncDirection,
+                      )?.description
+                    }
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background/60 p-4">
+                  <div className="flex items-start gap-2">
+                    <CalendarClock className="mt-0.5 h-4 w-4 text-accent" />
+                    <div>
+                      <Label className="text-sm font-medium">
+                        Sincronizar ao guardar evento
+                      </Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Envia automaticamente o evento para a agenda Google
+                        sempre que for criado ou editado no site.
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={calendarAutoSyncOnSave}
+                    onCheckedChange={setCalendarAutoSyncOnSave}
+                    disabled={!calendarEnabled}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="google-calendar-timezone">
+                    Fuso horário dos eventos
+                  </Label>
+                  <Input
+                    id="google-calendar-timezone"
+                    value={calendarDefaultTimezone}
+                    onChange={(e) =>
+                      setCalendarDefaultTimezone(e.target.value)
+                    }
+                    placeholder="America/Sao_Paulo"
+                    disabled={!calendarEnabled}
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Usado quando o evento não tem um fuso explícito.
+                  </p>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Esta seção salva a configuração da integração. A rotina que
+                  comunica com a API do Google Agenda deve usar estes dados
+                  para sincronizar os eventos do site.
+                </p>
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground">
                 {allowedCount} e-mail(s) na allowlist. Client secret:{" "}
                 {hasSecret ? "configurado" : "em falta"}.

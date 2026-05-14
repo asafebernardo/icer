@@ -237,6 +237,28 @@ describe("ICER API", () => {
     assert.ok(res.body.agenda_sugestoes?.titulo?.includes("A"));
   });
 
+  it("PUT /api/public-workspace/agenda-simple-grid (edição em eventos)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: USER_EMAIL, password: USER_PASS })
+      .expect(200);
+    const csrf = await getCsrf(agent);
+    const res = await agent
+      .put("/api/public-workspace/agenda-simple-grid")
+      .set("X-CSRF-Token", csrf)
+      .send({
+        agenda_simple_grid: {
+          dia_column_label: "DIA",
+          culto_weekdays: [0],
+          oracao_weekdays: [3],
+        },
+      })
+      .expect(200);
+    assert.deepEqual(res.body.agenda_simple_grid?.culto_weekdays, [0]);
+    assert.deepEqual(res.body.agenda_simple_grid?.oracao_weekdays, [3]);
+  });
+
   it("POST /api/data/contatos (público)", async () => {
     const res = await request(app)
       .post("/api/data/contatos")
@@ -362,6 +384,29 @@ describe("ICER API", () => {
     const id = res.body.id;
     const anon = await request(app).get(`/api/files/${id}`).expect(200);
     assert.equal(anon.text, "visitante");
+  });
+
+  it("GET /api/admin/files, detalhe e DELETE (admin)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const csrf = await getCsrf(agent);
+    const res = await agent
+      .post("/api/files")
+      .set("X-CSRF-Token", csrf)
+      .attach("file", Buffer.from("orphan"), "orphan.bin")
+      .expect(201);
+    const id = res.body.id;
+    const list = await agent.get("/api/admin/files").expect(200);
+    assert.ok(Array.isArray(list.body.items));
+    assert.ok(list.body.items.some((r) => r.id === id));
+    const det = await agent.get(`/api/admin/files/${id}`).expect(200);
+    assert.equal(det.body.file.id, id);
+    assert.ok(Array.isArray(det.body.references));
+    await agent.delete(`/api/admin/files/${id}`).set("X-CSRF-Token", csrf).expect(200);
+    await request(app).get(`/api/files/${id}`).expect(404);
   });
 
   it("outro administrador pode apagar evento criado por outro admin", async () => {

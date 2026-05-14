@@ -2,7 +2,45 @@ import { useEffect, useMemo, useState } from "react";
 import { Facebook, Instagram, Youtube } from "lucide-react";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { resolveSocialLinksFromConfig } from "@/lib/socialLinks";
+import {
+  DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
+  DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
+  DEFAULT_HOME_YOUTUBE_CARD_TEXT,
+} from "@/lib/homeContentDefaults";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TOOLTIP_HIDE_AFTER_MS,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+function pickStr(c, key, fallback) {
+  if (own(c, key)) {
+    const t = String(c[key] ?? "").trim();
+    return t || fallback;
+  }
+  return fallback;
+}
+
+/** Texto de apoio por rede (cartões da home / siteConfig). */
+function dockDescriptionFor(cfg, key) {
+  const c = cfg && typeof cfg === "object" ? cfg : {};
+  const sectionDesc = pickStr(
+    c,
+    "homeSocialCardsSectionSubtitle",
+    DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
+  );
+  if (key === "yt")
+    return pickStr(c, "homeYoutubeCardText", DEFAULT_HOME_YOUTUBE_CARD_TEXT);
+  if (key === "ig")
+    return pickStr(c, "homeInstagramCardText", DEFAULT_HOME_INSTAGRAM_CARD_TEXT);
+  if (key === "fb") return pickStr(c, "homeFacebookCardText", sectionDesc);
+  if (key === "wa") return pickStr(c, "homeWhatsappCardText", sectionDesc);
+  return sectionDesc;
+}
 
 function WhatsappIcon({ className }) {
   return (
@@ -20,6 +58,19 @@ function WhatsappIcon({ className }) {
 const linkBaseStructure =
   "inline-flex items-center justify-center rounded-lg min-h-[44px] min-w-[44px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
+const dockBtnBase =
+  "inline-flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 border-white/30 text-white shadow-xl transition-transform duration-200 hover:scale-110 hover:brightness-110 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+/** Bolhas do doc: fundo da cor oficial + ícone branco. */
+const DOCK_BRAND_SURFACE = {
+  yt: "border-red-900/25 bg-[#FF0000] shadow-[0_6px_22px_rgba(255,0,0,0.55)]",
+  ig: "border-white/25 bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#F77737] shadow-[0_6px_22px_rgba(225,48,108,0.5)]",
+  fb: "border-blue-950/20 bg-[#0866FF] shadow-[0_6px_22px_rgba(8,102,255,0.5)]",
+  wa: "border-emerald-950/20 bg-[#25D366] shadow-[0_6px_22px_rgba(37,211,102,0.55)]",
+};
+
+const dockIconClass = "h-[22px] w-[22px] shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]";
+
 /** Cores próximas das marcas (ícone = `currentColor`). */
 const BRAND_BTN_CLASS = {
   yt: "text-[#FF0000] hover:text-[#CC0000] hover:bg-red-500/12",
@@ -29,19 +80,22 @@ const BRAND_BTN_CLASS = {
 };
 
 /**
- * @param {{ variant: "header" | "footer" }} props
+ * @param {{ variant: "header" | "footer" | "dock" }} props
  */
 export default function SiteSocialLinks({ variant }) {
-  const [links, setLinks] = useState(() =>
-    resolveSocialLinksFromConfig(getSiteConfig()),
-  );
+  const [siteCfg, setSiteCfg] = useState(() => getSiteConfig());
 
   useEffect(() => {
-    const sync = () => setLinks(resolveSocialLinksFromConfig(getSiteConfig()));
+    const sync = () => setSiteCfg(getSiteConfig());
     sync();
     window.addEventListener("icer-site-config", sync);
     return () => window.removeEventListener("icer-site-config", sync);
   }, []);
+
+  const links = useMemo(
+    () => resolveSocialLinksFromConfig(siteCfg),
+    [siteCfg],
+  );
 
   const items = useMemo(() => {
     const out = [];
@@ -82,7 +136,42 @@ export default function SiteSocialLinks({ variant }) {
 
   if (!items.length) return null;
 
-  const iconClass = variant === "header" ? "w-4 h-4 shrink-0" : "w-5 h-5";
+  const iconClass =
+    variant === "header" ? "w-4 h-4 shrink-0" : variant === "dock" ? dockIconClass : "w-5 h-5";
+
+  if (variant === "dock") {
+    return (
+      <div className="flex flex-col items-end gap-2" role="toolbar" aria-label="Redes sociais">
+        {items.map(({ key, href, label, Icon }) => {
+          const blurb = dockDescriptionFor(siteCfg, key);
+          const surface = DOCK_BRAND_SURFACE[key] ?? DOCK_BRAND_SURFACE.yt;
+          return (
+            <Tooltip key={key} delayDuration={200} hideAfterMs={TOOLTIP_HIDE_AFTER_MS}>
+              <TooltipTrigger asChild>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(dockBtnBase, surface)}
+                  aria-label={`${label}. ${blurb}`}
+                >
+                  <Icon className={iconClass} />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent
+                side="left"
+                align="center"
+                sideOffset={10}
+                className="max-w-[min(16rem,calc(100vw-5rem))] border border-border/80 bg-card/98 px-3 py-2 text-left text-xs font-normal leading-relaxed text-foreground shadow-lg backdrop-blur-md"
+              >
+                {blurb}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (variant === "header") {
     return (
@@ -107,8 +196,8 @@ export default function SiteSocialLinks({ variant }) {
   }
 
   return (
-    <div className="space-y-4">
-      <h4 className="font-display font-semibold text-xs tracking-[0.16em] uppercase text-muted-foreground">
+    <div className="space-y-3">
+      <h4 className="font-display text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         Redes sociais
       </h4>
       <div className="flex flex-wrap gap-2">

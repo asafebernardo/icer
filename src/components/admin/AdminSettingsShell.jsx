@@ -13,6 +13,7 @@ import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
 import LoginBlocksPanel from "@/components/dashboard/LoginBlocksPanel";
 import AdminCadastrosOpcoesPanel from "@/components/dashboard/AdminCadastrosOpcoesPanel";
 import AdminServerPanel from "@/components/dashboard/AdminServerPanel";
+import AdminUploadsPanel from "@/components/dashboard/AdminUploadsPanel";
 import * as auth from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import {
@@ -131,6 +132,9 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           </TabsContent>
           <TabsContent value="server">
             {canUseAdminTabs ? <AdminServerPanel /> : <LockedTabNotice />}
+          </TabsContent>
+          <TabsContent value="uploads">
+            {canUseAdminTabs ? <AdminUploadsPanel /> : <LockedTabNotice />}
           </TabsContent>
           <TabsContent value="cadastros-opcoes">
             {canUseAdminTabs ? <AdminCadastrosOpcoesPanel /> : <LockedTabNotice />}

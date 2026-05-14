@@ -8,6 +8,7 @@ import { isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { toast } from "sonner";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
+import { cn } from "@/lib/utils";
 
 export default function AdminActiveSessionsFab() {
   const { user } = useAuth();
@@ -82,7 +83,7 @@ export default function AdminActiveSessionsFab() {
   const count = Array.isArray(activeSessions) ? activeSessions.length : 0;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[40] flex flex-col items-end gap-2 max-w-[min(100vw-2rem,22rem)]">
+    <div className="flex w-full max-w-[min(100vw-2rem,22rem)] flex-col items-end gap-2">
       {open ? (
         <div
           className="rounded-2xl border border-border bg-card/95 backdrop-blur-md shadow-lg overflow-hidden w-full"
@@ -163,22 +164,27 @@ export default function AdminActiveSessionsFab() {
         </div>
       ) : null}
 
-      <Button
+      <button
         type="button"
-        size="lg"
-        className="h-12 w-12 rounded-full shadow-lg p-0 relative"
+        className={cn(
+          "relative inline-flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border-2 border-white/30 p-0",
+          "bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 text-white",
+          "shadow-[0_6px_22px_rgba(15,23,42,0.45)] transition-transform duration-200",
+          "hover:scale-110 hover:brightness-110 active:scale-[0.96]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        )}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title="Utilizadores com sessão ativa"
       >
-        <Users className="w-5 h-5" />
+        <Users className="h-[22px] w-[22px] shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]" />
         {count > 0 ? (
           <span className="absolute -top-0.5 -right-0.5 min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-accent text-[10px] font-bold text-accent-foreground flex items-center justify-center">
             {count > 9 ? "9+" : count}
           </span>
         ) : null}
         <span className="sr-only">Sessões ativas</span>
-      </Button>
+      </button>
     </div>
   );
 }

@@ -8,7 +8,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Eye, EyeOff, X } from "lucide-react";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Eye, EyeOff, KeyRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,12 +27,147 @@ import {
   imageScrimBottomShort,
 } from "@/lib/imageScrimClasses";
 
+/** Logo oficial do Google (G colorido) — usado no botão "Continuar com Google". */
+function GoogleLogo({ className }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
+
 /**
  * Modal de login. Controlado por AuthContext (openLoginModal / closeLoginModal).
  */
 function postLoginPath() {
   const u = getUser();
   return isAdminUser(u) ? "/Admin" : "/Dashboard";
+}
+
+/**
+ * Formulário clássico (e-mail + palavra-passe). Mantido fora de `LoginModal`
+ * para poder ser renderizado tanto dentro de `Tabs` (com Google) como em modo
+ * solo (quando o login Google não está disponível).
+ */
+function StandardLoginForm({
+  formId,
+  email,
+  setEmail,
+  senha,
+  setSenha,
+  showPassword,
+  setShowPassword,
+  setError,
+  setSessionConflict,
+  handleSubmit,
+  error,
+  sessionConflict,
+  login,
+  closeLoginModal,
+  navigate,
+}) {
+  return (
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor={`${formId}-email`}>E-mail</Label>
+        <Input
+          id={`${formId}-email`}
+          type="email"
+          placeholder="email@exemplo.com"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError("");
+            setSessionConflict(false);
+          }}
+          autoComplete="email"
+          className="border-input bg-background text-foreground placeholder:text-muted-foreground"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${formId}-senha`}>Palavra-passe</Label>
+        <div className="relative">
+          <Input
+            id={`${formId}-senha`}
+            type={showPassword ? "text" : "password"}
+            placeholder="••••••••"
+            value={senha}
+            onChange={(e) => {
+              setSenha(e.target.value);
+              setError("");
+              setSessionConflict(false);
+            }}
+            autoComplete="current-password"
+            className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
+          />
+          <button
+            type="button"
+            tabIndex={-1}
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={
+              showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"
+            }
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+      {error ? (
+        <p role="alert" className="text-sm leading-snug text-destructive">
+          {error}
+        </p>
+      ) : null}
+      {sessionConflict ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full text-sm"
+          onClick={async () => {
+            setError("");
+            const result = await login(email, senha, { forceNewSession: true });
+            if (!result.ok) {
+              setSessionConflict(result.sessionAlreadyActive === true);
+              setError(result.message || "Não foi possível iniciar sessão.");
+              return;
+            }
+            setSessionConflict(false);
+            closeLoginModal();
+            navigate(postLoginPath());
+          }}
+        >
+          Encerrar a outra sessão e entrar
+        </Button>
+      ) : null}
+      <Button type="submit" className="mt-2 w-full font-semibold">
+        Entrar
+      </Button>
+    </form>
+  );
 }
 
 export default function LoginModal() {
@@ -45,6 +186,8 @@ export default function LoginModal() {
   const [error, setError] = useState("");
   const [sessionConflict, setSessionConflict] = useState(false);
   const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
+  /** Modo de login selecionado pelo utilizador: "padrao" (e-mail e palavra-passe) ou "google". */
+  const [mode, setMode] = useState("padrao");
   const [formBgUrl, setFormBgUrl] = useState(() =>
     getPageBackgroundUrl("login_form"),
   );
@@ -62,8 +205,16 @@ export default function LoginModal() {
       setShowPassword(false);
       setError("");
       setSessionConflict(false);
+      setMode("padrao");
     }
   }, [loginModalOpen]);
+
+  /** Se a integração Google estiver desligada, volta sempre ao modo padrão. */
+  useEffect(() => {
+    if (!googleLoginAvailable && mode === "google") {
+      setMode("padrao");
+    }
+  }, [googleLoginAvailable, mode]);
 
   useEffect(() => {
     if (!loginModalOpen || !googleLoginIntent) return;
@@ -157,111 +308,110 @@ export default function LoginModal() {
               Iniciar sessão
             </DialogTitle>
             <DialogDescription className="text-sm text-primary-foreground/90">
-              Aceda com o seu e-mail e palavra-passe.
+              {googleLoginAvailable
+                ? "Escolha como quer entrar: e-mail e palavra-passe ou conta Google."
+                : "Aceda com o seu e-mail e palavra-passe."}
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <form
-          id={formId}
-          onSubmit={handleSubmit}
-          className="space-y-4 px-6 pb-6 pt-5"
-        >
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-email`}>E-mail</Label>
-            <Input
-              id={`${formId}-email`}
-              type="email"
-              placeholder="email@exemplo.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError("");
-                setSessionConflict(false);
-              }}
-              autoComplete="email"
-              className="border-input bg-background text-foreground placeholder:text-muted-foreground"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-senha`}>Palavra-passe</Label>
-            <div className="relative">
-              <Input
-                id={`${formId}-senha`}
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={senha}
-                onChange={(e) => {
-                  setSenha(e.target.value);
-                  setError("");
-                  setSessionConflict(false);
-                }}
-                autoComplete="current-password"
-                className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
-              />
-              <button
-                type="button"
-                tabIndex={-1}
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={
-                  showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"
-                }
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-          </div>
+        <div className="px-6 pb-6 pt-5">
           {googleLoginAvailable ? (
-            <div className="space-y-3 border-t border-border pt-4">
-              <p className="text-center text-xs text-muted-foreground">ou</p>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2"
-                onClick={() => void startGoogleLogin()}
-              >
-                Continuar com Google
-              </Button>
-            </div>
-          ) : null}
-          {error ? (
-            <p
-              role="alert"
-              className="text-sm leading-snug text-destructive"
-            >
-              {error}
-            </p>
-          ) : null}
-          {sessionConflict ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full text-sm"
-              onClick={async () => {
+            <Tabs
+              value={mode}
+              onValueChange={(v) => {
+                setMode(v === "google" ? "google" : "padrao");
                 setError("");
-                const result = await login(email, senha, { forceNewSession: true });
-                if (!result.ok) {
-                  setSessionConflict(result.sessionAlreadyActive === true);
-                  setError(result.message || "Não foi possível iniciar sessão.");
-                  return;
-                }
                 setSessionConflict(false);
-                closeLoginModal();
-                navigate(postLoginPath());
               }}
+              className="w-full"
             >
-              Encerrar a outra sessão e entrar
-            </Button>
-          ) : null}
-          <Button type="submit" className="mt-2 w-full font-semibold">
-            Entrar
-          </Button>
-        </form>
+              <TabsList className="grid w-full grid-cols-2 h-auto p-1 gap-1 mb-4">
+                <TabsTrigger
+                  value="padrao"
+                  className="gap-2 px-3 py-1.5"
+                  aria-label="Login padrão com e-mail e palavra-passe"
+                >
+                  <KeyRound className="h-4 w-4" />
+                  <span>Padrão</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="google"
+                  className="gap-2 px-3 py-1.5"
+                  aria-label="Continuar com Google"
+                >
+                  <GoogleLogo className="h-4 w-4" />
+                  <span>Google</span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="padrao" className="mt-0">
+                <StandardLoginForm
+                  formId={formId}
+                  email={email}
+                  setEmail={setEmail}
+                  senha={senha}
+                  setSenha={setSenha}
+                  showPassword={showPassword}
+                  setShowPassword={setShowPassword}
+                  setError={setError}
+                  setSessionConflict={setSessionConflict}
+                  handleSubmit={handleSubmit}
+                  error={error}
+                  sessionConflict={sessionConflict}
+                  login={login}
+                  closeLoginModal={closeLoginModal}
+                  navigate={navigate}
+                />
+              </TabsContent>
+
+              <TabsContent value="google" className="mt-0">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Use a sua conta Google para entrar. Apenas e-mails
+                    autorizados pela administração conseguem iniciar sessão.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2.5 font-medium"
+                    onClick={() => void startGoogleLogin()}
+                    aria-label="Continuar com Google"
+                  >
+                    <GoogleLogo className="h-4 w-4 shrink-0" />
+                    <span>Continuar com Google</span>
+                  </Button>
+                  {error ? (
+                    <p
+                      role="alert"
+                      className="text-sm leading-snug text-destructive"
+                    >
+                      {error}
+                    </p>
+                  ) : null}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <StandardLoginForm
+              formId={formId}
+              email={email}
+              setEmail={setEmail}
+              senha={senha}
+              setSenha={setSenha}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              setError={setError}
+              setSessionConflict={setSessionConflict}
+              handleSubmit={handleSubmit}
+              error={error}
+              sessionConflict={sessionConflict}
+              login={login}
+              closeLoginModal={closeLoginModal}
+              navigate={navigate}
+            />
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { Link, useSearchParams } from "react-router-dom";
-import { format, parseISO, isFuture, isPast, isSameMonth } from "date-fns";
+import { format, parseISO, isFuture, isPast, isSameMonth, addDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Calendar,
+  CalendarOff,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -20,12 +20,19 @@ import {
   History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import PageHeader from "../components/shared/PageHeader";
+import EmptyState from "../components/shared/EmptyState";
 import ConfirmDialog from "../components/shared/ConfirmDialog";
 import EventoFormPanel from "../components/agenda/EventoFormPanel";
-import { canMenuAction, MENU } from "@/lib/auth";
+import { canMenuAction, MENU, isAdminUser } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
+import { useEditMode } from "@/lib/EditModeContext";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
 import { useTituloImagensFundoMap } from "@/hooks/useTituloImagensFundoMap";
@@ -57,6 +64,23 @@ function getDestaqueId() {
   return String(getSiteConfig().eventoDestaqueId || "").trim();
 }
 
+/**
+ * Devolve o dia da semana abreviado em pt-BR com inicial maiúscula e sem ponto:
+ * "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb".
+ */
+function shortWeekdayPt(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  try {
+    const raw = new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(
+      date,
+    );
+    const clean = String(raw).replace(/\.$/, "").trim();
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+  } catch {
+    return "";
+  }
+}
+
 /** Próximo evento futuro (cartão no topo). */
 const PROXIMOS_MAX = 1;
 
@@ -66,6 +90,21 @@ function isEventoFuturo(e) {
 
 function isEventoEncerrado(e) {
   return Boolean(e?.data && isPast(new Date(String(e.data) + "T23:59:59")));
+}
+
+/** Janela de tempo da lista pública de "Próximos eventos" — apenas os próximos 14 dias. */
+const PROXIMOS_JANELA_DIAS = 14;
+
+function isEventoNaJanela(e, hoje = new Date()) {
+  if (!e?.data) return false;
+  try {
+    const inicioJanela = startOfDay(hoje);
+    const fimJanela = addDays(inicioJanela, PROXIMOS_JANELA_DIAS);
+    const fimDia = new Date(String(e.data) + "T23:59:59");
+    return fimDia >= inicioJanela && fimDia < fimJanela;
+  } catch {
+    return false;
+  }
 }
 
 function EventoCard({
@@ -94,26 +133,144 @@ function EventoCard({
   };
 
   const barColor = eventCardBarClass(evento, categoriaBg, tituloCorBarraMap);
+  const weekdayShort = date ? shortWeekdayPt(date) : "";
+
+  /**
+   * Variante compacta para eventos sem imagem: cartão pequeno com apenas
+   * o dia da semana abreviado, o título e o horário. Categoria/local/preletor
+   * ficam ocultos para reduzir altura — todos os detalhes continuam no link
+   * "Ver detalhes".
+   */
+  if (!hasImage) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`border rounded-xl overflow-hidden shadow-sm card-hover ${passado ? "opacity-60" : ""} ${isDestaque ? "border-accent ring-2 ring-accent/30" : "border-border"} relative bg-card`}
+      >
+        {showCadastroBg ? (
+          <CadastroTitleBackground urls={cadastroBgUrls} />
+        ) : null}
+        <div className={`h-1 relative z-20 ${barColor}`} />
+        <div className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0">
+          {/* Bloco do dia: "Qui · 14" — abreviação + dia do mês para contexto */}
+          {date ? (
+            <div
+              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-white text-center leading-tight shadow-sm ${barColor}`}
+            >
+              <span className="block text-[10px] font-semibold uppercase tracking-wider">
+                {weekdayShort}
+              </span>
+              <span className="block text-base font-bold tabular-nums">
+                {format(date, "d")}
+              </span>
+            </div>
+          ) : null}
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {isDestaque ? (
+                <Star
+                  className="w-3 h-3 fill-accent text-accent shrink-0"
+                  aria-label="Destaque"
+                />
+              ) : null}
+              <h3 className="font-semibold text-foreground text-sm leading-snug truncate">
+                {evento.titulo}
+              </h3>
+            </div>
+            {evento.horario || passado ? (
+              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                {evento.horario ? (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-accent shrink-0" />
+                    {evento.horario}
+                    {evento.horario_fim ? ` – ${evento.horario_fim}` : ""}
+                  </span>
+                ) : null}
+                {passado ? (
+                  <span className="text-[10px] uppercase tracking-wide">
+                    Encerrado
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <Link to={`/Evento/${evento.id}`}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs gap-1 text-foreground hover:text-accent"
+                aria-label={`Ver detalhes de ${evento.titulo}`}
+              >
+                Detalhes
+                <ChevronRight className="w-3 h-3" />
+              </Button>
+            </Link>
+            {canEdit || canDelete ? (
+              <div className="flex gap-0.5">
+                {canEdit ? (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    title={
+                      isDestaque
+                        ? "Remover destaque"
+                        : "Marcar como destaque no topo"
+                    }
+                    onClick={() => onToggleDestaque(evento.id)}
+                  >
+                    {isDestaque ? (
+                      <StarOff className="w-3 h-3 text-accent" />
+                    ) : (
+                      <Star className="w-3 h-3" />
+                    )}
+                  </Button>
+                ) : null}
+                {canEdit ? (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => onEdit(evento)}
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                ) : null}
+                {canDelete ? (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 text-destructive hover:text-destructive"
+                    onClick={() => onDelete(evento.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${passado ? "opacity-60" : ""} ${isDestaque ? "border-accent ring-2 ring-accent/30" : "border-border"} relative bg-card`}
+      className={`border rounded-2xl overflow-hidden shadow-sm card-hover ${passado ? "opacity-60" : ""} ${isDestaque ? "border-accent ring-2 ring-accent/30" : "border-border"} relative bg-card`}
     >
       {showCadastroBg ? (
         <CadastroTitleBackground urls={cadastroBgUrls} />
       ) : null}
       <div className={`h-1.5 relative z-20 ${barColor}`} />
-      <div className={hasImage ? "flex flex-col md:flex-row md:min-h-[200px]" : "flex flex-col"}>
+      <div className="flex flex-col md:flex-row md:min-h-[200px]">
         {/* Esquerda: texto e meta (sem ícone grande da data) */}
-        <div
-          className={
-            hasImage
-              ? "relative z-10 flex-1 md:w-1/2 md:max-w-[50%] p-5 flex flex-col justify-between min-w-0"
-              : "relative z-10 flex-1 p-5 flex flex-col justify-between min-w-0"
-          }
-        >
+        <div className="relative z-10 flex-1 md:w-1/2 md:max-w-[50%] p-5 flex flex-col justify-between min-w-0">
           <div>
             <div className="flex items-center gap-2 flex-wrap mb-2">
               {isDestaque && (
@@ -131,12 +288,6 @@ function EventoCard({
               {passado && (
                 <span className="text-xs text-muted-foreground">
                   (Encerrado)
-                </span>
-              )}
-              {!hasImage && date && (
-                <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground">
-                  <Calendar className="w-3.5 h-3.5 text-accent" />
-                  {format(date, "d 'de' MMM", { locale: ptBR })}
                 </span>
               )}
             </div>
@@ -172,31 +323,29 @@ function EventoCard({
           </div>
         </div>
 
-        {/* Direita: imagem + degradê + bloco da data (somente quando há imagem) */}
-        {hasImage ? (
-          <div className="relative md:w-1/2 md:max-w-[50%] min-h-[160px] md:min-h-0 border-t md:border-t-0 md:border-l border-border/60">
+        {/* Direita: imagem + degradê + bloco da data */}
+        <div className="relative md:w-1/2 md:max-w-[50%] min-h-[160px] md:min-h-0 border-t md:border-t-0 md:border-l border-border/60">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${evento.imagem_url})` }}
+          />
+          <div
+            className="absolute inset-0 z-[1] pointer-events-none"
+            style={gradientSplitStyle}
+          />
+          {date && (
             <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${evento.imagem_url})` }}
-            />
-            <div
-              className="absolute inset-0 z-[1] pointer-events-none"
-              style={gradientSplitStyle}
-            />
-            {date && (
-              <div
-                className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-xl text-white flex flex-col items-center justify-center shadow-lg ring-2 ring-white/25 ${barColor}`}
-              >
-                <span className="text-2xl font-bold leading-none">
-                  {format(date, "d")}
-                </span>
-                <span className="text-[10px] font-semibold uppercase leading-tight">
-                  {format(date, "MMM", { locale: ptBR })}
-                </span>
-              </div>
-            )}
-          </div>
-        ) : null}
+              className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-xl text-white flex flex-col items-center justify-center shadow-lg ring-2 ring-white/25 ${barColor}`}
+            >
+              <span className="text-2xl font-bold leading-none">
+                {format(date, "d")}
+              </span>
+              <span className="text-[10px] font-semibold uppercase leading-tight">
+                {format(date, "MMM", { locale: ptBR })}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Ações */}
@@ -256,17 +405,30 @@ function EventoCard({
 
 export default function Eventos() {
   const { user, navigateToLogin } = useAuth();
-  const canCreate = canMenuAction(user, MENU.EVENTOS, "create");
-  const canEdit = canMenuAction(user, MENU.EVENTOS, "edit");
-  const canDelete = canMenuAction(user, MENU.EVENTOS, "delete");
-  const canUseForm = canCreate || canEdit;
+  const { enabled: editMode } = useEditMode();
+  const canCreateReal = canMenuAction(user, MENU.EVENTOS, "create");
+  const canEditReal = canMenuAction(user, MENU.EVENTOS, "edit");
+  const canDeleteReal = canMenuAction(user, MENU.EVENTOS, "delete");
+  /** Versões "visuais": só mostra affordances de admin quando o Modo de edição está ativo. */
+  const canCreate = canCreateReal && editMode;
+  const canEdit = canEditReal && editMode;
+  const canDelete = canDeleteReal && editMode;
+  const canUseForm = canCreateReal || canEditReal;
+  /** Apenas admins podem ver eventos encerrados (regra de privacidade pública). */
+  const isAdmin = isAdminUser(user);
   const [editEvento, setEditEvento] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [destaqueId, setDestaqueIdState] = useState(getDestaqueId);
   const [eventoDeleteId, setEventoDeleteId] = useState(null);
-  /** Lista principal: só futuros; alternar para ver encerrados. */
-  const [verEncerrados, setVerEncerrados] = useState(false);
+  /**
+   * Aba ativa da lista: "proximos" (público) ou "encerrados" (só admins).
+   * Trocado de `verEncerrados` para um controlo de aba mais explícito.
+   */
+  const [aba, setAba] = useState("proximos");
+  const verEncerrados = aba === "encerrados" && isAdmin;
   const [pageTodos, setPageTodos] = useState(0);
+  /** Filtro de categoria. `null` = todas as categorias. */
+  const [selectedCategoria, setSelectedCategoria] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const tituloCorBarraMap = useTituloCorBarraMap();
@@ -308,7 +470,7 @@ export default function Eventos() {
     const sid = String(id || "").trim();
     const novo = destaqueId === sid ? "" : sid;
     setDestaqueIdState(novo);
-    if (canEdit) {
+    if (canEditReal) {
       savePublicSiteConfigAdmin({ eventoDestaqueId: novo })
         .then(() => refreshPublicSiteConfig())
         .catch(() => {});
@@ -324,11 +486,18 @@ export default function Eventos() {
 
   useEffect(() => {
     setPageTodos(0);
-  }, [verEncerrados]);
+  }, [verEncerrados, selectedCategoria]);
+
+  /** Sessão sem privilégios: força a aba pública. */
+  useEffect(() => {
+    if (!isAdmin && aba === "encerrados") {
+      setAba("proximos");
+    }
+  }, [isAdmin, aba]);
 
   // Paginação da lista:
-  // - Com eventos no mês atual: grelha 2×3 → até 3 cartões por coluna (= 6 por página); lista já sem «próximo» nem «destaque»
-  // - Sem eventos no mês: até 12 ordenados, sem paginação, também sem os do topo na lista
+  // - Com eventos no mês atual: grelha 2×3 → até 3 cartões por coluna (= 6 por página); lista sem o cartão de «destaque no site» (evita duplicar)
+  // - Sem eventos no mês: até 12 ordenados, sem paginação, também sem o destaque no site na lista
   const COLUNAS_GRID_TODOS = 2;
   const POR_COLUNA_TODOS = 3;
   const PAGE_SIZE_TODOS_MES = COLUNAS_GRID_TODOS * POR_COLUNA_TODOS;
@@ -343,11 +512,22 @@ export default function Eventos() {
   });
   const todosBaseRaw = mesAtual.length > 0 ? mesAtual : sorted.slice(0, 12);
 
-  const destaqueEvento = eventos.find((e) => String(e.id) === String(destaqueId));
+  /**
+   * Destaque do site só aparece se o evento ainda for futuro ou se quem estiver a ver
+   * for admin — evita expor publicamente um evento marcado como destaque que entretanto
+   * passou.
+   */
+  const destaqueEventoRaw = eventos.find(
+    (e) => String(e.id) === String(destaqueId),
+  );
+  const destaqueEvento =
+    destaqueEventoRaw && (!isEventoEncerrado(destaqueEventoRaw) || isAdmin)
+      ? destaqueEventoRaw
+      : null;
   const proximoEvento = proximos[0];
 
   const spotlightIds = new Set(
-    [proximoEvento?.id, destaqueEvento?.id]
+    [destaqueEvento?.id]
       .filter((id) => id != null && String(id).trim() !== "")
       .map((id) => String(id)),
   );
@@ -356,9 +536,29 @@ export default function Eventos() {
     (ev) => !spotlightIds.has(String(ev.id)),
   );
 
-  const todosBasePorTempo = todosBaseFiltrada.filter((ev) =>
-    verEncerrados ? isEventoEncerrado(ev) : isEventoFuturo(ev),
-  );
+  /**
+   * Próximos eventos do público: só os 14 dias seguintes; admins na aba
+   * "encerrados" veem todos os passados sem janela.
+   */
+  const filtroTempo = (ev) => {
+    if (verEncerrados) return isEventoEncerrado(ev);
+    return isEventoNaJanela(ev, now);
+  };
+
+  const todosBasePorTempo = todosBaseFiltrada
+    .filter(filtroTempo)
+    .filter((ev) =>
+      !selectedCategoria ? true : String(ev.categoria) === selectedCategoria,
+    );
+
+  /** Contagens por categoria sobre os eventos visíveis ANTES do filtro de categoria. */
+  const baseContagem = todosBaseFiltrada.filter(filtroTempo);
+  const contagemPorCategoria = baseContagem.reduce((acc, ev) => {
+    const k = String(ev.categoria || "").trim();
+    if (!k) return acc;
+    acc[k] = (acc[k] || 0) + 1;
+    return acc;
+  }, {});
 
   const totalPagesTodos =
     mesAtual.length > 0
@@ -374,11 +574,6 @@ export default function Eventos() {
       : todosBasePorTempo;
 
   const lista = todosPageItems;
-
-  const mesmoEventoSpotlight =
-    proximoEvento &&
-    destaqueEvento &&
-    String(proximoEvento.id) === String(destaqueEvento.id);
 
   return (
     <div>
@@ -403,9 +598,6 @@ export default function Eventos() {
                     <Link to="/Eventos/rotinas">
                       <History className="w-4 h-4" />
                       <span className="hidden sm:inline">Rotinas</span>
-                      <span className="hidden sm:inline-flex items-center rounded-full bg-primary-foreground/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground">
-                        Beta
-                      </span>
                     </Link>
                   </Button>
                   <Button
@@ -437,7 +629,7 @@ export default function Eventos() {
             />
           )}
 
-          {!!user && !canCreate && !canEdit && !canDelete ? (
+          {!!user && !canCreateReal && !canEditReal && !canDeleteReal ? (
               <p className="mb-6 text-sm text-muted-foreground rounded-xl border border-border bg-muted/40 px-4 py-3">
                 Para criar ou gerir eventos, o administrador deve conceder
                 permissões em <strong className="text-foreground">Eventos</strong>{" "}
@@ -453,6 +645,55 @@ export default function Eventos() {
               </p>
           ) : null}
 
+          {/* Filtros por categoria */}
+          {!isLoading && Object.keys(contagemPorCategoria).length > 0 ? (
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+                Filtrar:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoria(null)}
+                aria-pressed={!selectedCategoria}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-ring ${
+                  !selectedCategoria
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-card text-foreground border-border hover:bg-muted/60"
+                }`}
+              >
+                Todas
+                <span className="text-[10px] opacity-80">
+                  ({baseContagem.length})
+                </span>
+              </button>
+              {Object.entries(categoriaLabels)
+                .filter(([key]) => contagemPorCategoria[key] > 0)
+                .map(([key, label]) => {
+                  const active = selectedCategoria === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() =>
+                        setSelectedCategoria(active ? null : key)
+                      }
+                      aria-pressed={active}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-ring ${
+                        active
+                          ? "bg-foreground text-background border-foreground"
+                          : "bg-card text-foreground border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      {label}
+                      <span className="text-[10px] opacity-80">
+                        ({contagemPorCategoria[key]})
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          ) : null}
+
           {/* Lista */}
           {isLoading ? (
             <div className="space-y-4">
@@ -464,141 +705,114 @@ export default function Eventos() {
               ))}
             </div>
           ) : lista.length === 0 && !proximoEvento && !destaqueEvento ? (
-            <div className="text-center py-20 text-muted-foreground">
-              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>
-                Nenhum evento{" "}
-                {verEncerrados ? "encerrado" : "futuro"} encontrado.
-              </p>
-            </div>
+            <EmptyState
+              icon={CalendarOff}
+              title={
+                selectedCategoria
+                  ? `Sem eventos em "${categoriaLabels[selectedCategoria] || selectedCategoria}"`
+                  : verEncerrados
+                    ? "Nenhum evento encerrado"
+                    : "Nenhum evento futuro"
+              }
+              description={
+                selectedCategoria
+                  ? "Tente remover o filtro ou escolher outra categoria."
+                  : verEncerrados
+                    ? "Ainda não temos registos de eventos passados nesta vista."
+                    : "Em breve vamos publicar os próximos eventos da agenda. Volte mais tarde."
+              }
+              action={
+                selectedCategoria ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedCategoria(null)}
+                  >
+                    Limpar filtro
+                  </Button>
+                ) : null
+              }
+            />
           ) : (
             <div className="space-y-4">
-              <section
-                className="relative mb-2 overflow-hidden rounded-3xl border border-accent/35 bg-gradient-to-br from-primary/[0.09] via-background to-accent/[0.07] p-5 shadow-[0_16px_48px_-16px_hsl(var(--accent)/0.35)] ring-1 ring-accent/15 sm:p-6 lg:p-8 dark:from-primary/[0.14] dark:via-background dark:to-accent/[0.1]"
-                aria-labelledby="eventos-spotlight-heading"
-              >
-                <div
-                  className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl dark:bg-primary/25"
-                  aria-hidden
-                />
-                <div
-                  className="pointer-events-none absolute -bottom-16 -right-20 h-60 w-60 rounded-full bg-accent/20 blur-3xl"
-                  aria-hidden
-                />
-                <div className="relative space-y-6">
-                  <header className="border-b border-accent/30 pb-5">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent">
-                      Destaques da agenda
-                    </p>
-                    <h2
-                      id="eventos-spotlight-heading"
-                      className="mt-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl"
-                    >
-                      Próximo evento e destaque
-                    </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                      O próximo encontro à vista e o evento em evidência no site — lado a lado para consulta rápida.
-                    </p>
-                  </header>
+              {destaqueEvento ? (
+                <section
+                  className="relative mb-2 overflow-hidden rounded-3xl border border-accent/35 bg-gradient-to-br from-primary/[0.09] via-background to-accent/[0.07] p-5 shadow-[0_16px_48px_-16px_hsl(var(--accent)/0.35)] ring-1 ring-accent/15 sm:p-6 lg:p-8 dark:from-primary/[0.14] dark:via-background dark:to-accent/[0.1]"
+                  aria-labelledby="eventos-spotlight-heading"
+                >
+                  <div
+                    className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 rounded-full bg-primary/20 blur-3xl dark:bg-primary/25"
+                    aria-hidden
+                  />
+                  <div
+                    className="pointer-events-none absolute -bottom-16 -right-20 h-60 w-60 rounded-full bg-accent/20 blur-3xl"
+                    aria-hidden
+                  />
+                  <div className="relative space-y-6">
+                    <header className="border-b border-accent/30 pb-5">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-accent">
+                        Destaque no site
+                      </p>
+                      <h2
+                        id="eventos-spotlight-heading"
+                        className="mt-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl"
+                      >
+                        Evento em evidência na agenda
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                        O evento escolhido para aparecer em destaque no site (por exemplo na página inicial). Os restantes encontros futuros listam-se abaixo.
+                      </p>
+                    </header>
 
-                  {mesmoEventoSpotlight && proximoEvento ? (
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/15 px-3 py-1.5 text-xs font-semibold text-accent shadow-sm">
-                          <Clock className="w-4 h-4 shrink-0" /> Próximo evento
-                        </span>
-                        <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/15 px-3 py-1.5 text-xs font-semibold text-accent shadow-sm">
-                          <Star className="w-4 h-4 shrink-0 fill-accent" /> Destaque
-                        </span>
-                      </div>
+                    <div className="mx-auto max-w-2xl">
                       <EventoCard
-                        evento={proximoEvento}
+                        evento={destaqueEvento}
                         canEdit={canEdit}
                         canDelete={canDelete}
                         onEdit={handleEdit}
                         onDelete={askDeleteEvento}
                         onToggleDestaque={handleToggleDestaque}
-                        isDestaque={String(proximoEvento.id) === String(destaqueId)}
+                        isDestaque={String(destaqueEvento.id) === String(destaqueId)}
                         tituloCorBarraMap={tituloCorBarraMap}
                         tituloImagensFundoMap={tituloImagensFundoMap}
                       />
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-10">
-                      <div className="space-y-4 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/20 text-accent shadow-inner ring-1 ring-accent/25">
-                            <Clock className="h-5 w-5" />
-                          </span>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-accent">
-                              Agenda
-                            </p>
-                            <p className="font-display text-lg font-semibold text-foreground">
-                              Próximo evento
-                            </p>
-                          </div>
-                        </div>
-                        {proximoEvento ? (
-                          <EventoCard
-                            evento={proximoEvento}
-                            canEdit={canEdit}
-                            canDelete={canDelete}
-                            onEdit={handleEdit}
-                            onDelete={askDeleteEvento}
-                            onToggleDestaque={handleToggleDestaque}
-                            isDestaque={String(proximoEvento.id) === String(destaqueId)}
-                            tituloCorBarraMap={tituloCorBarraMap}
-                            tituloImagensFundoMap={tituloImagensFundoMap}
-                          />
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-accent/30 bg-background/60 px-4 py-10 text-center text-sm text-muted-foreground backdrop-blur-sm">
-                            Nenhum evento futuro na lista.
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-4 min-w-0">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/20 text-accent shadow-inner ring-1 ring-accent/25">
-                            <Star className="h-5 w-5 fill-accent" />
-                          </span>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-accent">
-                              Site
-                            </p>
-                            <p className="font-display text-lg font-semibold text-foreground">
-                              Destaque
-                            </p>
-                          </div>
-                        </div>
-                        {destaqueEvento ? (
-                          <EventoCard
-                            evento={destaqueEvento}
-                            canEdit={canEdit}
-                            canDelete={canDelete}
-                            onEdit={handleEdit}
-                            onDelete={askDeleteEvento}
-                            onToggleDestaque={handleToggleDestaque}
-                            isDestaque={String(destaqueEvento.id) === String(destaqueId)}
-                            tituloCorBarraMap={tituloCorBarraMap}
-                            tituloImagensFundoMap={tituloImagensFundoMap}
-                          />
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-accent/30 bg-background/60 px-4 py-10 text-center text-sm text-muted-foreground backdrop-blur-sm">
-                            Nenhum evento marcado com destaque no site.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
+                  </div>
+                </section>
+              ) : null}
 
-                {lista.length > 0 ? (
-                  <div className="space-y-4 pt-2 border-t border-border/60">
+                <div className="space-y-3 pt-2 border-t border-border/60">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {verEncerrados ? "Eventos encerrados" : "Próximos eventos"}
+                      {verEncerrados
+                        ? "Eventos encerrados"
+                        : `Próximos eventos · próximos ${PROXIMOS_JANELA_DIAS} dias`}
                     </p>
+                    {isAdmin ? (
+                      <Tabs
+                        value={aba}
+                        onValueChange={(v) =>
+                          setAba(v === "encerrados" ? "encerrados" : "proximos")
+                        }
+                      >
+                        <TabsList className="h-8">
+                          <TabsTrigger
+                            value="proximos"
+                            className="text-xs px-2.5 py-1"
+                          >
+                            Próximos
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="encerrados"
+                            className="text-xs px-2.5 py-1"
+                          >
+                            Encerrados
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    ) : null}
+                  </div>
+                  {lista.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5 [&>*]:min-w-0">
                       {lista.map((ev) => (
                         <EventoCard
@@ -615,61 +829,44 @@ export default function Eventos() {
                         />
                       ))}
                     </div>
-                  </div>
-                ) : proximoEvento || destaqueEvento ? (
-                  <p className="text-xs text-muted-foreground pt-2 border-t border-border/60">
-                    {verEncerrados
-                      ? "Não há eventos encerrados nesta vista além dos destacados acima."
-                      : "Não há outros próximos eventos nesta vista além dos destacados acima."}
-                  </p>
-                ) : null}
-
-                <div className="flex justify-center pt-8 mt-2 border-t border-border/60 sm:justify-end">
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-                    {mesAtual.length > 0 && totalPagesTodos > 1 ? (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={pageTodos <= 0}
-                          onClick={() => setPageTodos((p) => Math.max(0, p - 1))}
-                          aria-label="Página anterior"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </Button>
-                        <span className="text-xs text-muted-foreground tabular-nums min-w-[3rem] text-center">
-                          {Math.min(pageTodos + 1, totalPagesTodos)} / {totalPagesTodos}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={pageTodos + 1 >= totalPagesTodos}
-                          onClick={() => setPageTodos((p) => Math.min(totalPagesTodos - 1, p + 1))}
-                          aria-label="Próxima página"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                      </>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant={verEncerrados ? "secondary" : "outline"}
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => setVerEncerrados((v) => !v)}
-                      aria-pressed={verEncerrados}
-                      aria-label={
-                        verEncerrados
-                          ? "Mostrar apenas próximos eventos"
-                          : "Ver eventos encerrados"
-                      }
-                    >
-                      {verEncerrados ? "Próximos eventos" : "Ver encerrados"}
-                    </Button>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {verEncerrados
+                        ? "Não há eventos encerrados para mostrar."
+                        : `Nenhum evento publicado nos próximos ${PROXIMOS_JANELA_DIAS} dias.`}
+                    </p>
+                  )}
                 </div>
+
+                {mesAtual.length > 0 && totalPagesTodos > 1 ? (
+                  <div className="flex justify-center pt-8 mt-2 border-t border-border/60 sm:justify-end">
+                    <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        disabled={pageTodos <= 0}
+                        onClick={() => setPageTodos((p) => Math.max(0, p - 1))}
+                        aria-label="Página anterior"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground tabular-nums min-w-[3rem] text-center">
+                        {Math.min(pageTodos + 1, totalPagesTodos)} / {totalPagesTodos}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        disabled={pageTodos + 1 >= totalPagesTodos}
+                        onClick={() => setPageTodos((p) => Math.min(totalPagesTodos - 1, p + 1))}
+                        aria-label="Próxima página"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
           )}
         </div>
