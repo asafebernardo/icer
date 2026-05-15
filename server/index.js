@@ -6,6 +6,7 @@ import { hashPassword } from "./auth.js";
 import { nowIso } from "./security.js";
 import { createApplication } from "./createApp.js";
 import { nextSeq } from "./sequences.js";
+import { validateAccountPassword } from "./passwordPolicy.js";
 
 const root = process.cwd();
 dotenv.config({ path: path.join(root, ".env") });
@@ -32,11 +33,22 @@ try {
   process.exit(1);
 }
 
-const MIN_PASSWORD_LEN = 10;
+/** Garante que todas as contas são administradores (modelo único). */
+async function migrateAllUsersToAdminRole() {
+  const now = nowIso();
+  const r = await db.collection("users").updateMany(
+    { role: { $ne: "admin" } },
+    { $set: { role: "admin", updated_at: now } },
+  );
+  if (r.modifiedCount > 0) {
+    // eslint-disable-next-line no-console
+    console.log(`[ICER] Migração: ${r.modifiedCount} conta(s) passaram a role "admin".`);
+  }
+}
 
 /**
  * Cria conta no MongoDB se o e-mail ainda não existir (login no site).
- * @param {{ email: string; full_name: string; password: string; role: "admin" | "user"; label: string }} p
+ * @param {{ email: string; full_name: string; password: string; role: "admin"; label: string }} p
  */
 async function ensureUserSeed(p) {
   const email = String(p.email || "").toLowerCase().trim();
@@ -45,10 +57,11 @@ async function ensureUserSeed(p) {
   if (!email || !full_name || !password) {
     return;
   }
-  if (password.length < MIN_PASSWORD_LEN) {
+  const policy = validateAccountPassword(password);
+  if (!policy.ok) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[ICER] Seed ignorado (${p.label}): palavra-passe precisa de pelo menos ${MIN_PASSWORD_LEN} caracteres.`,
+      `[ICER] Seed ignorado (${p.label}): palavra-passe não cumpre a política (${policy.code}).`,
     );
     return;
   }
@@ -70,7 +83,7 @@ async function ensureUserSeed(p) {
     updated_at: now,
   });
   // eslint-disable-next-line no-console
-  console.log(`[ICER] Conta seed (${p.role}): ${email}`);
+  console.log(`[ICER] Conta seed (${p.label}): ${email}`);
 }
 
 async function ensureSeedUsers() {
@@ -82,14 +95,15 @@ async function ensureSeedUsers() {
     role: "admin",
   });
   await ensureUserSeed({
-    label: "utilizador",
+    label: "admin (segunda conta)",
     email: process.env.ICER_USER_EMAIL,
     full_name: process.env.ICER_USER_FULL_NAME,
     password: process.env.ICER_USER_PASSWORD,
-    role: "user",
+    role: "admin",
   });
 }
 
+await migrateAllUsersToAdminRole();
 await ensureSeedUsers();
 
 const enableUpstreamProxy = Boolean(

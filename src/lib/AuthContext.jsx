@@ -79,18 +79,10 @@ export function AuthProvider({ children }) {
               full_name: u.full_name,
               role: u.role,
               funcao: u.funcao ?? "",
+              avatar_url: u.avatar_url ? String(u.avatar_url) : "",
               _authSource: "server",
             });
-            try {
-              const mr = await fetch("/api/auth/menu-effective", {
-                credentials: "include",
-              });
-              if (mr.ok) {
-                setServerMenuEffective(await mr.json());
-              }
-            } catch {
-              /* ignore */
-            }
+            setServerMenuEffective(null);
           } else {
             const cur = getUser();
             if (cur?._authSource === "server") {
@@ -121,16 +113,7 @@ export function AuthProvider({ children }) {
         })
         .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
         .catch(() => {});
-      try {
-        const mr = await fetch("/api/auth/menu-effective", {
-          credentials: "include",
-        });
-        if (mr.ok) {
-          setServerMenuEffective(await mr.json());
-        }
-      } catch {
-        /* ignore */
-      }
+      setServerMenuEffective(null);
     }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("icer-user-session"));

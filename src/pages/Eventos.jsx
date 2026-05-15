@@ -17,7 +17,7 @@ import {
   StarOff,
   CalendarDays,
   ListChecks,
-  X,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -25,24 +25,12 @@ import PageHeader from "../components/shared/PageHeader";
 import ConfirmDialog from "../components/shared/ConfirmDialog";
 import EventoFormPanel from "../components/agenda/EventoFormPanel";
 import BulkEventScheduler from "../components/agenda/BulkEventScheduler";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import BulkEventRunsDialog from "../components/agenda/BulkEventRunsDialog";
 import { canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { getSiteConfig, refreshPublicSiteConfig, savePublicSiteConfigAdmin } from "@/lib/siteConfig";
-import {
-  PUBLIC_WORKSPACE_QUERY_KEY,
-  fetchPublicWorkspaceJson,
-  postDismissDestaqueEvento,
-  shouldUseRemotePublicWorkspace,
-} from "@/lib/publicWorkspace";
-import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 import {
   CATEGORY_BAR_CLASS,
   CATEGORY_SOFT_BADGE_CLASS,
@@ -65,26 +53,6 @@ const categoriaLight = CATEGORY_SOFT_BADGE_CLASS;
 
 function getDestaqueId() {
   return String(getSiteConfig().eventoDestaqueId || "").trim();
-}
-
-function getDestaqueSessionKey(id) {
-  const sid = String(id || "").trim();
-  return sid ? `icer_event_destaque_closed:${sid}` : "icer_event_destaque_closed:";
-}
-
-function isDestaquePopupDismissed(destaqueId, publicWs, localDismissTick) {
-  const sid = String(destaqueId || "").trim();
-  if (!sid) return true;
-  if (shouldUseRemotePublicWorkspace()) {
-    const ids = publicWs?.evento_destaque_dismissed_ids;
-    return Array.isArray(ids) && ids.includes(sid);
-  }
-  void localDismissTick;
-  try {
-    return sessionStorage.getItem(getDestaqueSessionKey(sid)) === "1";
-  } catch {
-    return false;
-  }
 }
 
 /** Na aba "Próximo evento": só o evento futuro mais próximo da data atual. */
@@ -275,20 +243,8 @@ export default function Eventos() {
   const [editEvento, setEditEvento] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkRunsOpen, setBulkRunsOpen] = useState(false);
   const [destaqueId, setDestaqueIdState] = useState(getDestaqueId);
-  const [destaquePopupOpen, setDestaquePopupOpen] = useState(false);
-  const [localDismissTick, setLocalDismissTick] = useState(0);
-  const useRemoteWs = shouldUseRemotePublicWorkspace();
-  const { data: publicWs } = useQuery({
-    queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
-    queryFn: fetchPublicWorkspaceJson,
-    enabled: useRemoteWs,
-    staleTime: 30_000,
-  });
-
-  useEffect(() => {
-    if (useRemoteWs && publicWs) hydrateMemberRegistryFromPublicWorkspace(publicWs);
-  }, [useRemoteWs, publicWs]);
   const [eventoDeleteId, setEventoDeleteId] = useState(null);
   const [filtro, setFiltro] = useState("proximos"); // 'proximos' | 'todos'
   const [pageTodos, setPageTodos] = useState(0);
@@ -374,44 +330,8 @@ export default function Eventos() {
 
   const lista = filtro === "proximos" ? proximos : todosPageItems;
 
-  // Evento em destaque (top)
+  // O popup de "evento em destaque" agora é global (Layout) e aparece em todos os menus (exceto admin).
   const destaqueEvento = eventos.find((e) => String(e.id) === String(destaqueId));
-
-  // Popup do destaque: local = uma vez por sessão; servidor = lista pública em MongoDB.
-  useEffect(() => {
-    const id = String(destaqueId || "").trim();
-    if (!id || !destaqueEvento) {
-      setDestaquePopupOpen(false);
-      return;
-    }
-    const closed = isDestaquePopupDismissed(id, publicWs, localDismissTick);
-    if (!closed) setDestaquePopupOpen(true);
-    else setDestaquePopupOpen(false);
-  }, [destaqueId, destaqueEvento, publicWs, localDismissTick]);
-
-  const closeDestaqueForSession = async () => {
-    const id = String(destaqueId || "").trim();
-    if (id) {
-      if (shouldUseRemotePublicWorkspace()) {
-        try {
-          await postDismissDestaqueEvento(id);
-          await queryClient.invalidateQueries({
-            queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
-          });
-        } catch {
-          /* falha de rede: fecha na mesma na UI */
-        }
-      } else {
-        try {
-          sessionStorage.setItem(getDestaqueSessionKey(id), "1");
-        } catch {
-          // ignore
-        }
-        setLocalDismissTick((t) => t + 1);
-      }
-    }
-    setDestaquePopupOpen(false);
-  };
 
   return (
     <div>
@@ -424,114 +344,6 @@ export default function Eventos() {
 
       <section className="py-10 lg:py-14">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Evento em destaque (popup 1x por sessão) */}
-          {destaqueEvento ? (
-            <Dialog
-              open={destaquePopupOpen}
-              onOpenChange={(o) => {
-                // Se o user fechar clicando fora/ESC, também conta como "visto" nesta sessão.
-                if (!o) closeDestaqueForSession();
-                else setDestaquePopupOpen(true);
-              }}
-            >
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <div className="flex items-center justify-between gap-3">
-                    <DialogTitle className="flex items-center gap-2">
-                      <Star className="w-5 h-5 text-accent fill-accent" />
-                      Evento em destaque
-                    </DialogTitle>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={closeDestaqueForSession}
-                      title="Fechar"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </DialogHeader>
-
-                {(() => {
-                  const date = destaqueEvento.data ? parseISO(destaqueEvento.data) : null;
-                  const bar = eventCardBarClass(destaqueEvento, categoriaBg);
-                  return (
-                    <div className="space-y-4">
-                      <Link to={`/Evento/${destaqueEvento.id}`} onClick={closeDestaqueForSession}>
-                        <motion.div
-                          whileHover={{ y: -1 }}
-                          className="group rounded-2xl overflow-hidden border border-accent/50 bg-card shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <div className={`h-2 ${bar}`} />
-                          <div className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
-                            {date ? (
-                              <div className={`shrink-0 w-16 h-16 rounded-2xl text-white flex flex-col items-center justify-center shadow ${bar}`}>
-                                <span className="text-2xl font-bold leading-none">
-                                  {format(date, "d")}
-                                </span>
-                                <span className="text-[10px] font-semibold uppercase">
-                                  {format(date, "MMM", { locale: ptBR })}
-                                </span>
-                              </div>
-                            ) : null}
-                            <div className="flex-1 min-w-0">
-                              <h2 className="text-lg sm:text-xl font-bold text-foreground group-hover:text-accent transition-colors">
-                                {destaqueEvento.titulo}
-                              </h2>
-                              {destaqueEvento.descricao ? (
-                                <p className="text-sm text-muted-foreground mt-1 line-clamp-3">
-                                  {destaqueEvento.descricao}
-                                </p>
-                              ) : null}
-                              <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
-                                {destaqueEvento.horario ? (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-4 h-4 text-accent" />
-                                    {destaqueEvento.horario}
-                                  </span>
-                                ) : null}
-                                {destaqueEvento.local ? (
-                                  <span className="flex items-center gap-1">
-                                    <MapPin className="w-4 h-4 text-accent" />
-                                    {destaqueEvento.local}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div className="shrink-0">
-                              <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-xl group-hover:bg-accent/90 transition-colors">
-                                Ver & Inscrever
-                              </span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      </Link>
-                    </div>
-                  );
-                })()}
-              </DialogContent>
-            </Dialog>
-          ) : null}
-
-          {/* Miniatura recolhida no canto (quando já foi fechado nesta sessão / no servidor) */}
-          {destaqueEvento &&
-          isDestaquePopupDismissed(destaqueId, publicWs, localDismissTick) ? (
-            <button
-              type="button"
-              className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-2xl border border-border bg-background/90 backdrop-blur px-3 py-2 shadow-lg hover:shadow-xl transition-shadow"
-              onClick={() => setDestaquePopupOpen(true)}
-              title="Abrir evento em destaque"
-            >
-              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-accent/15 text-accent">
-                <Star className="w-4 h-4 fill-accent" />
-              </span>
-              <span className="text-sm font-semibold text-foreground max-w-[12rem] truncate">
-                {destaqueEvento.titulo}
-              </span>
-            </button>
-          ) : null}
-
           {/* Alternância Agenda / Eventos + criar (alinhado à direita das abas) */}
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
             <div className="flex bg-muted rounded-xl p-1 gap-1 w-fit">
@@ -551,6 +363,10 @@ export default function Eventos() {
                   <span className="inline-flex items-center rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
                     Beta
                   </span>
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setBulkRunsOpen(true)} className="gap-2">
+                  <History className="w-4 h-4" />
+                  Rotinas
                 </Button>
                 <Button type="button" onClick={handleNew} className="gap-2">
                   <Plus className="w-4 h-4" /> Novo evento
@@ -581,6 +397,16 @@ export default function Eventos() {
               onOpenChange={setBulkOpen}
               existingEventos={eventos}
               onDone={() => {
+                queryClient.invalidateQueries({ queryKey: ["eventos"] });
+              }}
+            />
+          ) : null}
+
+          {canCreate ? (
+            <BulkEventRunsDialog
+              open={bulkRunsOpen}
+              onOpenChange={setBulkRunsOpen}
+              onUndone={() => {
                 queryClient.invalidateQueries({ queryKey: ["eventos"] });
               }}
             />

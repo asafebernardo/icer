@@ -29,6 +29,9 @@ export default function LoginModal() {
   const formId = useId();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [twoFactor, setTwoFactor] = useState("");
+  const [twoFactorToken, setTwoFactorToken] = useState("");
+  const [twoFactorStep, setTwoFactorStep] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [formBgUrl, setFormBgUrl] = useState(() =>
@@ -45,6 +48,9 @@ export default function LoginModal() {
     if (!loginModalOpen) {
       setEmail("");
       setSenha("");
+      setTwoFactor("");
+      setTwoFactorToken("");
+      setTwoFactorStep(false);
       setShowPassword(false);
       setError("");
     }
@@ -53,13 +59,30 @@ export default function LoginModal() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    const result = await login(email, senha);
-    if (!result.ok) {
-      setError(result.message || "Login inválido.");
+    if (!twoFactorStep) {
+      const result = await login(email, senha);
+      if (!result.ok) {
+        if (result.twoFactorRequired && result.login_token) {
+          setTwoFactorToken(result.login_token);
+          setTwoFactorStep(true);
+          setError("");
+          return;
+        }
+        setError(result.message || "Login inválido.");
+        return;
+      }
+      closeLoginModal();
+      navigate("/Dashboard");
       return;
     }
-    closeLoginModal();
-    navigate("/Dashboard");
+    try {
+      const { loginWithServer2FA } = await import("@/lib/auth");
+      await loginWithServer2FA(twoFactorToken, twoFactor);
+      closeLoginModal();
+      navigate("/Dashboard");
+    } catch (err) {
+      setError(err?.message || "Código 2FA inválido.");
+    }
   };
 
   return (
@@ -93,10 +116,12 @@ export default function LoginModal() {
           </DialogClose>
           <DialogHeader className="relative z-10 space-y-1 px-6 pb-4 pt-6 pr-14 text-left">
             <DialogTitle className="font-display text-xl font-semibold tracking-tight text-primary-foreground">
-              Iniciar sessão
+              {twoFactorStep ? "Confirmar 2FA" : "Iniciar sessão"}
             </DialogTitle>
             <DialogDescription className="text-sm text-primary-foreground/90">
-              Aceda com o seu e-mail e palavra-passe.
+              {twoFactorStep
+                ? "Digite o código do autenticador."
+                : "Aceda com o seu e-mail e palavra-passe."}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -106,53 +131,85 @@ export default function LoginModal() {
           onSubmit={handleSubmit}
           className="space-y-4 px-6 pb-6 pt-5"
         >
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-email`}>E-mail</Label>
-            <Input
-              id={`${formId}-email`}
-              type="email"
-              placeholder="email@exemplo.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setError("");
-              }}
-              autoComplete="email"
-              className="border-input bg-background text-foreground placeholder:text-muted-foreground"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-senha`}>Palavra-passe</Label>
-            <div className="relative">
+          {!twoFactorStep ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor={`${formId}-email`}>E-mail</Label>
+                <Input
+                  id={`${formId}-email`}
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError("");
+                  }}
+                  autoComplete="email"
+                  className="border-input bg-background text-foreground placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${formId}-senha`}>Palavra-passe</Label>
+                <div className="relative">
+                  <Input
+                    id={`${formId}-senha`}
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={senha}
+                    onChange={(e) => {
+                      setSenha(e.target.value);
+                      setError("");
+                    }}
+                    autoComplete="current-password"
+                    className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={
+                      showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor={`${formId}-2fa`}>Código 2FA</Label>
               <Input
-                id={`${formId}-senha`}
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={senha}
+                id={`${formId}-2fa`}
+                inputMode="numeric"
+                placeholder="123456"
+                value={twoFactor}
                 onChange={(e) => {
-                  setSenha(e.target.value);
+                  setTwoFactor(e.target.value);
                   setError("");
                 }}
-                autoComplete="current-password"
-                className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
+                autoComplete="one-time-code"
+                className="border-input bg-background text-foreground placeholder:text-muted-foreground"
               />
-              <button
+              <Button
                 type="button"
-                tabIndex={-1}
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={
-                  showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"
-                }
+                variant="ghost"
+                className="px-0 text-muted-foreground"
+                onClick={() => {
+                  setTwoFactorStep(false);
+                  setTwoFactor("");
+                  setTwoFactorToken("");
+                }}
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
+                Voltar
+              </Button>
             </div>
-          </div>
+          )}
           {error ? (
             <p
               role="alert"

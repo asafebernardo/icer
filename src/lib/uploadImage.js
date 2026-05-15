@@ -146,13 +146,17 @@ function parseUploadResponse(res) {
 /**
  * Upload para `POST /api/files` (armazenamento privado no servidor Node).
  * @param {File | Blob} file
+ * @param {{ purpose?: string }} [opts]
  */
-async function uploadPrivateServerFile(file) {
+async function uploadPrivateServerFile(file, opts = {}) {
   const fd = new FormData();
   fd.append("file", file);
+  if (opts?.purpose) fd.append("purpose", String(opts.purpose));
+  const { withCsrfHeader } = await import("@/lib/csrf");
   const res = await fetch("/api/files", {
     method: "POST",
     credentials: "include",
+    headers: withCsrfHeader(),
     body: fd,
   });
   const text = await res.text();
@@ -182,11 +186,12 @@ function shouldUploadToServerDisk() {
 /**
  * PDF e outros ficheiros (ex.: Material) — disco no servidor quando a API ICER está ativa.
  * @param {File | Blob} file
+ * @param {{ purpose?: string }} [opts]
  */
-export async function uploadIntegrationFile(file) {
+export async function uploadIntegrationFile(file, opts = {}) {
   if (!file) throw new Error("Sem ficheiro");
   if (shouldUploadToServerDisk()) {
-    return uploadPrivateServerFile(file);
+    return uploadPrivateServerFile(file, opts);
   }
   const res = await api.integrations.Core.UploadFile({ file });
   return parseUploadResponse(res);
