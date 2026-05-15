@@ -22,6 +22,10 @@ function getToken() {
   );
 }
 
+function useServerEntities() {
+  return import.meta.env.VITE_USE_SERVER_AUTH === "true";
+}
+
 function buildBaseHeaders(extra = {}) {
   const headers = {
     Accept: "application/json",
@@ -60,6 +64,7 @@ async function request(method, path, { body, headers: headerOverrides } = {}) {
   const res = await fetch(`/api${path}`, {
     method,
     headers,
+    credentials: "include",
     body:
       body === undefined
         ? undefined
@@ -117,6 +122,71 @@ function createEntityHandler(appId, entityName) {
   };
 }
 
+const SERVER_ENTITY_SLUG = {
+  Post: "posts",
+  Evento: "eventos",
+  Material: "materiais",
+  FotoGaleria: "fotos-galeria",
+  Contato: "contatos",
+};
+
+function createLocalEntityHandler(slug) {
+  const base = `/data/${slug}`;
+  const h = {
+    list(sort, limit, skip, fields) {
+      const params = new URLSearchParams();
+      if (sort) params.set("sort", sort);
+      if (limit != null) params.set("limit", String(limit));
+      if (skip != null) params.set("skip", String(skip));
+      if (fields)
+        params.set("fields", Array.isArray(fields) ? fields.join(",") : fields);
+      const q = params.toString();
+      return request("GET", `${base}${q ? `?${q}` : ""}`);
+    },
+    filter(_query, sort, limit, skip, fields) {
+      return h.list(sort, limit, skip, fields);
+    },
+    get(id) {
+      return request("GET", `${base}/${id}`);
+    },
+    create(data) {
+      return request("POST", base, { body: data });
+    },
+    update(id, data) {
+      return request("PUT", `${base}/${id}`, { body: data });
+    },
+    delete(id) {
+      return request("DELETE", `${base}/${id}`);
+    },
+  };
+  return h;
+}
+
+function serverUserEntity() {
+  return {
+    list() {
+      return request("GET", "/admin/users");
+    },
+    filter() {
+      return request("GET", "/admin/users");
+    },
+    async get(id) {
+      const arr = await request("GET", "/admin/users");
+      if (!Array.isArray(arr)) return null;
+      return arr.find((u) => String(u.id) === String(id)) ?? null;
+    },
+    create() {
+      throw new Error("Crie utilizadores no painel ou convide com e-mail.");
+    },
+    update(id, data) {
+      return request("PUT", `/admin/users/${id}`, { body: data });
+    },
+    delete() {
+      throw new Error("Remoção de conta não suportada aqui.");
+    },
+  };
+}
+
 function createEntitiesModule(appId) {
   return new Proxy(
     {},
@@ -125,6 +195,23 @@ function createEntitiesModule(appId) {
         if (typeof entityName !== "string" || entityName === "then") {
           return undefined;
         }
+        return createEntityHandler(appId, entityName);
+      },
+    },
+  );
+}
+
+function createServerEntitiesModule(appId) {
+  return new Proxy(
+    {},
+    {
+      get(_, entityName) {
+        if (typeof entityName !== "string" || entityName === "then") {
+          return undefined;
+        }
+        if (entityName === "User") return serverUserEntity();
+        const slug = SERVER_ENTITY_SLUG[entityName];
+        if (slug) return createLocalEntityHandler(slug);
         return createEntityHandler(appId, entityName);
       },
     },
@@ -176,6 +263,73 @@ function createIntegrationsModule(appId) {
   );
 }
 
+function createServerIntegrationsModule(appId) {
+  return new Proxy(
+    {},
+    {
+      get(_, packageName) {
+        if (typeof packageName !== "string" || packageName === "then") {
+          return undefined;
+        }
+        return new Proxy(
+          {},
+          {
+            get(_, endpointName) {
+              if (packageName === "Core" && endpointName === "UploadFile") {
+                return async (data) => {
+                  const file = data?.file;
+                  if (!(file instanceof File) && !(file instanceof Blob)) {
+                    throw new Error("Ficheiro em falta");
+                  }
+                  const fd = new FormData();
+                  fd.append("file", file);
+                  const res = await fetch("/api/files", {
+                    method: "POST",
+                    body: fd,
+                    credentials: "include",
+                  });
+                  const text = await res.text();
+                  let parsed = {};
+                  try {
+                    parsed = text ? JSON.parse(text) : {};
+                  } catch {
+                    parsed = {};
+                  }
+                  if (!res.ok) {
+                    throw new Error(parsed.message || res.statusText || "Upload falhou");
+                  }
+                  const file_url =
+                    parsed.url ||
+                    (parsed.id != null ? `/api/files/${parsed.id}` : null);
+                  if (!file_url) throw new Error("Resposta sem URL");
+                  return { file_url };
+                };
+              }
+              const fallback = createIntegrationsModule(appId)[packageName]?.[
+                endpointName
+              ];
+              if (typeof fallback === "function") return fallback;
+              return async () => {
+                throw new Error(
+                  `Integração ${packageName}/${endpointName} indisponível em modo servidor.`,
+                );
+              };
+            },
+          },
+        );
+      },
+    },
+  );
+}
+
+function randomInvitePassword() {
+  const chars =
+    "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const buf = new Uint8Array(14);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => chars[b % chars.length]).join("");
+}
+
 function createUsersModule(appId) {
   return {
     inviteUser(user_email, role) {
@@ -191,12 +345,42 @@ function createUsersModule(appId) {
   };
 }
 
+function createServerUsersModule() {
+  return {
+    inviteUser(user_email, role) {
+      if (role !== "user" && role !== "admin") {
+        throw new Error(
+          `Invalid role: "${role}". Role must be either "user" or "admin".`,
+        );
+      }
+      const email = String(user_email || "")
+        .toLowerCase()
+        .trim();
+      const password = randomInvitePassword();
+      const full_name = email.includes("@")
+        ? email.split("@")[0]
+        : email || "Utilizador";
+      return request("POST", "/admin/users", {
+        body: {
+          email,
+          full_name,
+          role: role || "user",
+          password,
+        },
+      }).then((res) => ({ ...res, temp_password: password }));
+    },
+  };
+}
+
 function clientModules() {
   const id = getAppId();
+  const server = useServerEntities();
   return {
-    entities: createEntitiesModule(id),
-    integrations: createIntegrationsModule(id),
-    users: createUsersModule(id),
+    entities: server ? createServerEntitiesModule(id) : createEntitiesModule(id),
+    integrations: server
+      ? createServerIntegrationsModule(id)
+      : createIntegrationsModule(id),
+    users: server ? createServerUsersModule() : createUsersModule(id),
   };
 }
 

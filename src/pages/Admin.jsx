@@ -65,6 +65,7 @@ function GateAdmin() {
 function TabMembros({ user, users, loadingUsers, refetch }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [inviteTempPw, setInviteTempPw] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [updatingRole, setUpdatingRole] = useState({});
   const queryClient = useQueryClient();
@@ -134,8 +135,18 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
           </Button>
         </div>
         {inviteSuccess && (
-          <div className="flex items-center gap-2 mt-3 text-sm text-green-600">
-            <CheckCircle className="w-4 h-4" /> Convite enviado com sucesso!
+          <div className="mt-3 text-sm space-y-2">
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="w-4 h-4 shrink-0" />
+              {inviteTempPw
+                ? "Utilizador criado no servidor. Guarde a palavra-passe e envie-a ao novo membro."
+                : "Convite enviado com sucesso!"}
+            </div>
+            {inviteTempPw ? (
+              <code className="block p-2 rounded-md bg-muted text-foreground break-all text-xs">
+                {inviteTempPw}
+              </code>
+            ) : null}
           </div>
         )}
       </motion.div>

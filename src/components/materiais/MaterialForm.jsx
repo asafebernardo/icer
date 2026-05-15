@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { api } from "@/api/client";
-import { uploadImageFile } from "@/lib/uploadImage";
+import { uploadImageFile, uploadIntegrationFile } from "@/lib/uploadImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,7 +53,7 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const { file_url } = await api.integrations.Core.UploadFile({ file });
+    const { file_url } = await uploadIntegrationFile(file);
     setForm((f) => ({ ...f, arquivo_url: file_url }));
     setUploading(false);
   };
