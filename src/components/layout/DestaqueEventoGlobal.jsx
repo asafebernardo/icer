@@ -198,7 +198,15 @@ export default function DestaqueEventoGlobal() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex items-center gap-3">
+                      {destaqueEvento.preletor_avatar_url ? (
+                        <img
+                          src={destaqueEvento.preletor_avatar_url}
+                          alt=""
+                          className="h-12 w-12 rounded-full object-cover border border-border bg-muted shadow-sm"
+                          loading="lazy"
+                        />
+                      ) : null}
                       <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-background/70 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition-colors group-hover:bg-background">
                         Ver detalhes
                       </span>

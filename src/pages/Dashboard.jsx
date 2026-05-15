@@ -72,10 +72,10 @@ export default function Dashboard() {
       <PageHeader
         pageKey="dashboard"
         tag={isAdmin ? "Admin" : "Conta"}
-        title={isAdmin ? "Dashboard" : "Minha área"}
+        title={isAdmin ? "Configurações" : "Minha área"}
         description={
           isAdmin
-            ? "Perfil, contas no servidor e restantes opções de administração"
+            ? "Perfil, contas no servidor, backup, integrações e restantes opções de administração"
             : "Edite o seu nome, e-mail e palavra-passe"
         }
       />

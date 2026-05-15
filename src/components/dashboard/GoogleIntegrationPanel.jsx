@@ -7,6 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import PasswordRevealInput from "@/components/shared/PasswordRevealInput";
 import { toast } from "sonner";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
+
+function mapGoogleConnectError(msg) {
+  const m = String(msg || "");
+  if (m === "google_not_configured") {
+    return "Active «Integração ativa», preencha Client ID e Client secret e clique em «Guardar» antes de conectar.";
+  }
+  if (m === "google_public_base_missing") {
+    return "No servidor falta ICER_PUBLIC_BASE_URL (URL pública do site, ex. https://icer.com.br) para o redirect OAuth.";
+  }
+  if (m === "2fa_required") {
+    return "Complete a configuração 2FA (aba 2FA do Dashboard) para continuar.";
+  }
+  return m || "Não foi possível iniciar OAuth.";
+}
 
 const emptyForm = {
   enabled: false,
@@ -24,6 +39,7 @@ export default function GoogleIntegrationPanel() {
   const [oauthStatus, setOauthStatus] = useState({ connected: false });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,7 +90,7 @@ export default function GoogleIntegrationPanel() {
       const r = await fetch("/api/admin/integrations/google", {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
       });
       const data = await r.json().catch(() => ({}));
@@ -93,14 +109,37 @@ export default function GoogleIntegrationPanel() {
   };
 
   const connect = async () => {
+    if (!form.enabled) {
+      toast.error(
+        "Active «Integração ativa» (interruptor acima) e guarde as credenciais com «Guardar» antes de conectar.",
+      );
+      return;
+    }
+    if (!form.client_id.trim()) {
+      toast.error("Preencha o OAuth Client ID e guarde com «Guardar».");
+      return;
+    }
+    if (!clientSecretSet && !form.client_secret.trim()) {
+      toast.error("Indique o Client secret (ou guarde um secret já definido no servidor).");
+      return;
+    }
+    setConnecting(true);
     try {
       const r = await fetch("/api/auth/google/start", { credentials: "include" });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.message || r.statusText);
-      if (!data.auth_url) throw new Error("auth_url ausente");
+      if (!r.ok) {
+        toast.error(mapGoogleConnectError(data.message || r.statusText));
+        return;
+      }
+      if (!data.auth_url) {
+        toast.error("Resposta inválida do servidor (auth_url em falta).");
+        return;
+      }
       window.location.assign(data.auth_url);
     } catch (e) {
       toast.error(e?.message || "Não foi possível iniciar OAuth.");
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -112,6 +151,7 @@ export default function GoogleIntegrationPanel() {
       const r = await fetch("/api/admin/integrations/google/disconnect", {
         method: "POST",
         credentials: "include",
+        headers: await withCsrfHeaderAsync(),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.message || r.statusText);
@@ -133,7 +173,7 @@ export default function GoogleIntegrationPanel() {
       const r = await fetch("/api/admin/integrations/google", {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
         body: JSON.stringify({ clear_client_secret: true }),
       });
       const data = await r.json().catch(() => ({}));
@@ -172,9 +212,10 @@ export default function GoogleIntegrationPanel() {
         <div>
           <h2 className="font-semibold text-foreground text-lg">Integração Google</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Prepare credenciais OAuth (Google Cloud Console) e uma pasta do Drive para
-            futuras cópias de segurança. O ICER ainda não executa OAuth nem upload
-            automático — estes campos servem para configuração e extensões futuras.
+            Credenciais OAuth (Google Cloud Console), pasta do Drive (ID na URL) e ligação
+            da conta para backups. Em produção defina também{" "}
+            <code className="text-xs bg-muted px-1 rounded">ICER_PUBLIC_BASE_URL</code> no
+            servidor para o redirect OAuth funcionar.
           </p>
           {updatedAt ? (
             <p className="text-xs text-muted-foreground mt-2">Última alteração: {updatedAt}</p>
@@ -186,7 +227,7 @@ export default function GoogleIntegrationPanel() {
         <div>
           <p className="text-sm font-medium text-foreground">Integração ativa</p>
           <p className="text-xs text-muted-foreground">
-            Marque quando tiver credenciais válidas (uso futuro no servidor).
+            Tem de estar activo para guardar credenciais e para o botão «Conectar conta Google».
           </p>
         </div>
         <Switch
@@ -210,7 +251,13 @@ export default function GoogleIntegrationPanel() {
               Desconectar
             </Button>
           ) : (
-            <Button type="button" onClick={connect} disabled={saving || !form.enabled}>
+            <Button
+              type="button"
+              onClick={() => void connect()}
+              disabled={saving || connecting}
+              className="gap-2"
+            >
+              {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Conectar conta Google
             </Button>
           )}

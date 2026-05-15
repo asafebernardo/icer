@@ -24,7 +24,7 @@ import {
  * Modal de login. Controlado por AuthContext (openLoginModal / closeLoginModal).
  */
 export default function LoginModal() {
-  const { login, loginModalOpen, closeLoginModal } = useAuth();
+  const { login, loginModalOpen, closeLoginModal, checkUserAuth } = useAuth();
   const navigate = useNavigate();
   const formId = useId();
   const [email, setEmail] = useState("");
@@ -83,6 +83,8 @@ export default function LoginModal() {
     try {
       const { loginWithServer2FA } = await import("@/lib/auth");
       await loginWithServer2FA(twoFactorToken, twoFactor);
+      // O 2FA faz `persistSessionUser`, mas o AuthContext só atualiza estado ao chamar `checkUserAuth`.
+      checkUserAuth();
       closeLoginModal();
       navigate("/Dashboard");
     } catch (err) {

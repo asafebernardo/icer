@@ -51,6 +51,7 @@ import ConfirmDialog from "../components/shared/ConfirmDialog";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import { uploadIntegrationFile } from "@/lib/uploadImage";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
 
 function getYouTubeId(url) {
   if (!url) return null;
@@ -854,12 +855,6 @@ function PostDetailModal({
             {p.titulo}
           </DialogTitle>
           <div className="flex flex-wrap gap-3 text-sm text-muted-foreground pt-1">
-            {p.autor ? (
-              <span className="inline-flex items-center gap-1">
-                <User className="w-3.5 h-3.5" />
-                {p.autor}
-              </span>
-            ) : null}
             <span className="inline-flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {formatPubDate(p.data_publicacao)}
@@ -991,7 +986,10 @@ export default function Postagens() {
       const r = await fetch("/api/data/posts", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: await withCsrfHeaderAsync({
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        }),
         body: JSON.stringify(data),
       });
       const text = await r.text();
@@ -1019,7 +1017,10 @@ export default function Postagens() {
       const r = await fetch(`/api/data/posts/${id}`, {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: await withCsrfHeaderAsync({
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        }),
         body: JSON.stringify(data),
       });
       const text = await r.text();
@@ -1047,7 +1048,7 @@ export default function Postagens() {
       const r = await fetch(`/api/data/posts/${id}`, {
         method: "DELETE",
         credentials: "include",
-        headers: { Accept: "application/json" },
+        headers: await withCsrfHeaderAsync({ Accept: "application/json" }),
       });
       if (!r.ok && r.status !== 204) {
         const text = await r.text();
@@ -1261,12 +1262,6 @@ export default function Postagens() {
                         {p.descricao}
                       </p>
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        {p.autor ? (
-                          <span className="inline-flex items-center gap-1">
-                            <User className="w-3.5 h-3.5" />
-                            {p.autor}
-                          </span>
-                        ) : null}
                         <span className="inline-flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
                           {formatPubDate(p.data_publicacao)}

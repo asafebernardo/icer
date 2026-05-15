@@ -123,7 +123,15 @@ export default function EventoDestaque() {
               </div>
 
               {/* CTA */}
-              <div className="shrink-0">
+              <div className="shrink-0 flex items-center gap-4">
+                {destaque.preletor_avatar_url ? (
+                  <img
+                    src={destaque.preletor_avatar_url}
+                    alt=""
+                    className="h-14 w-14 rounded-full object-cover border border-border bg-muted shadow-sm"
+                    loading="lazy"
+                  />
+                ) : null}
                 <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-xl group-hover:bg-accent/90 transition-colors">
                   Ver detalhes <ArrowRight className="w-4 h-4" />
                 </span>
