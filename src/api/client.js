@@ -22,7 +22,7 @@ function getToken() {
 }
 
 function useServerEntities() {
-  return isServerAuthEnabled();
+  return import.meta.env.VITE_USE_SERVER_AUTH === "true";
 }
 
 function buildBaseHeaders(extra = {}) {
@@ -182,8 +182,8 @@ function serverUserEntity() {
     update(id, data) {
       return request("PUT", `/admin/users/${id}`, { body: data });
     },
-    delete(id) {
-      return request("DELETE", `/admin/users/${id}`);
+    delete() {
+      throw new Error("Remoção de conta não suportada aqui.");
     },
   };
 }
@@ -323,6 +323,14 @@ function createServerIntegrationsModule(appId) {
   );
 }
 
+function randomInvitePassword() {
+  const chars =
+    "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const buf = new Uint8Array(14);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => chars[b % chars.length]).join("");
+}
+
 function createUsersModule(appId) {
   return {
     inviteUser(user_email) {
@@ -335,15 +343,27 @@ function createUsersModule(appId) {
 
 function createServerUsersModule() {
   return {
-    inviteUser(user_email) {
+    inviteUser(user_email, role) {
+      if (role !== "user" && role !== "admin") {
+        throw new Error(
+          `Invalid role: "${role}". Role must be either "user" or "admin".`,
+        );
+      }
       const email = String(user_email || "")
         .toLowerCase()
         .trim();
-      return request("POST", "/admin/users/invite", {
+      const password = randomInvitePassword();
+      const full_name = email.includes("@")
+        ? email.split("@")[0]
+        : email || "Utilizador";
+      return request("POST", "/admin/users", {
         body: {
           email,
+          full_name,
+          role: role || "user",
+          password,
         },
-      }).then((res) => ({ ...res, invite_token: res?.invite_token }));
+      }).then((res) => ({ ...res, temp_password: password }));
     },
   };
 }

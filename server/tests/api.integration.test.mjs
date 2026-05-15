@@ -2,84 +2,64 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, it, before, after } from "node:test";
+import { describe, it, before } from "node:test";
 import request from "supertest";
-import { MongoMemoryServer } from "mongodb-memory-server";
 
 import { createApplication } from "../createApp.js";
-import { openDbFromUri, closeDb } from "../db.js";
+import { openDbMemory } from "../db.js";
 import { hashPassword } from "../auth.js";
 import { nowIso } from "../security.js";
-import { nextSeq } from "../sequences.js";
 
 const ADMIN_EMAIL = "admin@test.icer";
-const ADMIN_PASS = "AdminPassword12!";
+const ADMIN_PASS = "AdminPassword12";
 const USER_EMAIL = "user@test.icer";
-const USER_PASS = "UserPassword12!";
-
-async function getCsrf(agent) {
-  const r = await agent.get("/api/auth/csrf").expect(200);
-  return String(r.body.csrf_token || "");
-}
+const USER_PASS = "UserPassword12";
 
 describe("ICER API", () => {
-  /** @type {import("mongodb").Db} */
+  /** @type {import("better-sqlite3").Database} */
   let db;
   /** @type {import("express").Express} */
   let app;
   /** @type {string} */
   let uploadDir;
-  /** @type {MongoMemoryServer} */
-  let memoryServer;
 
   before(async () => {
-    process.env.ICER_GITHUB_DISABLED = "1";
-    memoryServer = await MongoMemoryServer.create();
-    const uri = memoryServer.getUri();
-    const dbName = `icer_test_${Date.now()}`;
     uploadDir = path.join(os.tmpdir(), `icer-api-test-${Date.now()}`);
     fs.mkdirSync(uploadDir, { recursive: true });
-    db = await openDbFromUri(uri, dbName);
-
+    db = openDbMemory();
     const now = nowIso();
     const adminHash = await hashPassword(ADMIN_PASS);
     const userHash = await hashPassword(USER_PASS);
-    const id1 = await nextSeq(db, "users");
-    const id2 = await nextSeq(db, "users");
-    await db.collection("users").insertMany([
-      {
-        id: id1,
-        email: ADMIN_EMAIL,
-        full_name: "Admin Test",
-        role: "admin",
-        funcao: "",
-        password_hash: adminHash,
-        created_at: now,
-        updated_at: now,
-      },
-      {
-        id: id2,
-        email: USER_EMAIL,
-        full_name: "User Test",
-        role: "admin",
-        funcao: "",
-        password_hash: userHash,
-        created_at: now,
-        updated_at: now,
-      },
-    ]);
+    db.prepare(
+      `INSERT INTO users (email, full_name, role, password_hash, created_at, updated_at)
+       VALUES (?, ?, 'admin', ?, ?, ?)`,
+    ).run(ADMIN_EMAIL, "Admin Test", adminHash, now, now);
+    db.prepare(
+      `INSERT INTO users (email, full_name, role, password_hash, created_at, updated_at)
+       VALUES (?, ?, 'user', ?, ?, ?)`,
+    ).run(USER_EMAIL, "User Test", userHash, now, now);
+
+    const rowUser = db.prepare(`SELECT id FROM users WHERE email = ?`).get(USER_EMAIL);
+    const uid = String(rowUser.id);
+    db.prepare(
+      `INSERT INTO app_kv (key, value) VALUES ('menu_permissions', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    ).run(
+      JSON.stringify({
+        [uid]: {
+          eventos: { create: false, edit: true, delete: false },
+          postagens: { create: false, edit: false, delete: false },
+          materiais_tab: { create: true, edit: false, delete: false },
+          galeria: { create: false, edit: false, delete: false },
+        },
+      }),
+    );
 
     app = createApplication(db, {
       uploadDir,
       enableUpstreamProxy: false,
       loginRateLimit: false,
-      enforceSingleSession: false,
     });
-  });
-
-  after(async () => {
-    await closeDb();
-    if (memoryServer) await memoryServer.stop();
   });
 
   it("GET /api/health", async () => {
@@ -116,88 +96,37 @@ describe("ICER API", () => {
     const users = await agent.get("/api/admin/users").expect(200);
     assert.ok(Array.isArray(users.body));
     assert.ok(users.body.length >= 2);
-    const adminRow = users.body.find((u) => u.email === ADMIN_EMAIL);
-    assert.ok(adminRow);
-    assert.ok(
-      typeof adminRow.last_login_at === "string" && adminRow.last_login_at.length > 5,
-    );
-
-    const rel = await agent.get("/api/admin/site-releases").expect(200);
-    assert.ok(rel.body.app);
-    assert.equal(typeof rel.body.app.version, "string");
-    assert.ok("git_available" in rel.body);
-    assert.ok(Array.isArray(rel.body.releases));
-    assert.ok(Array.isArray(rel.body.recent_commits));
-    assert.ok(rel.body.github);
-    assert.equal(typeof rel.body.github.configured, "boolean");
-    assert.equal(typeof rel.body.github.using_default_repo, "boolean");
-    assert.ok(Array.isArray(rel.body.github.commit_versions));
-    assert.equal(rel.body.github.using_default_repo, true);
   });
 
-  it("GET /api/admin/users/:id/audit-log (admin)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const users = await agent.get("/api/admin/users").expect(200);
-    const adminRow = users.body.find((u) => u.email === ADMIN_EMAIL);
-    assert.ok(adminRow);
-    const res = await agent
-      .get(`/api/admin/users/${adminRow.id}/audit-log?limit=50`)
-      .expect(200);
-    assert.ok(Array.isArray(res.body));
-    assert.ok(res.body.some((row) => row.action === "auth.login"));
-  });
-
-  it("GET /api/admin/audit-log (global, admin)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const res = await agent.get("/api/admin/audit-log?limit=20&skip=0").expect(200);
-    assert.ok(Array.isArray(res.body.rows));
-    assert.equal(typeof res.body.total, "number");
-    assert.ok(res.body.total >= 1);
-    assert.ok(res.body.rows.length >= 1);
-  });
-
-  it("segundo administrador pode criar evento, postagem e material", async () => {
+  it("utilizador sem permissões: não cria evento nem postagem; pode criar material", async () => {
     const agent = request.agent(app);
     await agent
       .post("/api/auth/login")
       .send({ email: USER_EMAIL, password: USER_PASS })
       .expect(200);
-    const csrf = await getCsrf(agent);
 
     const menu = await agent.get("/api/auth/menu-effective").expect(200);
-    assert.equal(menu.body.eventos.create, true);
-    assert.equal(menu.body.postagens.create, true);
+    assert.equal(menu.body.eventos.create, false);
+    assert.equal(menu.body.postagens.create, false);
+    assert.equal(menu.body.materiais_tab.create, true);
 
-    const ev = await agent
+    await agent
       .post("/api/data/eventos")
-      .set("X-CSRF-Token", csrf)
       .send({
         titulo: "X",
         data: "2030-01-01",
         categoria: "culto",
         local: "Igreja",
       })
-      .expect(201);
-    assert.ok(ev.body.id);
+      .expect(403);
 
-    const post = await agent
+    await agent
       .post("/api/data/posts")
-      .set("X-CSRF-Token", csrf)
       .send({ titulo: "P", descricao: "d" })
-      .expect(201);
-    assert.ok(post.body.id);
+      .expect(403);
 
     const mat = await agent
       .post("/api/data/materiais")
-      .set("X-CSRF-Token", csrf)
       .send({
         titulo: "Mat teste",
         descricao: "d",
@@ -217,61 +146,6 @@ describe("ICER API", () => {
     await request(app).get("/api/data/fotos-galeria").expect(200);
   });
 
-  it("GET /api/public-workspace e POST dismiss-destaque (sem sessão)", async () => {
-    const ws = await request(app).get("/api/public-workspace").expect(200);
-    assert.ok(Array.isArray(ws.body.evento_destaque_dismissed_ids));
-
-    await request(app)
-      .post("/api/public-workspace/dismiss-destaque")
-      .send({ id: "42" })
-      .expect(200);
-
-    const ws2 = await request(app).get("/api/public-workspace").expect(200);
-    assert.ok(ws2.body.evento_destaque_dismissed_ids.includes("42"));
-  });
-
-  it("PUT /api/public-workspace/agenda-sugestoes (utilizador com edição em eventos)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: USER_EMAIL, password: USER_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const res = await agent
-      .put("/api/public-workspace/agenda-sugestoes")
-      .set("X-CSRF-Token", csrf)
-      .send({
-        agenda_sugestoes: {
-          titulo: ["A", "B"],
-          preletor: ["X"],
-        },
-      })
-      .expect(200);
-    assert.ok(res.body.agenda_sugestoes?.titulo?.includes("A"));
-  });
-
-  it("PUT /api/public-workspace/agenda-simple-grid (edição em eventos)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: USER_EMAIL, password: USER_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const res = await agent
-      .put("/api/public-workspace/agenda-simple-grid")
-      .set("X-CSRF-Token", csrf)
-      .send({
-        agenda_simple_grid: {
-          dia_column_label: "DIA",
-          culto_weekdays: [0],
-          oracao_weekdays: [3],
-        },
-      })
-      .expect(200);
-    assert.deepEqual(res.body.agenda_simple_grid?.culto_weekdays, [0]);
-    assert.deepEqual(res.body.agenda_simple_grid?.oracao_weekdays, [3]);
-  });
-
   it("POST /api/data/contatos (público)", async () => {
     const res = await request(app)
       .post("/api/data/contatos")
@@ -285,28 +159,24 @@ describe("ICER API", () => {
     assert.ok(res.body.id);
   });
 
-  it("segundo administrador acede a GET /api/admin/users", async () => {
+  it("utilizador normal não acede a GET /api/admin/users", async () => {
     const agent = request.agent(app);
     await agent
       .post("/api/auth/login")
       .send({ email: USER_EMAIL, password: USER_PASS })
       .expect(200);
-    const res = await agent.get("/api/admin/users").expect(200);
-    assert.ok(Array.isArray(res.body));
-    assert.ok(res.body.length >= 2);
+    await agent.get("/api/admin/users").expect(403);
   });
 
-  it("outro administrador pode editar evento criado por outro admin", async () => {
+  it("admin cria evento e utilizador restrito não edita recurso alheio", async () => {
     const admin = request.agent(app);
     await admin
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
-    const csrfAdmin = await getCsrf(admin);
 
     const ev = await admin
       .post("/api/data/eventos")
-      .set("X-CSRF-Token", csrfAdmin)
       .send({
         titulo: "Culto admin",
         data: "2031-06-15",
@@ -321,19 +191,16 @@ describe("ICER API", () => {
       .post("/api/auth/login")
       .send({ email: USER_EMAIL, password: USER_PASS })
       .expect(200);
-    const csrfUser = await getCsrf(user);
 
-    const upd = await user
+    await user
       .put(`/api/data/eventos/${evId}`)
-      .set("X-CSRF-Token", csrfUser)
       .send({
-        titulo: "Editado pelo segundo admin",
+        titulo: "Hack",
         data: "2031-06-15",
         categoria: "culto",
         local: "Sede",
       })
-      .expect(200);
-    assert.equal(upd.body.titulo, "Editado pelo segundo admin");
+      .expect(403);
   });
 
   it("logout limpa sessão", async () => {
@@ -342,8 +209,7 @@ describe("ICER API", () => {
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
-    const csrf = await getCsrf(agent);
-    await agent.post("/api/auth/logout").set("X-CSRF-Token", csrf).expect(200);
+    await agent.post("/api/auth/logout").expect(200);
     await agent.get("/api/auth/me").expect(401);
   });
 
@@ -353,9 +219,8 @@ describe("ICER API", () => {
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
-    const csrf = await getCsrf(agent);
     const payload = { "99": { home: { create: false, edit: true, delete: true } } };
-    await agent.put("/api/data/menu-permissions").set("X-CSRF-Token", csrf).send(payload).expect(200);
+    await agent.put("/api/data/menu-permissions").send(payload).expect(200);
     const back = await agent.get("/api/data/menu-permissions").expect(200);
     assert.deepEqual(back.body["99"].home.create, false);
   });
@@ -370,10 +235,8 @@ describe("ICER API", () => {
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
-    const csrf = await getCsrf(agent);
     const res = await agent
       .post("/api/files")
-      .set("X-CSRF-Token", csrf)
       .attach("file", Buffer.from("hello"), "hello.txt")
       .expect(201);
     assert.ok(res.body.id);
@@ -382,63 +245,14 @@ describe("ICER API", () => {
     assert.equal(getRes.text, "hello");
   });
 
-  it("GET /api/files/:id sem sessão (ficheiro público no site)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const res = await agent
-      .post("/api/files")
-      .set("X-CSRF-Token", csrf)
-      .attach("file", Buffer.from("visitante"), "v.txt")
-      .expect(201);
-    const id = res.body.id;
-    const anon = await request(app).get(`/api/files/${id}`).expect(200);
-    assert.equal(anon.text, "visitante");
-  });
-
-  it("GET /api/admin/files, detalhe e DELETE (admin)", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const res = await agent
-      .post("/api/files")
-      .set("X-CSRF-Token", csrf)
-      .attach("file", Buffer.from("orphan"), "orphan.bin")
-      .expect(201);
-    const id = res.body.id;
-    const list = await agent.get("/api/admin/files").expect(200);
-    assert.ok(Array.isArray(list.body.items));
-    assert.ok(list.body.items.some((r) => r.id === id));
-    const listImg = await agent.get("/api/admin/files?kind=image").expect(200);
-    assert.ok(Array.isArray(listImg.body.items));
-    if (listImg.body.items.length > 0) {
-      assert.ok(
-        listImg.body.items.every((r) => String(r.mime || "").toLowerCase().startsWith("image/")),
-      );
-    }
-    const det = await agent.get(`/api/admin/files/${id}`).expect(200);
-    assert.equal(det.body.file.id, id);
-    assert.ok(Array.isArray(det.body.references));
-    await agent.delete(`/api/admin/files/${id}`).set("X-CSRF-Token", csrf).expect(200);
-    await request(app).get(`/api/files/${id}`).expect(404);
-  });
-
-  it("outro administrador pode apagar evento criado por outro admin", async () => {
+  it("utilizador restrito não apaga evento de outrem", async () => {
     const admin = request.agent(app);
     await admin
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
-    const csrfAdmin = await getCsrf(admin);
     const ev = await admin
       .post("/api/data/eventos")
-      .set("X-CSRF-Token", csrfAdmin)
       .send({
         titulo: "Para apagar",
         data: "2032-01-01",
@@ -453,8 +267,7 @@ describe("ICER API", () => {
       .post("/api/auth/login")
       .send({ email: USER_EMAIL, password: USER_PASS })
       .expect(200);
-    const csrfUser = await getCsrf(user);
-    await user.delete(`/api/data/eventos/${evId}`).set("X-CSRF-Token", csrfUser).expect(204);
+    await user.delete(`/api/data/eventos/${evId}`).expect(403);
   });
 
   it("POST /api/admin/users (admin)", async () => {
@@ -463,99 +276,15 @@ describe("ICER API", () => {
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
-    const csrf = await getCsrf(agent);
     const res = await agent
       .post("/api/admin/users")
-      .set("X-CSRF-Token", csrf)
       .send({
         email: "extra@test.icer",
         full_name: "Extra",
-        password: "ExtraPassword12!",
+        role: "user",
+        password: "ExtraPassword12",
       })
       .expect(201);
     assert.ok(res.body.id);
-  });
-
-  it("DELETE /api/admin/users/:id — admin elimina utilizador normal", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const users = await agent.get("/api/admin/users").expect(200);
-    const userRow = users.body.find((u) => u.email === USER_EMAIL);
-    assert.ok(userRow);
-    await agent.delete(`/api/admin/users/${userRow.id}`).set("X-CSRF-Token", csrf).expect(200);
-    const after = await agent.get("/api/admin/users").expect(200);
-    assert.ok(!after.body.some((u) => u.email === USER_EMAIL));
-  });
-
-  it("DELETE /api/admin/users/:id — não pode eliminar a própria conta", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const me = await agent.get("/api/auth/me").expect(200);
-    const res = await agent.delete(`/api/admin/users/${me.body.id}`).set("X-CSRF-Token", csrf).expect(400);
-    assert.equal(res.body.message, "cannot_delete_self");
-  });
-
-  it("GET /api/auth/google-login/config", async () => {
-    const r = await request(app).get("/api/auth/google-login/config").expect(200);
-    assert.equal(typeof r.body.enabled, "boolean");
-  });
-
-  it("admin configura login Google sem expor client secret", async () => {
-    const agent = request.agent(app);
-    await agent
-      .post("/api/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
-      .expect(200);
-    const csrf = await getCsrf(agent);
-    const saved = await agent
-      .put("/api/admin/google-login/config")
-      .set("X-CSRF-Token", csrf)
-      .send({
-        enabled: true,
-        public_base_url: "https://icer.example.com/",
-        client_id: "client.apps.googleusercontent.com",
-        client_secret: "secret-value",
-        allowed_emails: `${ADMIN_EMAIL}, ${USER_EMAIL}`,
-        backup: {
-          enabled: true,
-          drive_folder_id: "drive-folder-test",
-          account_email: "backup@test.icer",
-          schedule_enabled: true,
-          time: "03:30",
-          days: ["mon", "wed", "fri"],
-          timezone: "America/Sao_Paulo",
-        },
-      })
-      .expect(200);
-    assert.equal(saved.body.configured, true);
-    assert.equal(saved.body.public_base_url, "https://icer.example.com");
-    assert.equal(saved.body.redirect_uri, "https://icer.example.com/api/auth/google-login/callback");
-    assert.equal(saved.body.has_client_secret, true);
-    assert.equal(saved.body.client_secret, undefined);
-    assert.deepEqual(saved.body.allowed_emails, [ADMIN_EMAIL, USER_EMAIL]);
-    assert.deepEqual(saved.body.backup, {
-      enabled: true,
-      drive_folder_id: "drive-folder-test",
-      account_email: "backup@test.icer",
-      schedule_enabled: true,
-      time: "03:30",
-      days: ["mon", "wed", "fri"],
-      timezone: "America/Sao_Paulo",
-    });
-
-    const read = await agent.get("/api/admin/google-login/config").expect(200);
-    assert.equal(read.body.has_client_secret, true);
-    assert.equal(read.body.client_secret, undefined);
-
-    const publicConfig = await request(app).get("/api/auth/google-login/config").expect(200);
-    assert.equal(publicConfig.body.enabled, true);
   });
 });

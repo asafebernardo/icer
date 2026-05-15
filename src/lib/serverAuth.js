@@ -1,12 +1,7 @@
 /** Autenticação real via API Node (`server/index.js`). Ative com `VITE_USE_SERVER_AUTH=true`. */
 
-/**
- * Alinhado com `vite.config.js` (proxy): aceita `true`, `1`, `yes`, `on`.
- * Só `=== "true"` falhava quando o .env usa `=1`.
- */
 export function isServerAuthEnabled() {
-  const v = String(import.meta.env.VITE_USE_SERVER_AUTH ?? "").trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes" || v === "on";
+  return import.meta.env.VITE_USE_SERVER_AUTH === "true";
 }
 
 export async function fetchJson(path, opts = {}) {
@@ -14,11 +9,6 @@ export async function fetchJson(path, opts = {}) {
   const body = opts.body;
   if (body && !(body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
-  }
-  if (opts.method && !/^get$/i.test(String(opts.method))) {
-    const { withCsrfHeader, ensureCsrfCookieClient } = await import("@/lib/csrf");
-    await ensureCsrfCookieClient();
-    Object.assign(headers, withCsrfHeader(headers));
   }
   const res = await fetch(`/api${path}`, {
     credentials: "include",
