@@ -5,7 +5,6 @@ import { openDb } from "./db.js";
 import { hashPassword } from "./auth.js";
 import { nowIso } from "./security.js";
 import { createApplication } from "./createApp.js";
-import { startBackupScheduleLoop } from "./backupSchedule.js";
 import { nextSeq } from "./sequences.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 
@@ -149,8 +148,6 @@ function resolveListenHost() {
 }
 
 const HOST = resolveListenHost();
-
-startBackupScheduleLoop(db, { uploadDir: UPLOAD_DIR });
 
 const server = app.listen(PORT, HOST, () => {
   const scheme = "http";

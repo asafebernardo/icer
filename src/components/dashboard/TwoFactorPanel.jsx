@@ -9,6 +9,7 @@ import { fetchJson } from "@/lib/serverAuth";
 import { useAuth } from "@/lib/AuthContext";
 import { getUser } from "@/lib/auth";
 import { persistSessionUser } from "@/lib/sessionIntegrity";
+import SafeImg from "@/components/shared/SafeImg";
 
 const ACTIVATE_COOLDOWN_MS = 15_000;
 
@@ -227,6 +228,9 @@ export default function TwoFactorPanel() {
         <div>
           <h2 className="font-semibold text-foreground text-lg">2FA (Autenticador)</h2>
           <p className="text-sm text-muted-foreground">
+            Opcional: reforça a conta com código no início de sessão apenas se ativar aqui.
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
             Use um app autenticador (Google Authenticator, Microsoft Authenticator, Authy).
           </p>
         </div>
@@ -271,7 +275,7 @@ export default function TwoFactorPanel() {
 
           {qr ? (
             <div className="space-y-3">
-              <img src={qr} alt="QR Code 2FA" className="w-48 h-48 rounded-xl border border-border bg-background" />
+              <SafeImg src={qr} alt="QR Code 2FA" className="w-48 h-48 rounded-xl border border-border bg-background" />
               <p className="text-xs text-muted-foreground">
                 Se preferir, use o segredo manual:{" "}
                 <code className="px-1 rounded bg-muted text-foreground">{secret}</code>

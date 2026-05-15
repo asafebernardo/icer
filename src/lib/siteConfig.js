@@ -12,6 +12,21 @@ export const DEFAULT_SITE_FAVICON = "/favicon.svg";
 /** Logo da navbar/rodapé quando `logoUrl` está vazio — ficheiro estático em `public/`. */
 export const DEFAULT_SITE_LOGO_URL = "/logo-default.png";
 
+/** Fundo em mosaico da área de postagens (lista + página do post) quando não há imagem personalizada. */
+export const DEFAULT_POSTAGENS_PAGE_BACKGROUND = "/posts-pattern-bg.png";
+
+/** Fundo em mosaico da página Recursos quando não há imagem personalizada. */
+export const DEFAULT_RECURSOS_PAGE_BACKGROUND = "/recursos-pattern-bg.png";
+
+/** Fundo em mosaico da página Agenda quando não há imagem personalizada. */
+export const DEFAULT_AGENDA_PAGE_BACKGROUND = "/agenda-pattern-bg.png";
+
+/** Fundo em mosaico da página Eventos quando não há imagem personalizada. */
+export const DEFAULT_EVENTOS_PAGE_BACKGROUND = "/eventos-pattern-bg.png";
+
+/** Fundo em mosaico do painel admin (/Admin) quando não há imagem personalizada. */
+export const DEFAULT_ADMIN_PAGE_BACKGROUND = "/admin-pattern-bg.png";
+
 const FAVICON_LINK_ID = "icer-site-favicon";
 const APPLE_TOUCH_ID = "icer-site-apple-touch-icon";
 

@@ -18,6 +18,7 @@ import {
 import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
+import SafeImg from "@/components/shared/SafeImg";
 
 const categoriaBg = CATEGORY_BAR_CLASS;
 
@@ -51,7 +52,9 @@ export default function DestaqueEventoGlobal() {
   const queryClient = useQueryClient();
 
   // Excluir áreas administrativas (Dashboard) para não gerar spam em admin.
-  const isAdminArea = location.pathname.startsWith("/Dashboard");
+  const isAdminArea =
+    location.pathname.startsWith("/Dashboard") ||
+    location.pathname.startsWith("/Admin");
   const [destaqueId, setDestaqueId] = useState(getDestaqueId);
   const [localDismissTick, setLocalDismissTick] = useState(0);
   const [open, setOpen] = useState(false);
@@ -200,7 +203,7 @@ export default function DestaqueEventoGlobal() {
                     </div>
                     <div className="shrink-0 flex items-center gap-3">
                       {destaqueEvento.preletor_avatar_url ? (
-                        <img
+                        <SafeImg
                           src={destaqueEvento.preletor_avatar_url}
                           alt=""
                           className="h-12 w-12 rounded-full object-cover border border-border bg-muted shadow-sm"

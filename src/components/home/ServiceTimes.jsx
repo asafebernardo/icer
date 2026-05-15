@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { ImagePlus, Trash2, Plus } from "lucide-react";
+import { ImagePlus, Trash2, Plus, Pencil } from "lucide-react";
 
 import BackgroundSlideshow from "@/components/shared/BackgroundSlideshow";
 import { Button } from "@/components/ui/button";
@@ -299,9 +299,10 @@ export default function ServiceTimes() {
               size="sm"
               className="gap-2"
               onClick={openNewCard}
+              aria-label="Novo horário"
             >
               <Plus className="w-4 h-4" />
-              Novo horário
+              <span className="hidden sm:inline">Novo horário</span>
             </Button>
           </div>
         )}
@@ -352,8 +353,12 @@ export default function ServiceTimes() {
                         ? "bg-black/45 text-white border-white/25 hover:bg-black/55"
                         : "bg-background/90 border-border hover:bg-muted"
                     }`}
+                    aria-label="Editar"
                   >
-                    Editar
+                    <span className="inline-flex items-center gap-1.5">
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Editar</span>
+                    </span>
                   </button>
                 )}
 

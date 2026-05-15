@@ -8,17 +8,6 @@ function getEncKey() {
   return crypto.createHash("sha256").update(raw).digest(); // 32 bytes
 }
 
-export function isTotpEnforcementEnabled() {
-  const v = String(process.env.ICER_TOTP_ENFORCE || "").trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes" || v === "on";
-}
-
-export function totpGraceDays() {
-  const n = Number(process.env.ICER_TOTP_GRACE_DAYS || 3);
-  if (!Number.isFinite(n) || n <= 0) return 3;
-  return Math.min(30, Math.max(1, Math.floor(n)));
-}
-
 export function generateTotpSecret() {
   return authenticator.generateSecret(); // base32
 }

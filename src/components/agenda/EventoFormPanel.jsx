@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import SafeImg from "@/components/shared/SafeImg";
 import { buildEventoApiPayload, normalizeEventoDate } from "@/lib/eventoPayload";
 import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
@@ -1053,7 +1054,7 @@ export default function EventoFormPanel({
             </Button>
             {form.preletor_avatar_url ? (
               <>
-                <img
+                <SafeImg
                   src={form.preletor_avatar_url}
                   alt="Pré-visualização da foto do preletor"
                   className="h-12 w-12 object-cover rounded-full border border-border bg-muted"
@@ -1116,7 +1117,7 @@ export default function EventoFormPanel({
             </Button>
             {form.imagem_url && (
               <>
-                <img
+                <SafeImg
                   src={form.imagem_url}
                   alt="Pré-visualização da imagem do card"
                   className="h-20 w-32 object-cover rounded-lg border border-border bg-muted"
@@ -1385,7 +1386,7 @@ export default function EventoFormPanel({
                       </Button>
                       {form.programacao_banner_url && (
                         <>
-                          <img
+                          <SafeImg
                             src={form.programacao_banner_url}
                             alt="Pré-visualização do topo da programação"
                             className="h-20 w-32 object-cover rounded-lg border border-border bg-muted"
@@ -1439,6 +1440,12 @@ export default function EventoFormPanel({
                             objectFit: "cover",
                           }}
                           crossOrigin="anonymous"
+                          onError={(e) => {
+                            const t = e.currentTarget;
+                            t.style.display = "none";
+                            const p = t.parentElement;
+                            if (p) p.style.backgroundColor = "#000000";
+                          }}
                         />
                       ) : null}
                       <div

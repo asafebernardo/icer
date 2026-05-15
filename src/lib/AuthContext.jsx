@@ -22,6 +22,7 @@ import {
   clearSessionUser,
 } from "@/lib/sessionIntegrity";
 import LoginModal from "@/components/auth/LoginModal";
+import { toast } from "sonner";
 import { queryClientInstance } from "@/lib/query-client";
 import {
   PUBLIC_WORKSPACE_QUERY_KEY,
@@ -43,9 +44,11 @@ export function AuthProvider({ children }) {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [googleLoginIntent, setGoogleLoginIntent] = useState(null);
 
   const openLoginModal = useCallback(() => setLoginModalOpen(true), []);
   const closeLoginModal = useCallback(() => setLoginModalOpen(false), []);
+  const clearGoogleLoginIntent = useCallback(() => setGoogleLoginIntent(null), []);
 
   const checkUserAuth = useCallback(() => {
     setUser(getUser());
@@ -155,6 +158,72 @@ export function AuthProvider({ children }) {
     void validateServerSession();
   }, [location.pathname, validateServerSession]);
 
+  useEffect(() => {
+    if (!isServerAuthEnabled()) return;
+    const sp = new URLSearchParams(location.search);
+    const gl = sp.get("google_login");
+    if (!gl) return;
+
+    const stripGoogleParams = () => {
+      sp.delete("google_login");
+      sp.delete("reason");
+      sp.delete("login_token");
+      const q = sp.toString();
+      navigate(
+        { pathname: location.pathname, search: q ? `?${q}` : "" },
+        { replace: true },
+      );
+    };
+
+    if (gl === "ok") {
+      stripGoogleParams();
+      void (async () => {
+        await validateServerSession();
+        toast.success("Sessão iniciada com Google.");
+        if (isServerAuthEnabled()) {
+          void queryClientInstance
+            .fetchQuery({
+              queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+              queryFn: fetchPublicWorkspaceJson,
+            })
+            .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+            .catch(() => {});
+          setServerMenuEffective(null);
+        }
+        setLoginModalOpen(false);
+      })();
+      return;
+    }
+
+    if (gl === "err") {
+      const reason = sp.get("reason") || "oauth";
+      const messages = {
+        oauth: "Não foi possível concluir o login com Google.",
+        forbidden: "Este e-mail não está autorizado a usar o login Google.",
+        no_account: "Não existe conta com este e-mail no servidor.",
+        blocked: "Início de sessão temporariamente indisponível.",
+        session_active:
+          "Já existe uma sessão activa. Tente de novo com Google e assinale «Encerrar outra sessão activa», ou use e-mail e palavra-passe.",
+      };
+      setGoogleLoginIntent({
+        type: "err",
+        message: messages[reason] || messages.oauth,
+      });
+      stripGoogleParams();
+      setLoginModalOpen(true);
+      return;
+    }
+
+    if (gl === "2fa") {
+      const token = sp.get("login_token");
+      if (token && token.length >= 10) {
+        setGoogleLoginIntent({ type: "2fa", login_token: token });
+        stripGoogleParams();
+        setLoginModalOpen(true);
+      }
+    }
+  }, [location.pathname, location.search, navigate, validateServerSession]);
+
   const login = useCallback(async (email, senha, opts) => {
     const result = await authLogin(email, senha, opts);
     if (!result.ok) return result;
@@ -217,6 +286,8 @@ export function AuthProvider({ children }) {
         login,
         updateProfile,
         logout,
+        googleLoginIntent,
+        clearGoogleLoginIntent,
       }}
     >
       {children}

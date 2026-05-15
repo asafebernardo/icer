@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Clock, ExternalLink } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import SafeImg from "@/components/shared/SafeImg";
 
 function isImageMime(mime) {
   return typeof mime === "string" && mime.startsWith("image/");
@@ -50,7 +51,7 @@ function ImageCarousel({ urls, intervalSec, showControls = true }) {
   return (
     <div className="space-y-3">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-black/5 border border-border">
-        <img
+        <SafeImg
           src={urls[safeIndex]}
           alt=""
           className="w-full h-full object-contain bg-black/80"
@@ -122,7 +123,7 @@ export function PostMedia({ anexos, intervalSec }) {
         <div className="grid grid-cols-4 gap-1 rounded-xl overflow-hidden border border-border bg-muted/10">
           {show.map((src, i) => (
             <div key={`${src}-${i}`} className="aspect-square bg-muted/30">
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <SafeImg src={src} alt="" className="h-full w-full object-cover" />
             </div>
           ))}
         </div>

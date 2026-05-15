@@ -1,61 +1,29 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect } from "react";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { uploadImageFile } from "@/lib/uploadImage";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Shield,
   Lock,
   UserPlus,
   Users,
-  Eye,
-  EyeOff,
   Mail,
   RefreshCw,
   CheckCircle,
-  ImagePlus,
-  Settings,
   FileText,
   Trash2,
   Search,
-  Palette,
-  ScrollText,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
+import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
 import { isAdminUser, getUser } from "@/lib/auth";
-import {
-  DEFAULT_SITE_LOGO_URL,
-  getSiteConfig,
-  refreshPublicSiteConfig,
-  savePublicSiteConfigAdmin,
-} from "@/lib/siteConfig";
-import { getPageBackgroundUrl } from "@/lib/usePageBackground";
-import { imageFileToStorableUrl } from "@/lib/uploadImage";
-import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
-import { isServerAuthEnabled } from "@/lib/serverAuth";
-import { fetchPublicWorkspaceJson, putAdminPublicWorkspace } from "@/lib/publicWorkspace";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toast } from "sonner";
-import { purgeLegacyLocalAccounts } from "@/lib/purgeLegacyLocalAccounts";
-import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import UserAvatar from "@/components/shared/UserAvatar";
-
-const MEMBER_MENUS = [
-  { key: "galeria", label: "Galeria de Fotos" },
-  { key: "materiais_tab", label: "Materiais (na aba Recursos)" },
-];
 
 function GateAdmin() {
   return (
@@ -297,574 +265,21 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
   );
 }
 
-// ── Aba Site ──────────────────────────────────────────────────
-function TabSite() {
-  const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
-  const [loginHeroUrl, setLoginHeroUrl] = useState(() =>
-    getPageBackgroundUrl("login"),
-  );
-  const [loginFormBgUrl, setLoginFormBgUrl] = useState(() =>
-    getPageBackgroundUrl("login_form"),
-  );
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [menuConfig, setMenuConfig] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("icer_member_menus") || "{}");
-    } catch {
-      return {};
-    }
-  });
-  const [paletteId, setPaletteId] = useState(
-    () => getSiteConfig().colorPalette || "azul",
-  );
-  const [sessionTtl, setSessionTtl] = useState(120);
-  const [loadingSessionTtl, setLoadingSessionTtl] = useState(true);
-  const [savingSessionTtl, setSavingSessionTtl] = useState(false);
-  const [purgingLocal, setPurgingLocal] = useState(false);
-  const logoRef = useRef();
-
-  useEffect(() => {
-    if (!isServerAuthEnabled()) return;
-    let cancelled = false;
-    fetchPublicWorkspaceJson()
-      .then((w) => {
-        if (cancelled || !w) return;
-        if (typeof w.member_menu_palettes === "object") {
-          setMenuConfig(w.member_menu_palettes);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/admin/session-ttl", {
-          credentials: "include",
-        });
-        if (!r.ok) return;
-        const j = await r.json();
-        if (!cancelled && j?.ttl_minutes) {
-          setSessionTtl(Number(j.ttl_minutes) || 120);
-        }
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) setLoadingSessionTtl(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const saveSessionTtl = async () => {
-    setSavingSessionTtl(true);
-    try {
-      const r = await fetch("/api/admin/session-ttl", {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ttl_minutes: sessionTtl }),
-      });
-      const text = await r.text();
-      let parsed = null;
-      try {
-        parsed = text ? JSON.parse(text) : null;
-      } catch {
-        parsed = null;
-      }
-      if (!r.ok) {
-        const msg = parsed?.message || "Não foi possível salvar.";
-        throw new Error(msg);
-      }
-      toast.success("Tempo de sessão atualizado.");
-    } catch (e) {
-      toast.error(e?.message || "Erro ao salvar tempo de sessão.");
-    } finally {
-      setSavingSessionTtl(false);
-    }
-  };
-
-  const purgeLocalUsers = async () => {
-    setPurgingLocal(true);
-    try {
-      const keep = String(import.meta.env.VITE_DEMO_ADMIN_EMAIL || "")
-        .toLowerCase()
-        .trim();
-      const { removed, kept } = purgeLegacyLocalAccounts({
-        keepEmails: keep ? [keep] : [],
-      });
-      toast.success(
-        `Limpeza concluída. Removidos: ${removed}${kept ? ` • Mantidos: ${kept}` : ""}`,
-      );
-    } catch (e) {
-      toast.error(e?.message || "Erro ao limpar usuários locais.");
-    } finally {
-      setPurgingLocal(false);
-    }
-  };
-
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingLogo(true);
-    try {
-      const { file_url } = await uploadImageFile(file);
-      setLogoUrl(file_url);
-      await savePublicSiteConfigAdmin({ logoUrl: file_url });
-      await refreshPublicSiteConfig();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUploadingLogo(false);
-      e.target.value = "";
-    }
-  };
-
-  const applyLoginBackground = async (e, key) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      const url = await imageFileToStorableUrl(file);
-      const cfg = getSiteConfig();
-      const nextBg = { ...(cfg.pageBackgrounds || {}), [key]: url };
-      await savePublicSiteConfigAdmin({ pageBackgrounds: nextBg });
-      await refreshPublicSiteConfig();
-      if (key === "login") setLoginHeroUrl(url);
-      else setLoginFormBgUrl(url);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const clearLoginBackground = (key) => {
-    const cfg = getSiteConfig();
-    const nextBg = { ...(cfg.pageBackgrounds || {}) };
-    delete nextBg[key];
-    savePublicSiteConfigAdmin({ pageBackgrounds: nextBg })
-      .then(() => refreshPublicSiteConfig())
-      .catch(() => {});
-    if (key === "login") setLoginHeroUrl("");
-    else setLoginFormBgUrl("");
-  };
-
-  const handleToggleMenu = async (key) => {
-    const updated = { ...menuConfig, [key]: !menuConfig[key] };
-    setMenuConfig(updated);
-    if (isServerAuthEnabled()) {
-      try {
-        await putAdminPublicWorkspace({ member_menu_palettes: updated });
-      } catch (e) {
-        toast.error(e?.message || "Erro ao guardar visibilidade dos menus.");
-      }
-    } else {
-      localStorage.setItem("icer_member_menus", JSON.stringify(updated));
-    }
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <ImagePlus className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Logo do Site
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Sem imagem enviada, usa-se a logo por defeito do site. Carregue uma
-              imagem para personalizar.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <input
-            ref={logoRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleLogoUpload}
-          />
-          <img
-            src={logoUrl || DEFAULT_SITE_LOGO_URL}
-            alt="Pré-visualização da logo"
-            className="h-12 w-auto rounded-lg border border-border object-contain"
-          />
-          <Button
-            variant="outline"
-            onClick={() => logoRef.current.click()}
-            disabled={uploadingLogo}
-            className="gap-2"
-          >
-            <ImagePlus className="w-4 h-4" />
-            {uploadingLogo
-              ? "Enviando..."
-              : logoUrl
-                ? "Trocar logo"
-                : "Carregar logo"}
-          </Button>
-          {logoUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => {
-                setLogoUrl("");
-                  savePublicSiteConfigAdmin({ logoUrl: "" })
-                    .then(() => refreshPublicSiteConfig())
-                    .catch(() => {});
-              }}
-            >
-              Remover
-            </Button>
-          )}
-        </div>
-      </motion.div>
-
-      {/* Sessão do site (servidor/MongoDB) */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.06 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Lock className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Tempo de sessão
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Define por quanto tempo a sessão permanece ativa após o login.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Select
-            value={String(sessionTtl)}
-            onValueChange={(v) => setSessionTtl(Number(v))}
-            disabled={loadingSessionTtl || savingSessionTtl}
-          >
-            <SelectTrigger className="h-9 w-56">
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10 minutos</SelectItem>
-              <SelectItem value="30">30 minutos</SelectItem>
-              <SelectItem value="60">1 hora</SelectItem>
-              <SelectItem value="120">2 horas</SelectItem>
-              <SelectItem value="300">5 horas</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button
-            type="button"
-            onClick={saveSessionTtl}
-            disabled={loadingSessionTtl || savingSessionTtl}
-            className="gap-2"
-          >
-            {savingSessionTtl ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : null}
-            Salvar
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Página de login — só administradores acedem a esta área */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <ImagePlus className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Página de login
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Fundo do cabeçalho (hero) e fundo da zona do formulário — guardado
-              neste navegador
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground">
-              1. Cabeçalho (hero)
-            </p>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              id="login-hero-bg"
-              onChange={(e) => applyLoginBackground(e, "login")}
-            />
-            {loginHeroUrl ? (
-              <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
-                <img
-                  src={loginHeroUrl}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => document.getElementById("login-hero-bg")?.click()}
-              >
-                Carregar
-              </Button>
-              {loginHeroUrl ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => clearLoginBackground("login")}
-                >
-                  Remover
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-foreground">
-              2. Zona do formulário
-            </p>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              id="login-form-bg"
-              onChange={(e) => applyLoginBackground(e, "login_form")}
-            />
-            {loginFormBgUrl ? (
-              <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
-                <img
-                  src={loginFormBgUrl}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  document.getElementById("login-form-bg")?.click()
-                }
-              >
-                Carregar
-              </Button>
-              {loginFormBgUrl ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => clearLoginBackground("login_form")}
-                >
-                  Remover
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Visibilidade de menus */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Eye className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Visibilidade de Menus
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Controle quais seções membros podem acessar
-            </p>
-          </div>
-        </div>
-        <div className="space-y-3">
-          {MEMBER_MENUS.map((menu) => {
-            const enabled = menuConfig[menu.key] !== false;
-            return (
-              <div
-                key={menu.key}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  {enabled ? (
-                    <Eye className="w-4 h-4 text-accent" />
-                  ) : (
-                    <EyeOff className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span className="font-medium text-foreground text-sm">
-                    {menu.label}
-                  </span>
-                </div>
-                <button
-                  onClick={() => handleToggleMenu(menu.key)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${enabled ? "bg-accent" : "bg-muted-foreground/30"}`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`}
-                  />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          * As configurações são salvas localmente e aplicadas ao menu de
-          navegação.
-        </p>
-      </motion.div>
-
-      {/* Paleta geral (substitui o tema azul padrão) */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Palette className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Cor geral do site
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Escolha uma de 8 paletas (destaques, botões, foco e tema claro/escuro).
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {PALETTE_OPTIONS.map((p) => {
-            const selected = paletteId === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setPaletteId(p.id);
-                      savePublicSiteConfigAdmin({ colorPalette: p.id })
-                        .then(() => refreshPublicSiteConfig())
-                        .catch(() => {});
-                  applySiteColorPalette(p.id);
-                }}
-                className={`rounded-xl border-2 p-3 text-left transition-all hover:opacity-95 ${
-                  selected
-                    ? "border-accent shadow-md ring-2 ring-accent/30"
-                    : "border-border hover:border-muted-foreground/40"
-                }`}
-              >
-                <div
-                  className={`h-11 rounded-lg bg-gradient-to-br ${p.preview} mb-2 shadow-inner`}
-                  aria-hidden
-                />
-                <span className="text-sm font-medium text-foreground leading-tight block">
-                  {p.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          A paleta é guardada neste navegador (localStorage) com as permissões
-          de menus.
-        </p>
-      </motion.div>
-
-      {/* Limpeza de usuários locais antigos */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.12 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
-            <Trash2 className="w-5 h-5 text-destructive" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Remover usuários antigos (local)
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Apaga contas que eram criadas apenas neste navegador (antes do MongoDB).
-              Mantém o admin demo do .env (se existir).
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={purgeLocalUsers}
-          disabled={purgingLocal}
-          className="gap-2"
-        >
-          {purgingLocal ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-          Limpar agora
-        </Button>
-      </motion.div>
-    </div>
-  );
-}
-
-// ── Aba Logs ───────────────────────────────────────────────────
-function TabLogs() {
-  return <GlobalAuditLogPanel />;
-}
-
 // ── Aba Conteúdo ──────────────────────────────────────────────
 function TabConteudo() {
   const queryClient = useQueryClient();
   const [searchPosts, setSearchPosts] = useState("");
 
-  const { data: posts = [], isLoading: loadingPosts } = useQuery({
+  const { data, isLoading: loadingPosts } = useQuery({
     queryKey: ["admin-posts"],
     queryFn: () => api.entities.Post.list("-created_date", 100),
   });
+
+  const posts = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+      ? data.items
+      : [];
 
   const deletePost = useMutation({
     mutationFn: (id) => api.entities.Post.delete(id),
@@ -985,7 +400,6 @@ function TabConteudo() {
 // ── Página principal ──────────────────────────────────────────
 export default function Admin() {
   const [user, setUser] = useState(undefined);
-  const [activeTab, setActiveTab] = useState("membros");
 
   useEffect(() => {
     const sync = () => setUser(getUser());
@@ -1011,12 +425,8 @@ export default function Admin() {
   if (user === undefined) {
     return (
       <div>
-        <PageHeader
-          pageKey="admin"
-          tag="Admin"
-          title="Painel Administrativo"
-        />
-        <div className="max-w-4xl mx-auto px-4 py-20 space-y-4">
+        <PageHeader tag="Admin" title="Painel administrativo" pageKey="admin" />
+        <div className="mx-auto max-w-5xl space-y-4 px-4 py-20">
           {Array(3)
             .fill(0)
             .map((_, i) => (
@@ -1030,68 +440,44 @@ export default function Admin() {
   if (!user || user.role !== "admin") {
     return (
       <div>
-        <PageHeader
-          pageKey="admin"
-          tag="Admin"
-          title="Painel Administrativo"
-        />
+        <PageHeader tag="Admin" title="Painel administrativo" pageKey="admin" />
         <GateAdmin />
       </div>
     );
   }
 
-  const tabs = [
-    { key: "membros", label: "Membros", icon: Users },
-    { key: "conteudo", label: "Conteúdo", icon: FileText },
-    { key: "site", label: "Site", icon: Settings },
-    { key: "logs", label: "Logs", icon: ScrollText },
-  ];
-
   return (
     <div>
       <PageHeader
-        pageKey="admin"
         tag="Administração"
-        title="Painel Administrativo"
-        description="Gerencie membros, acessos e configurações do site."
+        title="Painel administrativo"
+        description="Perfil, membros, conteúdo, site, segurança e restantes opções."
+        pageKey="admin"
       />
 
-      <section className="py-12 lg:py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Tabs */}
-          <div className="flex gap-1 bg-muted/60 rounded-xl p-1 mb-10 w-fit">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === tab.key
-                      ? "bg-card shadow text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+      <div className="mx-auto max-w-5xl p-4 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4 text-sm">
+          <UserAvatar user={user} className="h-10 w-10" />
+          <div>
+            <span className="text-muted-foreground">Sessão:</span>{" "}
+            <span className="font-medium text-foreground">{user.full_name || user.email}</span>
+            <span className="text-muted-foreground"> · </span>
+            <span className="text-foreground">{user.email}</span>
           </div>
+        </div>
 
-          {activeTab === "membros" && (
+        <AdminSettingsShell
+          tabMembrosSlot={
             <TabMembros
               user={user}
               users={users}
               loadingUsers={loadingUsers}
               refetch={refetch}
             />
-          )}
-          {activeTab === "conteudo" && <TabConteudo />}
-          {activeTab === "site" && <TabSite />}
-          {activeTab === "logs" && <TabLogs />}
-        </div>
-      </section>
+          }
+          tabConteudoSlot={<TabConteudo />}
+        />
+      </div>
     </div>
   );
 }

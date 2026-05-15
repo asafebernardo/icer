@@ -77,11 +77,14 @@ export async function ensureMongoIndexes(db) {
     { unique: true },
   );
   await db.collection("auth_2fa_challenges_v1").createIndex({ expires_at: 1 });
-  await db.collection("auth_google_oauth_states_v1").createIndex(
-    { token_hash: 1 },
+  await db.collection("auth_google_login_oauth_states_v1").createIndex(
+    { state: 1 },
     { unique: true },
   );
-  await db.collection("auth_google_oauth_states_v1").createIndex({ expires_at: 1 });
+  await db.collection("auth_google_login_oauth_states_v1").createIndex(
+    { expires_at: 1 },
+    { expireAfterSeconds: 0 },
+  );
   for (const c of [
     "posts",
     "eventos",

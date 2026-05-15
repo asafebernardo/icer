@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
+import SafeImg from "@/components/shared/SafeImg";
 
 const categoriaBg = CATEGORY_BAR_CLASS;
 
@@ -107,7 +108,7 @@ export default function EventoDestaquePopup() {
                   />
                 )}
                 {destaque.preletor_avatar_url && (
-                  <img
+                  <SafeImg
                     src={destaque.preletor_avatar_url}
                     alt=""
                     className="absolute right-4 bottom-4 h-14 w-14 rounded-full object-cover border border-primary-foreground/25 bg-muted shadow-lg"
