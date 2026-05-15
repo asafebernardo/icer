@@ -40,6 +40,7 @@ import {
   isAccountPasswordPolicyCode,
 } from "@/lib/passwordPolicy";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
+import { toast } from "sonner";
 
 function mapPanelApiErrorMessage(msg) {
   const m = String(msg || "");
@@ -211,6 +212,7 @@ export default function ServerUsersPanel() {
       setResetId(null);
       setResetPass("");
       setMsg({ type: "ok", text: "Palavra-passe atualizada." });
+      toast.success("Palavra-passe salva com sucesso.");
       await refetch();
     } catch (e) {
       setMsg({
@@ -310,7 +312,7 @@ export default function ServerUsersPanel() {
                 className="border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
                 <div className="min-w-0 flex gap-3">
-                  <UserAvatar user={u} className="h-10 w-10 shrink-0" showTwoFactorBadge={false} />
+                  <UserAvatar user={u} className="h-10 w-10 shrink-0" />
                   <div className="min-w-0 space-y-1 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-foreground truncate">

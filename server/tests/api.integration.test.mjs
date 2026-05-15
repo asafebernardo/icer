@@ -442,4 +442,55 @@ describe("ICER API", () => {
     const r = await request(app).get("/api/auth/google-login/config").expect(200);
     assert.equal(typeof r.body.enabled, "boolean");
   });
+
+  it("admin configura login Google sem expor client secret", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const csrf = await getCsrf(agent);
+    const saved = await agent
+      .put("/api/admin/google-login/config")
+      .set("X-CSRF-Token", csrf)
+      .send({
+        enabled: true,
+        public_base_url: "https://icer.example.com/",
+        client_id: "client.apps.googleusercontent.com",
+        client_secret: "secret-value",
+        allowed_emails: `${ADMIN_EMAIL}, ${USER_EMAIL}`,
+        backup: {
+          enabled: true,
+          drive_folder_id: "drive-folder-test",
+          account_email: "backup@test.icer",
+          schedule_enabled: true,
+          time: "03:30",
+          days: ["mon", "wed", "fri"],
+          timezone: "America/Sao_Paulo",
+        },
+      })
+      .expect(200);
+    assert.equal(saved.body.configured, true);
+    assert.equal(saved.body.public_base_url, "https://icer.example.com");
+    assert.equal(saved.body.redirect_uri, "https://icer.example.com/api/auth/google-login/callback");
+    assert.equal(saved.body.has_client_secret, true);
+    assert.equal(saved.body.client_secret, undefined);
+    assert.deepEqual(saved.body.allowed_emails, [ADMIN_EMAIL, USER_EMAIL]);
+    assert.deepEqual(saved.body.backup, {
+      enabled: true,
+      drive_folder_id: "drive-folder-test",
+      account_email: "backup@test.icer",
+      schedule_enabled: true,
+      time: "03:30",
+      days: ["mon", "wed", "fri"],
+      timezone: "America/Sao_Paulo",
+    });
+
+    const read = await agent.get("/api/admin/google-login/config").expect(200);
+    assert.equal(read.body.has_client_secret, true);
+    assert.equal(read.body.client_secret, undefined);
+
+    const publicConfig = await request(app).get("/api/auth/google-login/config").expect(200);
+    assert.equal(publicConfig.body.enabled, true);
+  });
 });

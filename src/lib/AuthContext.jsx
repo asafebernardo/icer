@@ -81,8 +81,6 @@ export function AuthProvider({ children }) {
             role: u.role,
             funcao: u.funcao ?? "",
             avatar_url: u.avatar_url ? String(u.avatar_url) : "",
-            totp_enabled: u.totp_enabled === true,
-            totp_grace_started_at: u.totp_grace_started_at || null,
             _authSource: "server",
           });
           setServerMenuEffective(null);
@@ -167,7 +165,6 @@ export function AuthProvider({ children }) {
     const stripGoogleParams = () => {
       sp.delete("google_login");
       sp.delete("reason");
-      sp.delete("login_token");
       const q = sp.toString();
       navigate(
         { pathname: location.pathname, search: q ? `?${q}` : "" },
@@ -203,7 +200,7 @@ export function AuthProvider({ children }) {
         no_account: "Não existe conta com este e-mail no servidor.",
         blocked: "Início de sessão temporariamente indisponível.",
         session_active:
-          "Já existe uma sessão activa. Tente de novo com Google e assinale «Encerrar outra sessão activa», ou use e-mail e palavra-passe.",
+          "Já existe uma sessão activa. Use e-mail e palavra-passe para encerrar a outra sessão e entrar.",
       };
       setGoogleLoginIntent({
         type: "err",
@@ -214,14 +211,7 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    if (gl === "2fa") {
-      const token = sp.get("login_token");
-      if (token && token.length >= 10) {
-        setGoogleLoginIntent({ type: "2fa", login_token: token });
-        stripGoogleParams();
-        setLoginModalOpen(true);
-      }
-    }
+    stripGoogleParams();
   }, [location.pathname, location.search, navigate, validateServerSession]);
 
   const login = useCallback(async (email, senha, opts) => {

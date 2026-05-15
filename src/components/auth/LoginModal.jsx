@@ -34,7 +34,6 @@ export default function LoginModal() {
     login,
     loginModalOpen,
     closeLoginModal,
-    checkUserAuth,
     googleLoginIntent,
     clearGoogleLoginIntent,
   } = useAuth();
@@ -42,14 +41,10 @@ export default function LoginModal() {
   const formId = useId();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [twoFactor, setTwoFactor] = useState("");
-  const [twoFactorToken, setTwoFactorToken] = useState("");
-  const [twoFactorStep, setTwoFactorStep] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [sessionConflict, setSessionConflict] = useState(false);
   const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
-  const [googleForceSession, setGoogleForceSession] = useState(false);
   const [formBgUrl, setFormBgUrl] = useState(() =>
     getPageBackgroundUrl("login_form"),
   );
@@ -64,25 +59,15 @@ export default function LoginModal() {
     if (!loginModalOpen) {
       setEmail("");
       setSenha("");
-      setTwoFactor("");
-      setTwoFactorToken("");
-      setTwoFactorStep(false);
       setShowPassword(false);
       setError("");
       setSessionConflict(false);
-      setGoogleForceSession(false);
     }
   }, [loginModalOpen]);
 
   useEffect(() => {
     if (!loginModalOpen || !googleLoginIntent) return;
-    if (googleLoginIntent.type === "2fa") {
-      setTwoFactorToken(googleLoginIntent.login_token);
-      setTwoFactorStep(true);
-      setSessionConflict(false);
-      setError("");
-      clearGoogleLoginIntent();
-    } else if (googleLoginIntent.type === "err") {
+    if (googleLoginIntent.type === "err") {
       setError(googleLoginIntent.message);
       clearGoogleLoginIntent();
     }
@@ -115,42 +100,21 @@ export default function LoginModal() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!twoFactorStep) {
-      const result = await login(email, senha);
-      if (!result.ok) {
-        if (result.twoFactorRequired && result.login_token) {
-          setTwoFactorToken(result.login_token);
-          setTwoFactorStep(true);
-          setError("");
-          setSessionConflict(false);
-          return;
-        }
-        setSessionConflict(result.sessionAlreadyActive === true);
-        setError(result.message || "Login inválido.");
-        return;
-      }
-      setSessionConflict(false);
-      closeLoginModal();
-      navigate(postLoginPath());
+    const result = await login(email, senha);
+    if (!result.ok) {
+      setSessionConflict(result.sessionAlreadyActive === true);
+      setError(result.message || "Login inválido.");
       return;
     }
-    try {
-      const { loginWithServer2FA } = await import("@/lib/auth");
-      await loginWithServer2FA(twoFactorToken, twoFactor);
-      // O 2FA faz `persistSessionUser`, mas o AuthContext só atualiza estado ao chamar `checkUserAuth`.
-      checkUserAuth();
-      closeLoginModal();
-      navigate(postLoginPath());
-    } catch (err) {
-      setError(err?.message || "Código 2FA inválido.");
-    }
+    setSessionConflict(false);
+    closeLoginModal();
+    navigate(postLoginPath());
   };
 
   const startGoogleLogin = async () => {
     setError("");
     try {
-      const qs = googleForceSession ? "?force_new_session=1" : "";
-      const r = await fetch(`/api/auth/google-login/start${qs}`, { credentials: "include" });
+      const r = await fetch("/api/auth/google-login/start", { credentials: "include" });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.message || r.statusText);
       if (j.auth_url) window.location.assign(j.auth_url);
@@ -190,12 +154,10 @@ export default function LoginModal() {
           </DialogClose>
           <DialogHeader className="relative z-10 space-y-1 px-6 pb-4 pt-6 pr-14 text-left">
             <DialogTitle className="font-display text-xl font-semibold tracking-tight text-primary-foreground">
-              {twoFactorStep ? "Confirmar 2FA" : "Iniciar sessão"}
+              Iniciar sessão
             </DialogTitle>
             <DialogDescription className="text-sm text-primary-foreground/90">
-              {twoFactorStep
-                ? "Digite o código do autenticador."
-                : "Aceda com o seu e-mail e palavra-passe."}
+              Aceda com o seu e-mail e palavra-passe.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -205,99 +167,58 @@ export default function LoginModal() {
           onSubmit={handleSubmit}
           className="space-y-4 px-6 pb-6 pt-5"
         >
-          {!twoFactorStep ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor={`${formId}-email`}>E-mail</Label>
-                <Input
-                  id={`${formId}-email`}
-                  type="email"
-                  placeholder="email@exemplo.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError("");
-                    setSessionConflict(false);
-                  }}
-                  autoComplete="email"
-                  className="border-input bg-background text-foreground placeholder:text-muted-foreground"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${formId}-senha`}>Palavra-passe</Label>
-                <div className="relative">
-                  <Input
-                    id={`${formId}-senha`}
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={senha}
-                    onChange={(e) => {
-                      setSenha(e.target.value);
-                      setError("");
-                      setSessionConflict(false);
-                    }}
-                    autoComplete="current-password"
-                    className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
-                  />
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() => setShowPassword((v) => !v)}
-                    aria-label={
-                      showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"
-                    }
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor={`${formId}-2fa`}>Código 2FA</Label>
+          <div className="space-y-2">
+            <Label htmlFor={`${formId}-email`}>E-mail</Label>
+            <Input
+              id={`${formId}-email`}
+              type="email"
+              placeholder="email@exemplo.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError("");
+                setSessionConflict(false);
+              }}
+              autoComplete="email"
+              className="border-input bg-background text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${formId}-senha`}>Palavra-passe</Label>
+            <div className="relative">
               <Input
-                id={`${formId}-2fa`}
-                inputMode="numeric"
-                placeholder="123456"
-                value={twoFactor}
+                id={`${formId}-senha`}
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={senha}
                 onChange={(e) => {
-                  setTwoFactor(e.target.value);
+                  setSenha(e.target.value);
                   setError("");
+                  setSessionConflict(false);
                 }}
-                autoComplete="one-time-code"
-                className="border-input bg-background text-foreground placeholder:text-muted-foreground"
+                autoComplete="current-password"
+                className="border-input bg-background pr-11 text-foreground placeholder:text-muted-foreground"
               />
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                className="px-0 text-muted-foreground"
-                onClick={() => {
-                  setTwoFactorStep(false);
-                  setTwoFactor("");
-                  setTwoFactorToken("");
-                }}
+                tabIndex={-1}
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={
+                  showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"
+                }
               >
-                Voltar
-              </Button>
+                {showPassword ? (
+                  <EyeOff className="h-4 h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
             </div>
-          )}
-          {googleLoginAvailable && !twoFactorStep ? (
+          </div>
+          {googleLoginAvailable ? (
             <div className="space-y-3 border-t border-border pt-4">
               <p className="text-center text-xs text-muted-foreground">ou</p>
-              <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={googleForceSession}
-                  onChange={(e) => setGoogleForceSession(e.target.checked)}
-                  className="mt-0.5 rounded border-input"
-                />
-                <span>Encerrar outra sessão activa no servidor (se existir)</span>
-              </label>
               <Button
                 type="button"
                 variant="outline"
@@ -316,7 +237,7 @@ export default function LoginModal() {
               {error}
             </p>
           ) : null}
-          {sessionConflict && !twoFactorStep ? (
+          {sessionConflict ? (
             <Button
               type="button"
               variant="outline"
@@ -325,13 +246,6 @@ export default function LoginModal() {
                 setError("");
                 const result = await login(email, senha, { forceNewSession: true });
                 if (!result.ok) {
-                  if (result.twoFactorRequired && result.login_token) {
-                    setTwoFactorToken(result.login_token);
-                    setTwoFactorStep(true);
-                    setSessionConflict(false);
-                    setError("");
-                    return;
-                  }
                   setSessionConflict(result.sessionAlreadyActive === true);
                   setError(result.message || "Não foi possível iniciar sessão.");
                   return;

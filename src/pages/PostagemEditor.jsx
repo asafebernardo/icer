@@ -351,6 +351,7 @@ export default function PostagemEditor() {
         toast.success("Rascunho guardado.");
         navigate(`/Postagens/editar/${data.id}`);
       } else {
+        toast.success("Post publicado com sucesso.");
         navigate("/Postagens");
       }
     },
@@ -386,6 +387,7 @@ export default function PostagemEditor() {
       if (variables.status === "draft") {
         toast.success("Rascunho guardado.");
       } else {
+        toast.success("Post salvo com sucesso.");
         navigate("/Postagens");
       }
     },

@@ -149,9 +149,11 @@ export default function WelcomeSection() {
           } catch (e) {
             setSiteConfig(next);
           }
+          toast.success("Textos da home salvos com sucesso.");
         })();
       } else {
         setSiteConfig(next);
+        toast.success("Textos da home salvos com sucesso.");
       }
     } catch (err) {
       toast.error(err?.message || "Não foi possível guardar.");
