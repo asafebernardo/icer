@@ -24,6 +24,7 @@ import { motion } from "framer-motion";
 import PageHeader from "../components/shared/PageHeader";
 import ConfirmDialog from "../components/shared/ConfirmDialog";
 import EventoFormPanel from "../components/agenda/EventoFormPanel";
+import BulkEventScheduler from "../components/agenda/BulkEventScheduler";
 import {
   Dialog,
   DialogContent,
@@ -273,6 +274,7 @@ export default function Eventos() {
   const canUseForm = canCreate || canEdit;
   const [editEvento, setEditEvento] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [destaqueId, setDestaqueIdState] = useState(getDestaqueId);
   const [destaquePopupOpen, setDestaquePopupOpen] = useState(false);
   const [localDismissTick, setLocalDismissTick] = useState(0);
@@ -543,13 +545,17 @@ export default function Eventos() {
               </span>
             </div>
             {canCreate ? (
-              <Button
-                type="button"
-                onClick={handleNew}
-                className="gap-2 w-fit shrink-0"
-              >
-                <Plus className="w-4 h-4" /> Novo evento
-              </Button>
+              <div className="flex items-center gap-2 w-fit shrink-0">
+                <Button type="button" variant="outline" onClick={() => setBulkOpen(true)} className="gap-2">
+                  <span>Agendar em massa</span>
+                  <span className="inline-flex items-center rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                    Beta
+                  </span>
+                </Button>
+                <Button type="button" onClick={handleNew} className="gap-2">
+                  <Plus className="w-4 h-4" /> Novo evento
+                </Button>
+              </div>
             ) : null}
           </div>
 
@@ -557,6 +563,7 @@ export default function Eventos() {
             <EventoFormPanel
               open={showForm}
               evento={editEvento}
+              existingEventos={eventos}
               onSaved={() => {
                 setShowForm(false);
                 setEditEvento(null);
@@ -567,6 +574,17 @@ export default function Eventos() {
               }}
             />
           )}
+
+          {canCreate ? (
+            <BulkEventScheduler
+              open={bulkOpen}
+              onOpenChange={setBulkOpen}
+              existingEventos={eventos}
+              onDone={() => {
+                queryClient.invalidateQueries({ queryKey: ["eventos"] });
+              }}
+            />
+          ) : null}
 
           {/* Barra de controles */}
           <div className="flex flex-col gap-3 mb-6">
@@ -588,7 +606,7 @@ export default function Eventos() {
                 </button>
               </div>
             </div>
-            {!canCreate && !canEdit && !canDelete && (
+            {!!user && !canCreate && !canEdit && !canDelete && (
               <p className="text-sm text-muted-foreground rounded-xl border border-border bg-muted/40 px-4 py-3">
                 Para criar ou gerir eventos, o administrador deve conceder
                 permissões em <strong className="text-foreground">Eventos</strong>{" "}
