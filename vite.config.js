@@ -18,6 +18,7 @@ function readGitShortSha() {
     return execSync("git rev-parse --short HEAD", {
       encoding: "utf8",
       cwd: __dirname,
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {
     return "";
