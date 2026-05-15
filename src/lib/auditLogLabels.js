@@ -24,6 +24,9 @@ export const ACTION_LABELS = {
   "data.fotos_galeria.create": "Foto da galeria criada",
   "data.fotos_galeria.update": "Foto da galeria atualizada",
   "data.fotos_galeria.delete": "Foto da galeria eliminada",
+  "admin.audit_log_retention_update": "Retenção dos registos de auditoria",
+  "admin.uploads_archive_download": "Descarga ZIP da pasta de uploads (admin)",
+  "admin.uploads_archive_restore": "Restauro de uploads a partir de ZIP (admin)",
 };
 
 export function labelForAction(action) {

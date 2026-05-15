@@ -92,7 +92,7 @@ export default function PageHeader({
             {title}
           </h1>
           {description && (
-            <p className="mx-auto mt-5 max-w-2xl text-balance rounded-2xl bg-primary-foreground/[0.14] px-4 py-3.5 text-base font-medium leading-relaxed text-primary-foreground shadow-sm backdrop-blur-sm dark:bg-white/[0.14] dark:text-white sm:px-5 sm:text-lg">
+            <p className="mx-auto mt-5 max-w-2xl whitespace-pre-wrap text-balance rounded-2xl bg-primary-foreground/[0.14] px-4 py-3.5 text-base font-medium leading-relaxed text-primary-foreground shadow-sm backdrop-blur-sm dark:bg-white/[0.14] dark:text-white sm:px-5 sm:text-lg">
               {description}
             </p>
           )}

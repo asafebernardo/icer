@@ -3,11 +3,13 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import AdminActiveSessionsFab from "@/components/admin/AdminActiveSessionsFab";
+import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
 
 export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-background min-w-0 overflow-x-hidden">
       <Navbar />
+      <PostImagePresentationHost />
       <main className="flex-1 min-w-0 pt-[4.5rem] relative w-full">
         {/* Fundo institucional sutil (não altera conteúdo) */}
         <div

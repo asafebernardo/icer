@@ -3,15 +3,15 @@ import { useMemo } from "react";
 import PageHeader from "../components/shared/PageHeader";
 import MateriaisTab from "@/components/materiais/MateriaisTab";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, MENU } from "@/lib/auth";
+import { canRecursosMenuAction } from "@/lib/auth";
 
 export default function Materiais() {
   const user = useSyncedAuthUser();
   const perm = useMemo(
     () => ({
-      create: canMenuAction(user, MENU.MATERIAIS_TAB, "create"),
-      edit: canMenuAction(user, MENU.MATERIAIS_TAB, "edit"),
-      delete: canMenuAction(user, MENU.MATERIAIS_TAB, "delete"),
+      create: canRecursosMenuAction(user, "create"),
+      edit: canRecursosMenuAction(user, "edit"),
+      delete: canRecursosMenuAction(user, "delete"),
     }),
     [user],
   );
@@ -19,7 +19,7 @@ export default function Materiais() {
   return (
     <div>
       <PageHeader
-        pageKey="materiais"
+        pageKey="recursos"
         tag="Recursos"
         title="Materiais"
         description="Acesse e baixe materiais, documentos e recursos da nossa igreja."

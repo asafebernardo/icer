@@ -28,13 +28,29 @@ const BAR_BY_PRESET = Object.fromEntries(
   EVENT_CARD_COLOR_OPTIONS.filter((o) => o.tailwind).map((o) => [o.value, o.tailwind]),
 );
 
+/** Preset na barra vindos do cadastro «Títulos sugeridos» (cor por texto exacto do título). */
+function tituloPresetFromMap(evento, tituloCorBarraMap) {
+  const map =
+    tituloCorBarraMap && typeof tituloCorBarraMap === "object" ? tituloCorBarraMap : {};
+  const t = String(evento?.titulo ?? "").trim();
+  if (!t) return null;
+  const v = map[t];
+  if (v == null || v === "") return null;
+  const m = String(v).trim();
+  if (m === "auto") return null;
+  return BAR_BY_PRESET[m] ? m : null;
+}
+
 /**
  * @param {object} evento
  * @param {Record<string, string>} categoriaBg — mapa categoria → classe (ex.: CATEGORY_BAR_CLASS)
+ * @param {Record<string, string>} [tituloCorBarraMap] — título exacto → preset (`agenda_sugestoes.titulo_cor_barra`)
  */
-export function eventCardBarClass(evento, categoriaBg) {
+export function eventCardBarClass(evento, categoriaBg, tituloCorBarraMap) {
   const raw = evento?.cor_barra ?? evento?.cor_card;
   if (raw && raw !== "auto" && BAR_BY_PRESET[raw]) return BAR_BY_PRESET[raw];
+  const fromTitulo = tituloPresetFromMap(evento, tituloCorBarraMap);
+  if (fromTitulo && BAR_BY_PRESET[fromTitulo]) return BAR_BY_PRESET[fromTitulo];
   const cat = evento?.categoria;
   if (categoriaBg && cat && categoriaBg[cat]) return categoriaBg[cat];
   return "bg-primary";
@@ -47,10 +63,13 @@ const CATEGORIA_HEX = { ...CATEGORY_ACCENT_HEX };
 /**
  * Cor principal do evento em hex (degradês, overlays).
  * @param {object} evento
+ * @param {Record<string, string>} [tituloCorBarraMap]
  */
-export function eventCardAccentHex(evento) {
+export function eventCardAccentHex(evento, tituloCorBarraMap) {
   const raw = evento?.cor_barra ?? evento?.cor_card;
   if (raw && raw !== "auto" && PRESET_HEX[raw]) return PRESET_HEX[raw];
+  const fromTitulo = tituloPresetFromMap(evento, tituloCorBarraMap);
+  if (fromTitulo && PRESET_HEX[fromTitulo]) return PRESET_HEX[fromTitulo];
   const cat = evento?.categoria;
   if (cat && CATEGORIA_HEX[cat]) return CATEGORIA_HEX[cat];
   return CATEGORY_ACCENT_HEX.culto;

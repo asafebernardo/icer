@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -9,11 +9,20 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ScrollText, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Timer } from "lucide-react";
 import {
   labelForAction,
   formatAuditDetails,
 } from "@/lib/auditLogLabels";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
+import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
 
@@ -61,6 +70,23 @@ export function buildGlobalAuditUrl(params) {
   return `/api/admin/audit-log?${sp.toString()}`;
 }
 
+async function fetchAuditRetention() {
+  const r = await fetch("/api/admin/audit-log-retention", {
+    credentials: "include",
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t;
+    try {
+      msg = JSON.parse(t).message || t;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg || r.statusText);
+  }
+  return r.json();
+}
+
 async function fetchGlobalAudit(params) {
   const url = buildGlobalAuditUrl(params);
   const r = await fetch(url, { credentials: "include" });
@@ -89,8 +115,26 @@ function emptyFilters() {
 }
 
 export default function GlobalAuditLogPanel() {
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState(emptyFilters);
   const [applied, setApplied] = useState(emptyFilters);
+  const [retentionDraft, setRetentionDraft] = useState("never");
+  const [savingRetention, setSavingRetention] = useState(false);
+
+  const {
+    data: retentionData,
+    isLoading: retentionLoading,
+  } = useQuery({
+    queryKey: ["audit-log-retention"],
+    queryFn: fetchAuditRetention,
+  });
+
+  useEffect(() => {
+    const r = retentionData?.retention;
+    if (r === "never" || r === "30" || r === "60" || r === "90") {
+      setRetentionDraft(r);
+    }
+  }, [retentionData?.retention]);
 
   const { data: users = [] } = useQuery({
     queryKey: ["server-admin-users"],
@@ -133,8 +177,108 @@ export default function GlobalAuditLogPanel() {
     setApplied((a) => ({ ...a, skip: a.skip + PAGE_SIZE }));
   };
 
+  const saveRetention = async () => {
+    setSavingRetention(true);
+    try {
+      const r = await fetch("/api/admin/audit-log-retention", {
+        method: "PUT",
+        credentials: "include",
+        headers: await withCsrfHeaderAsync({
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        }),
+        body: JSON.stringify({ retention: retentionDraft }),
+      });
+      const text = await r.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      if (!r.ok) {
+        const msg = parsed?.message || "Não foi possível guardar.";
+        throw new Error(msg);
+      }
+      const deleted =
+        typeof parsed?.deleted === "number" ? parsed.deleted : 0;
+      queryClient.invalidateQueries({ queryKey: ["audit-log-retention"] });
+      queryClient.invalidateQueries({ queryKey: ["global-audit-log"] });
+      if (deleted > 0) {
+        toast.success(
+          `Política guardada. Foram removidos ${deleted} registo(s) antigo(s).`,
+        );
+      } else {
+        toast.success("Política de retenção guardada.");
+      }
+    } catch (e) {
+      toast.error(e?.message || "Erro ao guardar a política de retenção.");
+    } finally {
+      setSavingRetention(false);
+    }
+  };
+
+  const retentionDirty =
+    retentionData?.retention !== undefined &&
+    retentionDraft !== retentionData.retention;
+
   return (
     <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.02 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <Timer className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">
+              Retenção no servidor
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Define até quando os registos de auditoria permanecem guardados. Ao
+              aplicar uma política com limite de dias, os registos mais antigos são
+              eliminados automaticamente (incluindo após cada reinício do servidor,
+              uma vez por dia).
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4">
+          <div className="space-y-2 min-w-[min(100%,280px)]">
+            <Label htmlFor="audit-retention-policy">Eliminar registos com mais de</Label>
+            <Select
+              value={retentionDraft}
+              onValueChange={setRetentionDraft}
+              disabled={retentionLoading}
+            >
+              <SelectTrigger id="audit-retention-policy" className="h-10 w-full sm:w-[280px]">
+                <SelectValue placeholder="Carregar…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="never">Nunca (padrão)</SelectItem>
+                <SelectItem value="30">30 dias</SelectItem>
+                <SelectItem value="60">60 dias</SelectItem>
+                <SelectItem value="90">90 dias</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            onClick={saveRetention}
+            disabled={savingRetention || retentionLoading || !retentionDirty}
+            className="gap-2 sm:mb-0.5"
+          >
+            {savingRetention ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : null}
+            Guardar
+          </Button>
+        </div>
+      </motion.div>
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

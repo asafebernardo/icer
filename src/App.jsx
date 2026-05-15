@@ -22,12 +22,14 @@ import Home from "./pages/Home";
 import { ThemeProvider } from "./lib/ThemeContext";
 import Recursos from "./pages/Recursos";
 import Agenda from "./pages/Agenda.jsx";
-import LinksUteis from "./pages/LinksUteis";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
 import Eventos from "./pages/Eventos";
+import EventosRotinas from "./pages/EventosRotinas";
+import EventosRotinasAgendar from "./pages/EventosRotinasAgendar";
 import Postagens from "./pages/Postagens";
+import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
@@ -132,7 +134,10 @@ const AppRoutes = () => {
       <Route element={<Layout />}>
         <Route path="Home" element={<Home />} />
         <Route path="Recursos" element={<Recursos />} />
-        <Route path="LinksUteis" element={<LinksUteis />} />
+        <Route
+          path="LinksUteis"
+          element={<Navigate to="/Recursos" replace />}
+        />
         <Route path="Agenda" element={<Agenda />} />
 
         <Route
@@ -153,6 +158,25 @@ const AppRoutes = () => {
         />
         <Route path="Evento/:id" element={<EventoPage />} />
         <Route path="Eventos" element={<Eventos />} />
+        <Route path="Eventos/rotinas" element={<EventosRotinas />} />
+        <Route path="Eventos/rotinas/agendar/:id" element={<EventosRotinasAgendar />} />
+        <Route path="Eventos/rotinas/agendar" element={<EventosRotinasAgendar />} />
+        <Route
+          path="Postagens/nova"
+          element={
+            <PrivateRoute>
+              <PostagemEditor />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="Postagens/editar/:id"
+          element={
+            <PrivateRoute>
+              <PostagemEditor />
+            </PrivateRoute>
+          }
+        />
         <Route path="Postagens" element={<Postagens />} />
         <Route path="Post/:id" element={<PostPage />} />
       </Route>

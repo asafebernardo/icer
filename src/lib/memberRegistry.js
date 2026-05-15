@@ -17,7 +17,6 @@ export const SITE_MENUS = [
   { key: "eventos", label: "Eventos" },
   { key: "dashboard", label: "Minha área" },
   { key: "galeria", label: "Galeria" },
-  { key: "materiais_tab", label: "Materiais" },
 ];
 
 const DASHBOARD_MENUS_STORAGE_KEY = "icer_dashboard_site_menus";

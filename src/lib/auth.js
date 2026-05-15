@@ -49,7 +49,7 @@ const PAGE_KEY_TO_MENU = {
   eventos: MENU.EVENTOS,
   recursos: MENU.RECURSOS,
   dashboard: MENU.DASHBOARD,
-  materiais: MENU.MATERIAIS_TAB,
+  materiais: MENU.RECURSOS,
   links: MENU.RECURSOS,
   evento: MENU.EVENTOS,
   contato: MENU.HOME,
@@ -255,6 +255,14 @@ export function canMenuAction(user, menuKey, action) {
   const perms = getMemberPermissions();
   const key = permKeyForUser(user);
   return !!getMenuPermBlock(perms, key, menuKey)[action];
+}
+
+/** Página Recursos (materiais + links): um único menu «recursos», com legado «materiais_tab». */
+export function canRecursosMenuAction(user, action) {
+  return (
+    canMenuAction(user, MENU.RECURSOS, action) ||
+    canMenuAction(user, MENU.MATERIAIS_TAB, action)
+  );
 }
 
 export function pageKeyToMenuKey(pageKey) {

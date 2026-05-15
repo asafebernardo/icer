@@ -1,4 +1,5 @@
 import { MongoClient } from "mongodb";
+import { backfillPostsPubSortAt } from "./dataRoutes.js";
 
 /** @type {MongoClient | null} */
 let client = null;
@@ -72,6 +73,9 @@ export async function ensureMongoIndexes(db) {
   await db.collection("event_bulk_runs_v1").createIndex({ id: 1 }, { unique: true });
   await db.collection("event_bulk_runs_v1").createIndex({ batch_id: 1 }, { unique: true });
   await db.collection("event_bulk_runs_v1").createIndex({ created_at: -1 });
+  await db.collection("event_bulk_schedule_templates_v1").createIndex({ id: 1 }, { unique: true });
+  await db.collection("event_bulk_schedule_templates_v1").createIndex({ updated_at: -1 });
+  await db.collection("event_bulk_schedule_templates_v1").createIndex({ created_by_user_id: 1 });
   await db.collection("auth_2fa_challenges_v1").createIndex(
     { token_hash: 1 },
     { unique: true },
@@ -95,6 +99,8 @@ export async function ensureMongoIndexes(db) {
     await db.collection(c).createIndex({ id: 1 }, { unique: true });
   }
   await db.collection("posts").createIndex({ created_at: 1 });
+  await db.collection("posts").createIndex({ pub_sort_at: -1, created_at: -1 });
+  await backfillPostsPubSortAt(db);
   await db.collection("eventos").createIndex({ event_date: 1, created_at: 1 });
   await db.collection("materiais").createIndex({ created_at: 1 });
   await db.collection("fotos_galeria").createIndex({ created_at: 1 });

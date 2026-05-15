@@ -4,7 +4,24 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+function NavLabel({ item }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="truncate">{item.label}</span>
+      {item.comingSoon ? (
+        <Badge
+          variant="secondary"
+          className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+        >
+          Em breve
+        </Badge>
+      ) : null}
+    </span>
+  );
+}
 
 function itemDisabled(item, canUseAdminTabs) {
   return Boolean(item?.requiresServerAuth && !canUseAdminTabs);
@@ -13,7 +30,7 @@ function itemDisabled(item, canUseAdminTabs) {
 /**
  * Secções do painel admin (Conta + Administração), para Sheet ou dropdown.
  * @param {{
- *   groups: Array<{ id: string; label: string; items: Array<{ id: string; label: string; requiresServerAuth?: boolean }> }>;
+ *   groups: Array<{ id: string; label: string; items: Array<{ id: string; label: string; requiresServerAuth?: boolean; comingSoon?: boolean }> }>;
  *   activeTab?: string | null;
  *   canUseAdminTabs: boolean;
  *   icons?: Record<string, React.ComponentType<{ className?: string }>>;
@@ -57,6 +74,19 @@ export default function AdminNavLinks({
 
   const renderSheetRow = (item) => {
     const Icon = icons[item.id];
+    if (item.comingSoon) {
+      return (
+        <span
+          key={item.id}
+          title="Em breve — indisponível"
+          aria-disabled="true"
+          className={cn(sheetItemClass(false, true), "select-none")}
+        >
+          {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-60" /> : null}
+          <NavLabel item={item} />
+        </span>
+      );
+    }
     const disabled = itemDisabled(item, canUseAdminTabs);
     const isActive = isItemActive(item.id);
     const href = getHref?.(item.id) ?? null;
@@ -70,7 +100,7 @@ export default function AdminNavLinks({
           className={sheetItemClass(isActive, false)}
         >
           {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-          <span className="truncate">{item.label}</span>
+          <NavLabel item={item} />
         </Link>
       );
     }
@@ -84,7 +114,7 @@ export default function AdminNavLinks({
           className={sheetItemClass(isActive, false)}
         >
           {Icon ? <Icon className="h-4 w-4 shrink-0 opacity-90" /> : null}
-          <span className="truncate">{item.label}</span>
+          <NavLabel item={item} />
         </button>
       );
     }
@@ -96,13 +126,26 @@ export default function AdminNavLinks({
         className={sheetItemClass(false, true)}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-        <span className="truncate">{item.label}</span>
+        <NavLabel item={item} />
       </span>
     );
   };
 
   const renderDropdownRow = (item) => {
     const Icon = icons[item.id];
+    if (item.comingSoon) {
+      return (
+        <DropdownMenuItem
+          key={item.id}
+          disabled
+          className="min-w-0 cursor-not-allowed gap-2 opacity-70"
+          onSelect={(e) => e.preventDefault()}
+        >
+          {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+          <NavLabel item={item} />
+        </DropdownMenuItem>
+      );
+    }
     const disabled = itemDisabled(item, canUseAdminTabs);
     const href = getHref?.(item.id) ?? null;
 
@@ -112,10 +155,10 @@ export default function AdminNavLinks({
           <Link
             to={href}
             onClick={() => onTabPick?.(item.id)}
-            className="flex cursor-pointer items-center gap-2"
+            className="flex min-w-0 w-full cursor-pointer items-center gap-2"
           >
             {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-            <span className="truncate">{item.label}</span>
+            <NavLabel item={item} />
           </Link>
         </DropdownMenuItem>
       );
@@ -129,7 +172,7 @@ export default function AdminNavLinks({
           className="flex cursor-pointer items-center gap-2"
         >
           {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-          <span className="truncate">{item.label}</span>
+          <NavLabel item={item} />
         </DropdownMenuItem>
       );
     }
@@ -137,7 +180,7 @@ export default function AdminNavLinks({
     return (
       <DropdownMenuItem key={item.id} disabled className="gap-2 opacity-60">
         {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-        <span className="truncate">{item.label}</span>
+        <NavLabel item={item} />
       </DropdownMenuItem>
     );
   };

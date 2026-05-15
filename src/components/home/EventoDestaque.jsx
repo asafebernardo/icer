@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Link } from "react-router-dom";
@@ -8,6 +9,10 @@ import { motion } from "framer-motion";
 import SafeImg from "@/components/shared/SafeImg";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
+import { useTituloImagensFundoMap } from "@/hooks/useTituloImagensFundoMap";
+import { tituloImagensFundoUrls } from "@/lib/eventTitleCardBackgrounds";
+import CadastroTitleBackground from "@/components/shared/CadastroTitleBackground";
 import {
   CATEGORY_BAR_CLASS,
   CATEGORY_SOFT_BADGE_CLASS,
@@ -29,28 +34,29 @@ const categoriaLabels = {
 const categoriaLight = CATEGORY_SOFT_BADGE_CLASS;
 
 export default function EventoDestaque() {
+  const tituloCorBarraMap = useTituloCorBarraMap();
+  const tituloImagensFundoMap = useTituloImagensFundoMap();
   const { data: eventos = [] } = useQuery({
     queryKey: ["eventos"],
     queryFn: listEventosMerged,
   });
 
-  // Pega o próximo evento futuro com categoria 'especial' ou 'conferencia', senão o próximo evento qualquer
-  const agora = new Date();
   const futuros = eventos
     .filter((e) => e.data && isFuture(parseISO(e.data + "T23:59:59")))
     .sort((a, b) => a.data.localeCompare(b.data));
 
-  const destaque =
-    futuros.find((e) => e.destaque) ||
-    futuros.find(
-      (e) => e.categoria === "especial" || e.categoria === "conferencia",
-    ) ||
-    futuros[0];
+  /** Só eventos com «Destacar evento» no formulário — sem usar o próximo futuro como substituto. */
+  const destaque = futuros.find((e) => e.destaque);
 
   if (!destaque) return null;
 
   const date = parseISO(destaque.data);
-  const barColor = eventCardBarClass(destaque, categoriaBg);
+  const barColor = eventCardBarClass(destaque, categoriaBg, tituloCorBarraMap);
+  const cadastroBgUrls = useMemo(
+    () => tituloImagensFundoUrls(destaque, tituloImagensFundoMap),
+    [destaque.titulo, destaque.imagem_url, tituloImagensFundoMap],
+  );
+  const showCadastroBg = cadastroBgUrls.length > 0;
 
   return (
     <section className="py-12 bg-gradient-to-br from-primary/5 via-background to-accent/5 border-b border-border">
@@ -66,8 +72,12 @@ export default function EventoDestaque() {
           <motion.div
             whileHover={{ y: -3 }}
             transition={{ type: "spring", stiffness: 300 }}
-            className="group bg-card border border-border rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow cursor-pointer"
+            className="group relative bg-card border border-border rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow cursor-pointer"
           >
+            {showCadastroBg ? (
+              <CadastroTitleBackground urls={cadastroBgUrls} />
+            ) : null}
+            <div className="relative z-10">
             <div className={`h-1.5 w-full ${barColor}`} />
             <div className="p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
               {/* Data destacada */}
@@ -137,6 +147,7 @@ export default function EventoDestaque() {
                   Ver detalhes <ArrowRight className="w-4 h-4" />
                 </span>
               </div>
+            </div>
             </div>
           </motion.div>
         </Link>
