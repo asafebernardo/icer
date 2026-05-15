@@ -317,14 +317,6 @@ function createServerIntegrationsModule(appId) {
   );
 }
 
-function randomInvitePassword() {
-  const chars =
-    "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  const buf = new Uint8Array(14);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, (b) => chars[b % chars.length]).join("");
-}
-
 function createUsersModule(appId) {
   return {
     inviteUser(user_email, role) {
@@ -351,18 +343,12 @@ function createServerUsersModule() {
       const email = String(user_email || "")
         .toLowerCase()
         .trim();
-      const password = randomInvitePassword();
-      const full_name = email.includes("@")
-        ? email.split("@")[0]
-        : email || "Utilizador";
-      return request("POST", "/admin/users", {
+      return request("POST", "/admin/users/invite", {
         body: {
           email,
-          full_name,
           role: role || "user",
-          password,
         },
-      }).then((res) => ({ ...res, temp_password: password }));
+      }).then((res) => ({ ...res, invite_token: res?.invite_token }));
     },
   };
 }
