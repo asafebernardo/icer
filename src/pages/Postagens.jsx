@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -50,7 +50,7 @@ import ConfirmDialog from "../components/shared/ConfirmDialog";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
-import { uploadImageFile } from "@/lib/uploadImage";
+import { uploadIntegrationFile } from "@/lib/uploadImage";
 
 function getYouTubeId(url) {
   if (!url) return null;
@@ -66,7 +66,18 @@ function normalizePost(post) {
     : post.imagem_url
       ? [post.imagem_url]
       : [];
+  const anexos = Array.isArray(post.anexos)
+    ? post.anexos.filter(Boolean)
+    : Array.isArray(post.attachments)
+      ? post.attachments.filter(Boolean)
+      : [];
   const video_url = post.video_url || "";
+  const tags =
+    Array.isArray(post.tags) && post.tags.length
+      ? post.tags.filter(Boolean).map((t) => String(t))
+      : post.tag != null && String(post.tag).trim()
+        ? [String(post.tag)]
+        : [];
   const tipo =
     post.tipo_conteudo === "video" || post.tipo_conteudo === "imagens"
       ? post.tipo_conteudo
@@ -80,10 +91,11 @@ function normalizePost(post) {
     titulo: post.titulo || "",
     descricao: post.descricao || post.resumo || "",
     imagens_urls,
+    anexos,
     video_url,
     tipo_conteudo: tipo,
     data_publicacao: post.data_publicacao || post.created_date,
-    tag: post.tag != null ? String(post.tag) : "",
+    tags,
     carousel_interval_sec: Math.min(
       60,
       Math.max(2, Number(post.carousel_interval_sec) || 5),
@@ -92,6 +104,29 @@ function normalizePost(post) {
   };
 }
 
+function normalizeTagKey(raw) {
+  return String(raw || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function dedupeTagsPreserveOrder(list) {
+  const seen = new Set();
+  const out = [];
+  for (const t of Array.isArray(list) ? list : []) {
+    const label = String(t || "").trim();
+    if (!label) continue;
+    const key = normalizeTagKey(label);
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
 function formatPubDate(iso) {
   if (!iso) return "—";
   try {
@@ -113,6 +148,16 @@ function toDatetimeLocalValue(iso) {
   } catch {
     return "";
   }
+}
+
+function isImageMime(mime) {
+  return typeof mime === "string" && mime.startsWith("image/");
+}
+function isVideoMime(mime) {
+  return typeof mime === "string" && mime.startsWith("video/");
+}
+function isAudioMime(mime) {
+  return typeof mime === "string" && mime.startsWith("audio/");
 }
 
 /** Carrossel com intervalo controlável (segundos). */
@@ -217,6 +262,90 @@ function ImageCarousel({ urls, intervalSec, showControls = true }) {
   );
 }
 
+function MediaPreview({ anexos, intervalSec }) {
+  const items = Array.isArray(anexos) ? anexos : [];
+  const images = items
+    .map((a) => (a && a.url && isImageMime(a.mime) ? a.url : null))
+    .filter(Boolean);
+  if (images.length >= 4) {
+    const show = images.slice(0, 16);
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-4 gap-1 rounded-xl overflow-hidden border border-border bg-muted/10">
+          {show.map((src, i) => (
+            <div key={`${src}-${i}`} className="aspect-square bg-muted/30">
+              <img src={src} alt="" className="h-full w-full object-cover" />
+            </div>
+          ))}
+        </div>
+        {images.length > 16 ? (
+          <p className="text-xs text-muted-foreground">
+            +{images.length - 16} imagem(ns)
+          </p>
+        ) : null}
+        <ImageCarousel
+          key={images.join("|")}
+          urls={images}
+          intervalSec={intervalSec}
+          showControls={images.length > 1}
+        />
+      </div>
+    );
+  }
+  if (images.length > 0) {
+    return (
+      <ImageCarousel
+        key={images.join("|")}
+        urls={images}
+        intervalSec={intervalSec}
+        showControls={images.length > 1}
+      />
+    );
+  }
+  const first = items.find((a) => a && a.url);
+  if (first?.url && isVideoMime(first.mime)) {
+    return (
+      <div className="aspect-video rounded-xl overflow-hidden border bg-black">
+        <video src={first.url} className="w-full h-full" controls />
+      </div>
+    );
+  }
+  if (first?.url && isAudioMime(first.mime)) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/20 p-4">
+        <audio src={first.url} controls className="w-full" />
+      </div>
+    );
+  }
+  if (items.length > 0) {
+    return (
+      <div className="rounded-xl border border-border bg-muted/20 p-4">
+        <p className="text-sm font-medium text-foreground mb-2">Anexos</p>
+        <ul className="space-y-2">
+          {items.map((a, i) => (
+            <li key={`${a?.url || "file"}-${i}`} className="text-sm">
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline break-all"
+              >
+                {a.name || `Arquivo ${i + 1}`}
+              </a>
+              {a.mime ? (
+                <span className="text-xs text-muted-foreground ml-2">
+                  {a.mime}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  return null;
+}
+
 function PostPreviewThumb({ post }) {
   const p = normalizePost(post);
   if (p.tipo_conteudo === "video" && p.video_url) {
@@ -245,6 +374,23 @@ function PostPreviewThumb({ post }) {
       />
     );
   }
+  if (Array.isArray(p.anexos) && p.anexos.length > 0) {
+    const firstImg = p.anexos.find((a) => a && isImageMime(a.mime) && a.url);
+    if (firstImg?.url) {
+      return (
+        <img
+          src={firstImg.url}
+          alt=""
+          className="w-full h-full object-cover"
+        />
+      );
+    }
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-muted">
+        <BookOpen className="w-10 h-10 text-muted-foreground/55" />
+      </div>
+    );
+  }
   return (
     <div className="w-full h-full flex items-center justify-center bg-muted">
       <BookOpen className="w-10 h-10 text-muted-foreground/55" />
@@ -255,26 +401,30 @@ function PostPreviewThumb({ post }) {
 function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost }) {
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [tipo, setTipo] = useState("imagens");
-  const [imagens_urls, setImagensUrls] = useState([]);
+  const [anexos, setAnexos] = useState([]);
   const [video_url, setVideoUrl] = useState("");
   const [dataPublicacao, setDataPublicacao] = useState(() =>
     toDatetimeLocalValue(new Date().toISOString()),
   );
   const [carousel_interval_sec, setCarouselInterval] = useState(5);
-  const [tag, setTag] = useState("");
+  const [tags, setTags] = useState([]);
+  const [tagDraft, setTagDraft] = useState("");
+  const [editingTagIdx, setEditingTagIdx] = useState(-1);
+  const [editingTagDraft, setEditingTagDraft] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
   const reset = useCallback(() => {
     setTitulo("");
     setDescricao("");
-    setTipo("imagens");
-    setImagensUrls([]);
+    setAnexos([]);
     setVideoUrl("");
     setDataPublicacao(toDatetimeLocalValue(new Date().toISOString()));
     setCarouselInterval(5);
-    setTag("");
+    setTags([]);
+    setTagDraft("");
+    setEditingTagIdx(-1);
+    setEditingTagDraft("");
     setError("");
   }, []);
 
@@ -284,30 +434,78 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
       const p = normalizePost(editingPost);
       setTitulo(p.titulo);
       setDescricao(p.descricao);
-      setTipo(p.tipo_conteudo);
-      setImagensUrls([...p.imagens_urls]);
+      setAnexos([...(p.anexos || [])]);
       setVideoUrl(p.video_url || "");
       setDataPublicacao(toDatetimeLocalValue(p.data_publicacao));
       setCarouselInterval(p.carousel_interval_sec);
-      setTag(p.tag || "");
+      setTags(dedupeTagsPreserveOrder(p.tags || []));
+      setTagDraft("");
+      setEditingTagIdx(-1);
+      setEditingTagDraft("");
       setError("");
     } else {
       reset();
     }
   }, [open, editingPost, reset]);
 
-  const handleAddImages = async (e) => {
+  const addTagFromDraft = () => {
+    const raw = String(tagDraft || "").replace(/,+$/, "").trim();
+    if (!raw) return;
+    setTags((cur) => dedupeTagsPreserveOrder([...(cur || []), raw]));
+    setTagDraft("");
+  };
+
+  const removeTagAt = (idx) => {
+    setTags((cur) => (Array.isArray(cur) ? cur.filter((_, i) => i !== idx) : []));
+    if (editingTagIdx === idx) {
+      setEditingTagIdx(-1);
+      setEditingTagDraft("");
+    }
+  };
+
+  const startEditTag = (idx) => {
+    const cur = tags[idx];
+    if (cur == null) return;
+    setEditingTagIdx(idx);
+    setEditingTagDraft(String(cur));
+  };
+
+  const commitEditTag = () => {
+    if (editingTagIdx < 0) return;
+    const raw = String(editingTagDraft || "").replace(/,+$/, "").trim();
+    const idx = editingTagIdx;
+    setEditingTagIdx(-1);
+    setEditingTagDraft("");
+    if (!raw) {
+      removeTagAt(idx);
+      return;
+    }
+    setTags((cur) => {
+      const list = Array.isArray(cur) ? [...cur] : [];
+      list[idx] = raw;
+      return dedupeTagsPreserveOrder(list);
+    });
+  };
+
+  const handleAddMedia = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
     setError("");
     try {
-      const next = [...imagens_urls];
+      const next = [...anexos];
       for (const file of files) {
-        const { file_url } = await uploadImageFile(file);
-        if (file_url) next.push(file_url);
+        const { file_url } = await uploadIntegrationFile(file);
+        if (file_url) {
+          next.push({
+            url: file_url,
+            name: file?.name || "",
+            mime: file?.type || "",
+            size: Number(file?.size) || 0,
+          });
+        }
       }
-      setImagensUrls(next);
+      setAnexos(next);
     } catch {
       setError("Não foi possível enviar uma ou mais imagens. Tente novamente.");
     } finally {
@@ -336,26 +534,22 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
       return;
     }
     const pubIso = pubDate.toISOString();
-    if (tipo === "imagens") {
-      if (imagens_urls.length === 0) {
-        setError("Adicione pelo menos uma imagem.");
-        return;
-      }
-    } else {
-      if (!video_url.trim()) {
-        setError("O URL do vídeo é obrigatório.");
-        return;
-      }
+    const hasAttachments = Array.isArray(anexos) && anexos.length > 0;
+    const hasVideoUrl = Boolean(video_url && video_url.trim());
+    if (!hasAttachments && !hasVideoUrl) {
+      setError("Adicione pelo menos um arquivo ou informe um URL de vídeo.");
+      return;
+    }
+    if (hasVideoUrl) {
       const trimmed = video_url.trim();
-      let videoOk = false;
       try {
         const u = new URL(trimmed);
-        videoOk = u.protocol === "http:" || u.protocol === "https:";
+        if (!(u.protocol === "http:" || u.protocol === "https:")) {
+          setError("Indique um URL válido (http/https).");
+          return;
+        }
       } catch {
-        videoOk = false;
-      }
-      if (!videoOk) {
-        setError("Indique um URL de vídeo válido (ex.: link do YouTube).");
+        setError("Indique um URL válido (http/https).");
         return;
       }
     }
@@ -363,15 +557,12 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
     onSave({
       titulo: titulo.trim(),
       descricao: descricao.trim(),
-      tipo_conteudo: tipo,
-      imagens_urls: tipo === "imagens" ? imagens_urls : [],
-      video_url: tipo === "video" ? video_url.trim() : "",
+      anexos,
+      video_url: video_url.trim(),
       data_publicacao: pubIso,
       carousel_interval_sec:
-        tipo === "imagens"
-          ? Math.min(60, Math.max(2, Number(carousel_interval_sec) || 5))
-          : null,
-      tag: tag.trim() || "",
+        Math.min(60, Math.max(2, Number(carousel_interval_sec) || 5)),
+      tags: dedupeTagsPreserveOrder(tags),
       autor: autorEmail || "",
     });
   };
@@ -411,142 +602,73 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Tipo de média *</Label>
-            <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="imagens">Galeria de imagens</SelectItem>
-                <SelectItem value="video">Vídeo (URL)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {tipo === "imagens" ? (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Imagens * (uma ou várias)</Label>
-                <label
-                  className={`flex items-center gap-2 cursor-pointer border-2 border-dashed border-border rounded-xl p-4 hover:border-accent/50 ${uploading ? "opacity-50 pointer-events-none" : ""}`}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Arquivos (qualquer tipo, quantos quiser)</Label>
+              <label
+                className={`flex items-center gap-2 cursor-pointer border-2 border-dashed border-border rounded-xl p-4 hover:border-accent/50 ${uploading ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Upload className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  {uploading ? "A enviar…" : "Clique para escolher ficheiros"}
+                </span>
+                <input
+                  type="file"
+                  accept="*/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleAddMedia}
+                />
+              </label>
+              {anexos.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive -mt-1"
+                  onClick={() => setAnexos([])}
                 >
-                  <Upload className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {uploading ? "A enviar…" : "Clique para escolher ficheiros"}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleAddImages}
-                  />
-                </label>
-                {imagens_urls.length > 0 ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive -mt-1"
-                    onClick={() => setImagensUrls([])}
-                  >
-                    Remover todas as imagens
-                  </Button>
-                ) : null}
-              </div>
-              {imagens_urls.length > 0 && (
-                <>
-                  {imagens_urls.length >= 16 ? (
-                    <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 space-y-2">
-                      <p className="text-sm font-medium text-foreground">
-                        {imagens_urls.length}{" "}
-                        {imagens_urls.length === 1
-                          ? "ficheiro enviado"
-                          : "ficheiros enviados"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Com 16 ou mais imagens, a pré-visualização em grelha fica
-                        oculta. Pode continuar a adicionar ficheiros acima.
-                      </p>
-                      <details className="group text-sm">
-                        <summary className="cursor-pointer text-accent hover:underline list-none [&::-webkit-details-marker]:hidden">
-                          Gerir lista — remover imagens
-                        </summary>
-                        <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-border bg-background divide-y">
-                          {imagens_urls.map((url, i) => (
-                            <li
-                              key={`${url}-${i}`}
-                              className="flex items-center justify-between gap-2 px-2 py-1.5"
-                            >
-                              <span className="text-muted-foreground truncate min-w-0">
-                                Imagem {i + 1}
-                              </span>
-                              <button
-                                type="button"
-                                className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-destructive/15"
-                                onClick={() =>
-                                  setImagensUrls((arr) =>
-                                    arr.filter((_, j) => j !== i),
-                                  )
-                                }
-                                aria-label={`Remover imagem ${i + 1}`}
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    </div>
-                  ) : (
-                    <div
-                      className={
-                        imagens_urls.length > 4
-                          ? "grid grid-cols-4 sm:grid-cols-5 gap-1.5"
-                          : "grid grid-cols-3 gap-2"
-                      }
-                    >
-                      {imagens_urls.map((url, i) => (
-                        <div
-                          key={url + i}
-                          className={`relative aspect-square rounded-lg overflow-hidden border ${
-                            imagens_urls.length > 4 ? "rounded-md" : ""
-                          }`}
+                  Remover todos os arquivos
+                </Button>
+              ) : null}
+            </div>
+              {anexos.length > 0 && (
+                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 space-y-2">
+                  <p className="text-sm font-medium text-foreground">
+                    {anexos.length}{" "}
+                    {anexos.length === 1 ? "arquivo enviado" : "arquivos enviados"}
+                  </p>
+                  <details className="group text-sm">
+                    <summary className="cursor-pointer text-accent hover:underline list-none [&::-webkit-details-marker]:hidden">
+                      Gerir lista — remover arquivos
+                    </summary>
+                    <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-border bg-background divide-y">
+                      {anexos.map((a, i) => (
+                        <li
+                          key={`${a?.url || "file"}-${i}`}
+                          className="flex items-center justify-between gap-2 px-2 py-1.5"
                         >
-                          <img
-                            src={url}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
+                          <span className="text-muted-foreground truncate min-w-0">
+                            {a?.name || `Arquivo ${i + 1}`}
+                          </span>
                           <button
                             type="button"
-                            className={`absolute rounded-full bg-background/90 flex items-center justify-center shadow ${
-                              imagens_urls.length > 4
-                                ? "top-0.5 right-0.5 w-6 h-6"
-                                : "top-1 right-1 w-7 h-7"
-                            }`}
+                            className="shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-destructive/15"
                             onClick={() =>
-                              setImagensUrls((arr) =>
-                                arr.filter((_, j) => j !== i),
-                              )
+                              setAnexos((arr) => arr.filter((_, j) => j !== i))
                             }
-                            aria-label="Remover imagem"
+                            aria-label={`Remover arquivo ${i + 1}`}
                           >
-                            <X
-                              className={
-                                imagens_urls.length > 4 ? "w-3 h-3" : "w-4 h-4"
-                              }
-                            />
+                            <X className="w-3.5 h-3.5" />
                           </button>
-                        </div>
+                        </li>
                       ))}
-                    </div>
-                  )}
-                </>
+                    </ul>
+                  </details>
+                </div>
               )}
               <div className="space-y-2">
-                <Label>Intervalo do carrossel (s) *</Label>
+                <Label>Intervalo do carrossel (s)</Label>
                 <div className="flex items-center gap-3">
                   <Slider
                     value={[carousel_interval_sec]}
@@ -556,16 +678,17 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
                     step={1}
                     className="flex-1"
                   />
-                  <span className="text-sm tabular-nums w-10">{carousel_interval_sec}s</span>
+                  <span className="text-sm tabular-nums w-10">
+                    {carousel_interval_sec}s
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Tempo entre transições automáticas na galeria.
+                  Usado quando houver múltiplas imagens anexadas.
                 </p>
               </div>
-            </div>
-          ) : (
+
             <div className="space-y-2">
-              <Label htmlFor="post-video">URL do vídeo *</Label>
+              <Label htmlFor="post-video">URL de vídeo (opcional)</Label>
               <Input
                 id="post-video"
                 value={video_url}
@@ -573,7 +696,23 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
                 placeholder="https://www.youtube.com/watch?v=…"
               />
             </div>
-          )}
+
+            {(() => {
+              const imgs = anexos.filter((a) => a && isImageMime(a.mime) && a.url).map((a) => a.url);
+              if (imgs.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  <Label>Pré-visualização das imagens</Label>
+                  <ImageCarousel
+                    urls={imgs}
+                    intervalSec={carousel_interval_sec}
+                    showControls={imgs.length > 1}
+                  />
+                </div>
+              );
+            })()}
+
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="post-data">Data da publicação *</Label>
@@ -586,13 +725,73 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="post-tag">Tag (opcional)</Label>
+            <Label>Tags (opcional)</Label>
             <Input
-              id="post-tag"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              placeholder="Ex.: Jovens, Culto…"
+              value={tagDraft}
+              onChange={(e) => setTagDraft(e.target.value)}
+              placeholder="Digite e pressione Enter ou vírgula…"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addTagFromDraft();
+                }
+                if (e.key === "Backspace" && !tagDraft && tags.length > 0) {
+                  removeTagAt(tags.length - 1);
+                }
+              }}
+              onBlur={() => addTagFromDraft()}
             />
+            {tags.length > 0 ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {tags.map((t, idx) => {
+                  const isEditing = editingTagIdx === idx;
+                  return (
+                    <span
+                      key={`${normalizeTagKey(t)}-${idx}`}
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1"
+                    >
+                      {isEditing ? (
+                        <input
+                          value={editingTagDraft}
+                          onChange={(e) => setEditingTagDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === ",") {
+                              e.preventDefault();
+                              commitEditTag();
+                            }
+                            if (e.key === "Escape") {
+                              setEditingTagIdx(-1);
+                              setEditingTagDraft("");
+                            }
+                          }}
+                          onBlur={commitEditTag}
+                          className="bg-transparent outline-none text-sm min-w-[6rem]"
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEditTag(idx)}
+                          className="text-sm text-foreground hover:underline underline-offset-2"
+                          title="Clique para editar"
+                        >
+                          {t}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeTagAt(idx)}
+                        className="w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-destructive/10"
+                        aria-label="Remover tag"
+                        title="Remover"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -634,12 +833,12 @@ function PostDetailModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex flex-wrap gap-2 mb-1">
-            {p.tag ? (
-              <Badge variant="secondary" className="gap-1">
+            {(p.tags || []).map((t) => (
+              <Badge key={normalizeTagKey(t)} variant="secondary" className="gap-1">
                 <Tag className="w-3 h-3" />
-                {p.tag}
+                {t}
               </Badge>
-            ) : null}
+            ))}
           </div>
           <DialogTitle className="text-left font-display text-xl sm:text-2xl pr-8">
             {p.titulo}
@@ -659,7 +858,7 @@ function PostDetailModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {p.tipo_conteudo === "video" && p.video_url ? (
+          {p.video_url ? (
             yt ? (
               <div className="aspect-video rounded-xl overflow-hidden border bg-black">
                 <iframe
@@ -681,12 +880,7 @@ function PostDetailModal({
               </a>
             )
           ) : (
-            <ImageCarousel
-              key={p.id}
-              urls={p.imagens_urls}
-              intervalSec={p.carousel_interval_sec}
-              showControls={p.imagens_urls.length > 1}
-            />
+            <MediaPreview anexos={p.anexos} intervalSec={p.carousel_interval_sec} />
           )}
 
           <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -739,7 +933,7 @@ export default function Postagens() {
 
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [detailPost, setDetailPost] = useState(null);
+  const [page, setPage] = useState(0);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
@@ -754,23 +948,54 @@ export default function Postagens() {
   const canDelete = canMenuAction(sessionUser, MENU.POSTAGENS, "delete");
   const autorEmail = sessionUser?.email || "";
 
-  const { data: posts = [], isLoading } = useQuery({
-    queryKey: ["posts"],
+  const PAGE_SIZE = 12;
+  const sortParam = sortOrder === "asc" ? "data" : "-data";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["posts", page, sortOrder],
     queryFn: async () => {
-      return JSON.parse(localStorage.getItem("posts") || "[]");
+      const qs = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        skip: String(page * PAGE_SIZE),
+        sort: sortParam,
+      });
+      const r = await fetch(`/api/data/posts?${qs.toString()}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      if (!r.ok) throw new Error("Não foi possível carregar posts.");
+      return r.json();
     },
   });
+  const posts = Array.isArray(data?.items) ? data.items : [];
+  const total = Number(data?.total) || 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  useEffect(() => {
+    // Se mudar ordenação ou pesquisa, volta para a primeira página.
+    setPage(0);
+  }, [sortOrder]);
 
   const createPost = useMutation({
     mutationFn: async (data) => {
-      const current = JSON.parse(localStorage.getItem("posts") || "[]");
-      const newPost = {
-        ...data,
-        id: Date.now(),
-        created_date: new Date().toISOString(),
-      };
-      localStorage.setItem("posts", JSON.stringify([newPost, ...current]));
-      return newPost;
+      const r = await fetch("/api/data/posts", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(data),
+      });
+      const text = await r.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      if (!r.ok) {
+        const msg = parsed?.message || "Não foi possível criar o post.";
+        throw new Error(msg);
+      }
+      return parsed;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
@@ -781,11 +1006,24 @@ export default function Postagens() {
 
   const updatePost = useMutation({
     mutationFn: async ({ id, ...data }) => {
-      const current = JSON.parse(localStorage.getItem("posts") || "[]");
-      const next = current.map((p) =>
-        p.id === id ? { ...p, ...data, id } : p,
-      );
-      localStorage.setItem("posts", JSON.stringify(next));
+      const r = await fetch(`/api/data/posts/${id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(data),
+      });
+      const text = await r.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      if (!r.ok) {
+        const msg = parsed?.message || "Não foi possível atualizar o post.";
+        throw new Error(msg);
+      }
+      return parsed;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
@@ -796,11 +1034,21 @@ export default function Postagens() {
 
   const deletePost = useMutation({
     mutationFn: async (id) => {
-      const current = JSON.parse(localStorage.getItem("posts") || "[]");
-      localStorage.setItem(
-        "posts",
-        JSON.stringify(current.filter((p) => p.id !== id)),
-      );
+      const r = await fetch(`/api/data/posts/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      if (!r.ok && r.status !== 204) {
+        const text = await r.text();
+        let parsed = null;
+        try {
+          parsed = text ? JSON.parse(text) : null;
+        } catch {
+          parsed = null;
+        }
+        throw new Error(parsed?.message || "Não foi possível eliminar o post.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
@@ -815,7 +1063,7 @@ export default function Postagens() {
       const hay = [
         p.titulo,
         p.descricao,
-        p.tag,
+        (p.tags || []).join(" "),
         p.autor,
         p.video_url,
       ]
@@ -824,13 +1072,8 @@ export default function Postagens() {
       return hay.includes(q);
     });
 
-    const dir = sortOrder === "desc" ? -1 : 1;
-    return [...filtered].sort((a, b) => {
-      const ta = new Date(normalizePost(a).data_publicacao).getTime();
-      const tb = new Date(normalizePost(b).data_publicacao).getTime();
-      if (ta !== tb) return ta < tb ? -dir : dir;
-      return (b.id || 0) - (a.id || 0);
-    });
+    // A ordenação principal já vem do servidor. Aqui só mantemos ordem estável no filtro local.
+    return filtered;
   }, [posts, q, sortOrder]);
 
   return (
@@ -858,6 +1101,36 @@ export default function Postagens() {
           ) : null}
         </div>
 
+        {/* Paginação */}
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <p className="text-xs text-muted-foreground">
+            {total ? `${total} publicação(ões)` : "—"}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              Página {Math.min(page + 1, totalPages)} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            >
+              Próxima
+            </Button>
+          </div>
+        </div>
+
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end mb-8">
           <div className="flex-1 space-y-2">
             <Label htmlFor="busca-posts" className="text-muted-foreground">
@@ -869,7 +1142,10 @@ export default function Postagens() {
                 id="busca-posts"
                 placeholder="Título, descrição, tag, autor ou URL…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(0);
+                }}
                 className="pl-9"
               />
             </div>
@@ -905,19 +1181,6 @@ export default function Postagens() {
           autorEmail={autorEmail}
         />
 
-        <PostDetailModal
-          post={detailPost}
-          open={!!detailPost}
-          onOpenChange={(o) => !o && setDetailPost(null)}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          onEdit={(raw) => {
-            setEditingPost(raw);
-            setShowForm(true);
-          }}
-          onDelete={(id) => setPendingDeleteId(id)}
-        />
-
         <ConfirmDialog
           open={pendingDeleteId != null}
           onOpenChange={(open) => {
@@ -930,7 +1193,6 @@ export default function Postagens() {
           onConfirm={() => {
             if (pendingDeleteId != null) {
               deletePost.mutate(pendingDeleteId);
-              if (detailPost?.id === pendingDeleteId) setDetailPost(null);
             }
           }}
         />
@@ -956,9 +1218,9 @@ export default function Postagens() {
                   key={post.id}
                   className="flex flex-col sm:flex-row rounded-2xl border border-border bg-card hover:border-accent/40 hover:shadow-md transition-all overflow-hidden group"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setDetailPost(post)}
+                  <Link
+                    to={`/Post/${post.id}`}
+                    state={{ from: location.pathname + location.search }}
                     className="flex flex-col sm:flex-row sm:items-stretch flex-1 min-w-0 text-left"
                   >
                     <div className="sm:w-44 shrink-0 aspect-video sm:aspect-auto sm:min-h-[120px] border-b sm:border-b-0 sm:border-r border-border">
@@ -969,10 +1231,19 @@ export default function Postagens() {
                         <h3 className="font-semibold text-foreground text-lg leading-snug group-hover:text-accent transition-colors">
                           {p.titulo}
                         </h3>
-                        {p.tag ? (
-                          <Badge variant="outline" className="text-xs shrink-0 gap-1">
+                        {(p.tags || []).slice(0, 2).map((t) => (
+                          <Badge
+                            key={normalizeTagKey(t)}
+                            variant="outline"
+                            className="text-xs shrink-0 gap-1"
+                          >
                             <Tag className="w-3 h-3" />
-                            {p.tag}
+                            {t}
+                          </Badge>
+                        ))}
+                        {(p.tags || []).length > 2 ? (
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            +{(p.tags || []).length - 2}
                           </Badge>
                         ) : null}
                       </div>
@@ -1004,7 +1275,7 @@ export default function Postagens() {
                         ) : null}
                       </div>
                     </div>
-                  </button>
+                  </Link>
                   {(canEdit || canDelete) && (
                     <div className="flex sm:flex-col items-center justify-center gap-1 border-t sm:border-t-0 sm:border-l border-border p-2 shrink-0">
                       {canEdit ? (
@@ -1012,7 +1283,7 @@ export default function Postagens() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          title="Editar"
+                          title="Editar — Post"
                           onClick={() => {
                             setEditingPost(post);
                             setShowForm(true);
