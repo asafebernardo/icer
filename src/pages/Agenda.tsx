@@ -21,11 +21,15 @@ import {
   LayoutList,
   ListChecks,
   Plus,
+  Check,
+  Eye,
+  Mic2,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import MonthlyCalendar from "../components/agenda/MonthlyCalendar";
 import WeeklyCalendar from "../components/agenda/WeeklyCalendar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { listEventosMerged } from "@/lib/eventosQuery";
 
@@ -39,6 +43,7 @@ type Evento = {
 
 export default function Agenda() {
   const [view, setView] = useState<"mensal" | "semanal">("mensal");
+  const [showPreletorCards, setShowPreletorCards] = useState(false);
   const navigate = useNavigate();
   const [canCreateEvento, setCanCreateEvento] = useState(() =>
     canMenuAction(getUser(), MENU.EVENTOS, "create"),
@@ -172,6 +177,27 @@ export default function Agenda() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={showPreletorCards ? "default" : "outline"}
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setShowPreletorCards((v) => !v)}
+                  >
+                    {showPreletorCards ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                    {showPreletorCards ? "Preletores: ativo" : "Preletores: inativo"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Mostra o preletor em cada card do calendário (título + preletor).
+                </TooltipContent>
+              </Tooltip>
               <div className="flex bg-muted rounded-lg p-1 gap-1">
                 <button
                   onClick={() => setView("mensal")}
@@ -204,6 +230,7 @@ export default function Agenda() {
             <MonthlyCalendar
               monthDate={monthDate}
               eventos={eventos}
+              showPreletorCards={showPreletorCards}
               onEventClick={handleEventClick}
               onDayClick={(day: Date) => {}}
             />
@@ -211,6 +238,7 @@ export default function Agenda() {
             <WeeklyCalendar
               weekDays={weekDays}
               eventos={eventos}
+              showPreletorCards={showPreletorCards}
               onEventClick={handleEventClick}
             />
           )}
