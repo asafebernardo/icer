@@ -43,7 +43,7 @@ export default function UserAvatar({
         ) : null}
         <AvatarFallback
           className={cn(
-            "rounded-full bg-muted text-muted-foreground",
+            "rounded-full bg-black text-white",
             fallbackClassName,
           )}
         >

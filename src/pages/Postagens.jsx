@@ -6,7 +6,6 @@ import { ptBR } from "date-fns/locale";
 
 import {
   BookOpen,
-  User,
   Calendar,
   Search,
   Tag,
@@ -47,6 +46,7 @@ import { Slider } from "@/components/ui/slider";
 import PageHeader from "../components/shared/PageHeader";
 import EmptyState from "../components/shared/EmptyState";
 import ConfirmDialog from "../components/shared/ConfirmDialog";
+import SafeImg from "../components/shared/SafeImg";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -162,7 +162,7 @@ function isAudioMime(mime) {
 }
 
 /** Carrossel com intervalo controlável (segundos). */
-function ImageCarousel({ urls, intervalSec, showControls = true }) {
+function ImageCarousel({ urls, intervalSec, showControls = true, onOpenFullscreen }) {
   const [index, setIndex] = useState(0);
   const [delay, setDelay] = useState(() =>
     Math.min(60, Math.max(2, Number(intervalSec) || 5)),
@@ -206,10 +206,12 @@ function ImageCarousel({ urls, intervalSec, showControls = true }) {
   return (
     <div className="space-y-3">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-black/5 border border-border">
-        <img
+        <SafeImg
           src={urls[safeIndex]}
           alt=""
           className="w-full h-full object-contain bg-black/80"
+          onClick={() => onOpenFullscreen?.(safeIndex)}
+          style={{ cursor: onOpenFullscreen ? "zoom-in" : undefined }}
         />
         {urls.length > 1 && (
           <>
@@ -263,7 +265,7 @@ function ImageCarousel({ urls, intervalSec, showControls = true }) {
   );
 }
 
-function MediaPreview({ anexos, intervalSec }) {
+function MediaPreview({ anexos, intervalSec, onOpenFullscreen }) {
   const items = Array.isArray(anexos) ? anexos : [];
   const images = items
     .map((a) => (a && a.url && isImageMime(a.mime) ? a.url : null))
@@ -275,7 +277,7 @@ function MediaPreview({ anexos, intervalSec }) {
         <div className="grid grid-cols-4 gap-1 rounded-xl overflow-hidden border border-border bg-muted/10">
           {show.map((src, i) => (
             <div key={`${src}-${i}`} className="aspect-square bg-muted/30">
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <SafeImg src={src} alt="" className="h-full w-full object-cover" />
             </div>
           ))}
         </div>
@@ -289,6 +291,9 @@ function MediaPreview({ anexos, intervalSec }) {
           urls={images}
           intervalSec={intervalSec}
           showControls={images.length > 1}
+          onOpenFullscreen={(startIndex) =>
+            onOpenFullscreen?.(images, startIndex)
+          }
         />
       </div>
     );
@@ -300,6 +305,9 @@ function MediaPreview({ anexos, intervalSec }) {
         urls={images}
         intervalSec={intervalSec}
         showControls={images.length > 1}
+        onOpenFullscreen={(startIndex) =>
+          onOpenFullscreen?.(images, startIndex)
+        }
       />
     );
   }
@@ -353,7 +361,7 @@ function PostPreviewThumb({ post }) {
     const id = getYouTubeId(p.video_url);
     if (id) {
       return (
-        <img
+        <SafeImg
           src={`https://img.youtube.com/vi/${id}/hqdefault.jpg`}
           alt=""
           className="w-full h-full object-cover"
@@ -368,7 +376,7 @@ function PostPreviewThumb({ post }) {
   }
   if (p.imagens_urls[0]) {
     return (
-      <img
+      <SafeImg
         src={p.imagens_urls[0]}
         alt=""
         className="w-full h-full object-cover"
@@ -379,7 +387,7 @@ function PostPreviewThumb({ post }) {
     const firstImg = p.anexos.find((a) => a && isImageMime(a.mime) && a.url);
     if (firstImg?.url) {
       return (
-        <img
+        <SafeImg
           src={firstImg.url}
           alt=""
           className="w-full h-full object-cover"
@@ -885,7 +893,20 @@ function PostDetailModal({
               </a>
             )
           ) : (
-            <MediaPreview anexos={p.anexos} intervalSec={p.carousel_interval_sec} />
+            <MediaPreview
+              anexos={p.anexos}
+              intervalSec={p.carousel_interval_sec}
+              onOpenFullscreen={(images, startIndex) => {
+                const urls = Array.isArray(images) ? images : [];
+                if (!urls.length) return;
+                const initial = Number.isFinite(startIndex) ? startIndex : 0;
+                window.dispatchEvent(
+                  new CustomEvent("icer-post-fullscreen-images", {
+                    detail: { urls, initialIndex: Math.max(0, initial) },
+                  }),
+                );
+              }}
+            />
           )}
 
           <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -906,9 +927,10 @@ function PostDetailModal({
                   onEdit(post);
                   onOpenChange(false);
                 }}
+                aria-label="Editar"
               >
                 <Pencil className="w-4 h-4" />
-                Editar
+                <span className="hidden sm:inline">Editar</span>
               </Button>
             ) : (
               <span />
@@ -942,10 +964,27 @@ export default function Postagens() {
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingPost, setEditingPost] = useState(null);
+  const [fullscreenImages, setFullscreenImages] = useState(null);
 
   useEffect(() => {
     checkUserAuth?.();
   }, [location.pathname, checkUserAuth]);
+
+  useEffect(() => {
+    const handler = (ev) => {
+      const detail = ev?.detail;
+      if (!detail || !Array.isArray(detail.urls) || !detail.urls.length) return;
+      const idx = Number.isFinite(detail.initialIndex)
+        ? detail.initialIndex
+        : 0;
+      setFullscreenImages({
+        urls: detail.urls,
+        index: Math.max(0, Math.min(idx, detail.urls.length - 1)),
+      });
+    };
+    window.addEventListener("icer-post-fullscreen-images", handler);
+    return () => window.removeEventListener("icer-post-fullscreen-images", handler);
+  }, []);
 
   const sessionUser = authUser ?? getUser();
   const canCreate = canMenuAction(sessionUser, MENU.POSTAGENS, "create");
@@ -1105,42 +1144,47 @@ export default function Postagens() {
                 setShowForm(true);
               }}
               className="w-fit gap-2"
+              aria-label="Novo post"
             >
               <Plus className="w-4 h-4" />
-              Novo post
+              <span className="hidden sm:inline">Novo post</span>
             </Button>
           ) : null}
         </div>
 
         {/* Paginação */}
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <p className="text-xs text-muted-foreground">
-            {total ? `${total} publicação(ões)` : "—"}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page <= 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Anterior
-            </Button>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              Página {Math.min(page + 1, totalPages)} / {totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page + 1 >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            >
-              Próxima
-            </Button>
+        {total > PAGE_SIZE ? (
+          <div className="flex items-center justify-between gap-3 mb-6">
+            <p className="text-xs text-muted-foreground">
+              {total ? `${total} publicação(ões)` : "—"}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {Math.min(page + 1, totalPages)} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={page + 1 >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                aria-label="Próxima página"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end mb-8">
           <div className="flex-1 space-y-2">
@@ -1317,6 +1361,86 @@ export default function Postagens() {
           </ul>
         )}
       </section>
+
+      {fullscreenImages && (
+        <Dialog
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setFullscreenImages(null);
+          }}
+        >
+          <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden bg-black p-0">
+            <div className="relative w-full h-full min-h-[260px] flex flex-col">
+              <div className="relative flex-1 bg-black">
+                <SafeImg
+                  src={fullscreenImages.urls[fullscreenImages.index]}
+                  alt=""
+                  className="w-full h-full object-contain bg-black"
+                />
+                {fullscreenImages.urls.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Anterior"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90"
+                      onClick={() =>
+                        setFullscreenImages((curr) => {
+                          if (!curr) return curr;
+                          const n = curr.urls.length;
+                          return {
+                            ...curr,
+                            index: (curr.index - 1 + n) % n,
+                          };
+                        })
+                      }
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Seguinte"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90"
+                      onClick={() =>
+                        setFullscreenImages((curr) => {
+                          if (!curr) return curr;
+                          const n = curr.urls.length;
+                          return {
+                            ...curr,
+                            index: (curr.index + 1) % n,
+                          };
+                        })
+                      }
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+              {fullscreenImages.urls.length > 1 && (
+                <div className="flex items-center justify-center gap-1.5 py-3 bg-black/90">
+                  {fullscreenImages.urls.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-label={`Imagem ${i + 1}`}
+                      className={`h-2 rounded-full transition-all ${
+                        i === fullscreenImages.index
+                          ? "w-6 bg-white"
+                          : "w-2 bg-white/40"
+                      }`}
+                      onClick={() =>
+                        setFullscreenImages((curr) =>
+                          curr ? { ...curr, index: i } : curr,
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

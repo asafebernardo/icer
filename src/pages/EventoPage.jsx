@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import ResponsivePageBgImage from "@/components/shared/ResponsivePageBgImage";
+import SafeImg from "@/components/shared/SafeImg";
 import AdminPageBgButton from "@/components/shared/AdminPageBgButton";
 import { usePageBackground } from "@/lib/usePageBackground";
 import EventoFormPanel from "@/components/agenda/EventoFormPanel";
@@ -144,9 +145,12 @@ export default function EventoPage() {
                   setEditing(true);
                 }
               }}
+              aria-label={editing ? "Fechar edição" : "Editar evento"}
             >
               <Pencil className="w-4 h-4" />
-              {editing ? "Fechar edição" : "Editar evento"}
+              <span className="hidden sm:inline">
+                {editing ? "Fechar edição" : "Editar evento"}
+              </span>
             </Button>
           )}
           <AdminPageBgButton
@@ -204,9 +208,10 @@ export default function EventoPage() {
                   size="sm"
                   className="gap-2"
                   onClick={() => setEditing(true)}
+                  aria-label="Editar evento"
                 >
                   <Pencil className="w-4 h-4" />
-                  Editar evento
+                  <span className="hidden sm:inline">Editar evento</span>
                 </Button>
               </div>
             ) : null}
@@ -265,7 +270,7 @@ export default function EventoPage() {
                 {evento.preletor && (
                   <div className="flex items-start gap-3">
                     {evento.preletor_avatar_url ? (
-                      <img
+                      <SafeImg
                         src={evento.preletor_avatar_url}
                         alt=""
                         className="w-9 h-9 rounded-full object-cover border border-border bg-muted shrink-0"

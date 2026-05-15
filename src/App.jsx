@@ -22,7 +22,9 @@ import Home from "./pages/Home";
 import { ThemeProvider } from "./lib/ThemeContext";
 import Recursos from "./pages/Recursos";
 import Agenda from "./pages/Agenda.jsx";
+import LinksUteis from "./pages/LinksUteis";
 import Dashboard from "./pages/Dashboard";
+import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
 import Eventos from "./pages/Eventos";
 import Postagens from "./pages/Postagens";
@@ -130,6 +132,7 @@ const AppRoutes = () => {
       <Route element={<Layout />}>
         <Route path="Home" element={<Home />} />
         <Route path="Recursos" element={<Recursos />} />
+        <Route path="LinksUteis" element={<LinksUteis />} />
         <Route path="Agenda" element={<Agenda />} />
 
         <Route
@@ -140,7 +143,14 @@ const AppRoutes = () => {
             </PrivateRoute>
           }
         />
-        <Route path="Admin" element={<Navigate to="/Dashboard" replace />} />
+        <Route
+          path="Admin"
+          element={
+            <PrivateRoute>
+              <Admin />
+            </PrivateRoute>
+          }
+        />
         <Route path="Evento/:id" element={<EventoPage />} />
         <Route path="Eventos" element={<Eventos />} />
         <Route path="Postagens" element={<Postagens />} />

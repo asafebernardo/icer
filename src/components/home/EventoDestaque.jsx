@@ -5,6 +5,7 @@ import { format, parseISO, isFuture } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar, Clock, MapPin, ArrowRight, Star } from "lucide-react";
 import { motion } from "framer-motion";
+import SafeImg from "@/components/shared/SafeImg";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import {
@@ -125,7 +126,7 @@ export default function EventoDestaque() {
               {/* CTA */}
               <div className="shrink-0 flex items-center gap-4">
                 {destaque.preletor_avatar_url ? (
-                  <img
+                  <SafeImg
                     src={destaque.preletor_avatar_url}
                     alt=""
                     className="h-14 w-14 rounded-full object-cover border border-border bg-muted shadow-sm"

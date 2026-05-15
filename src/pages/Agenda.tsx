@@ -29,6 +29,7 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import MonthlyCalendar from "../components/agenda/MonthlyCalendar";
 import WeeklyCalendar from "../components/agenda/WeeklyCalendar";
+import AgendaMensalMobile from "@/components/agenda/mobile-monthly/AgendaMensalMobile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { listEventosMerged } from "@/lib/eventosQuery";
@@ -125,6 +126,13 @@ export default function Agenda() {
 
       <section className="py-10 lg:py-14">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Mobile-only: agenda mensal minimalista */}
+          <div className="sm:hidden">
+            <AgendaMensalMobile events={eventos} />
+          </div>
+
+          {/* Desktop / tablet: interface existente */}
+          <div className="hidden sm:block">
           <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
             <div className="flex bg-muted rounded-xl p-1 gap-1 w-fit">
               <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-background shadow text-foreground">
@@ -242,6 +250,7 @@ export default function Agenda() {
               onEventClick={handleEventClick}
             />
           )}
+          </div>
         </div>
       </section>
     </div>

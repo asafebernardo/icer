@@ -28,6 +28,7 @@ import {
   categoriaIconComponent,
 } from "./materiaisConfig";
 import { MaterialForm } from "./MaterialForm";
+import SafeImg from "@/components/shared/SafeImg";
 
 export default function MateriaisTab({
   perm,
@@ -109,8 +110,10 @@ export default function MateriaisTab({
               setShowForm(true);
               setEditingMaterial(null);
             }}
+            aria-label="Novo material"
           >
-            <Plus className="w-4 h-4" /> Novo Material
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Novo Material</span>
           </Button>
         </div>
       ) : null}
@@ -214,7 +217,7 @@ export default function MateriaisTab({
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors overflow-hidden shrink-0">
                     {material.imagem_url ? (
-                      <img
+                      <SafeImg
                         src={material.imagem_url}
                         alt=""
                         className="w-full h-full object-cover"
@@ -260,8 +263,10 @@ export default function MateriaisTab({
                         size="sm"
                         className="gap-1 text-xs"
                         onClick={() => setEditingMaterial(material)}
+                        aria-label="Editar"
                       >
-                        <Pencil className="w-3 h-3" /> Editar
+                        <Pencil className="w-3 h-3" />
+                        <span className="hidden sm:inline">Editar</span>
                       </Button>
                     ) : null}
                     {perm.delete ? (

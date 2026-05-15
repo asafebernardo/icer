@@ -21,6 +21,7 @@ import {
 } from "./materiaisConfig";
 import { MaterialIconPicker } from "./MaterialIconPicker";
 import MaterialCategoriasManager from "./MaterialCategoriasManager";
+import SafeImg from "@/components/shared/SafeImg";
 
 export function MaterialForm({ material, onSave, onCancel, inDialog }) {
   const [siteCfgTick, setSiteCfgTick] = useState(0);
@@ -288,7 +289,7 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
         </label>
         {form.imagem_url ? (
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <img
+            <SafeImg
               src={form.imagem_url}
               alt=""
               className="h-16 rounded-lg object-cover border border-border"

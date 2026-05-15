@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -18,6 +19,14 @@ import {
   LogOut,
   ImagePlus,
   Trash2,
+  Settings,
+  Users,
+  Globe,
+  FileText,
+  ShieldAlert,
+  ScrollText,
+  ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 
@@ -29,11 +38,17 @@ import {
 import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
+import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { useAuth } from "@/lib/AuthContext";
 import SiteLogoMark, {
   useSiteLogoUrl,
 } from "@/components/layout/SiteLogoMark";
 import UserAvatar from "@/components/shared/UserAvatar";
+import AdminNavLinks from "@/components/admin/AdminNavLinks";
+import {
+  DEFAULT_EXTRA_ADMIN_NAV_ITEMS,
+  getAdminNavGroups,
+} from "@/lib/adminNavConfig";
 
 // Menus base (sempre visíveis)
 const BASE_LINKS = [
@@ -41,6 +56,7 @@ const BASE_LINKS = [
   { label: "Postagens", path: "/Postagens" },
   { label: "Recursos", path: "/Recursos" },
   { label: "Agenda", path: "/Agenda" },
+  { label: "Eventos", path: "/Eventos" },
 ];
 
 export default function Navbar() {
@@ -50,16 +66,54 @@ export default function Navbar() {
   const { navigateToLogin } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const logoInputRef = useRef(null);
+  const setThemeMode = (next) => {
+    const isDark = theme === "dark";
+    if (next === "dark" && !isDark) toggle();
+    if (next === "light" && isDark) toggle();
+  };
 
   const isLoggedIn = !!sessionUser;
   const user = sessionUser;
   const canEditLogo = canMenuAction(sessionUser, MENU.HOME, "edit");
   const logoUrl = useSiteLogoUrl();
-  const dashboardLinkLabel = isAdminUser(sessionUser) ? "Configurações" : "Minha área";
+  const isAdmin = isAdminUser(sessionUser);
+  const accountAreaPath = isAdmin ? "/Admin" : "/Dashboard";
+  const accountAreaLabel = isAdmin ? "Painel admin" : "Minha área";
+
+  const adminNavGroups = useMemo(
+    () => getAdminNavGroups(DEFAULT_EXTRA_ADMIN_NAV_ITEMS),
+    [],
+  );
+  const adminContaGroup = useMemo(
+    () => adminNavGroups.find((g) => g.id === "conta") ?? null,
+    [adminNavGroups],
+  );
+  const adminAdministracaoGroup = useMemo(
+    () => adminNavGroups.find((g) => g.id === "administracao") ?? null,
+    [adminNavGroups],
+  );
+  const adminMenuIcons = useMemo(
+    () => ({
+      profile: Settings,
+      members: Users,
+      site: Globe,
+      "login-blocks": ShieldAlert,
+      "audit-log": ScrollText,
+      "2fa": ShieldCheck,
+      content: FileText,
+    }),
+    [],
+  );
+  const canUseAdminTabs =
+    isAdmin &&
+    isServerAuthEnabled() &&
+    sessionUser?._authSource === "server";
+
+  const adminTabHref = (id) => (id === "profile" ? "/Admin" : `/Admin?tab=${id}`);
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/75 backdrop-blur-xl backdrop-saturate-150 shadow-nav transition-colors duration-300 supports-[backdrop-filter]:bg-background/65"
+      className="fixed top-0 left-0 right-0 z-50 border-b border-border/60 bg-background/92 backdrop-blur-xl backdrop-saturate-150 shadow-nav transition-colors duration-300 supports-[backdrop-filter]:bg-background/82"
       aria-label="Navegação principal"
     >
       <div className="container-page">
@@ -154,7 +208,7 @@ export default function Navbar() {
                   className={`nav-link-pill ${
                     active
                       ? "bg-primary text-primary-foreground shadow-soft"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
                   {link.label}
@@ -197,17 +251,33 @@ export default function Navbar() {
                       </span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link to="/Dashboard" className="flex items-center gap-2">
-                        <UserAvatar user={user} className="h-7 w-7" />
-                        <span>{dashboardLinkLabel}</span>
-                      </Link>
-                    </DropdownMenuItem>
+                  <DropdownMenuContent align="end" className="min-w-[13.5rem]">
+                    <DropdownMenuLabel className="truncate font-normal text-foreground">
+                      {user?.full_name || user?.email}
+                    </DropdownMenuLabel>
+                    {isAdmin ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <AdminNavLinks
+                          groups={adminNavGroups}
+                          canUseAdminTabs={canUseAdminTabs}
+                          icons={adminMenuIcons}
+                          layout="dropdown"
+                          getHref={adminTabHref}
+                        />
+                      </>
+                    ) : (
+                      <DropdownMenuItem asChild>
+                        <Link to={accountAreaPath} className="flex items-center gap-2">
+                          <UserAvatar user={user} className="h-7 w-7" />
+                          <span>{accountAreaLabel}</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => authLogout()}
-                      className="flex items-center gap-2 text-destructive cursor-pointer"
+                      className="flex cursor-pointer items-center gap-2 text-destructive"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Sair</span>
@@ -246,69 +316,160 @@ export default function Navbar() {
                 </SheetTrigger>
                 <SheetContent
                   side="right"
-                  className="w-[min(100vw-2rem,20rem)] pt-12 sm:pt-14 border-l border-border/60 bg-background/98 backdrop-blur-md"
+                  className="w-[min(100vw-2rem,20rem)] border-l border-border/70 bg-background/100 supports-[backdrop-filter]:bg-background/95 backdrop-blur-md p-0 overflow-y-auto overflow-x-hidden"
                 >
-                  <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                    Navegação
-                  </p>
-                  <nav className="flex flex-col gap-1" aria-label="Secções">
-                    {BASE_LINKS.map((link) => {
-                      const active = location.pathname === link.path;
-                      return (
-                        <Link
-                          key={link.path}
-                          to={link.path}
-                          onClick={() => setOpen(false)}
-                          aria-current={active ? "page" : undefined}
-                          className={`min-h-[48px] flex items-center px-4 py-3 text-[15px] font-medium rounded-xl transition-all duration-200 ${
-                            active
-                              ? "bg-primary text-primary-foreground shadow-soft"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+                  <div className="pt-12 sm:pt-14">
+                    <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                      Navegação
+                    </p>
+                    <div className="px-4 pb-2">
+                      <div className="rounded-xl border border-border/70 bg-card/70 supports-[backdrop-filter]:bg-card/55 backdrop-blur-md p-1 flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setThemeMode("light")}
+                          className={`h-10 flex-1 rounded-lg justify-center gap-2 ${
+                            theme !== "dark"
+                              ? "bg-background shadow-soft text-foreground"
+                              : "text-muted-foreground hover:text-foreground"
                           }`}
+                          aria-pressed={theme !== "dark"}
+                          aria-label="Ativar tema claro"
                         >
-                          {link.label}
-                        </Link>
-                      );
-                    })}
-                    <div className="border-t border-border mt-2 pt-2">
-                      {isLoggedIn ? (
-                        <div>
-                          <p className="px-4 py-1 text-xs text-muted-foreground truncate">
-                            {user?.full_name || user?.email}
-                          </p>
+                          <Sun className="w-4 h-4" />
+                          <span>Tema claro</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setThemeMode("dark")}
+                          className={`h-10 flex-1 rounded-lg justify-center gap-2 ${
+                            theme === "dark"
+                              ? "bg-background shadow-soft text-foreground"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                          aria-pressed={theme === "dark"}
+                          aria-label="Ativar tema escuro"
+                        >
+                          <Moon className="w-4 h-4" />
+                          <span>Tema escuro</span>
+                        </Button>
+                      </div>
+                    </div>
+                    <nav className="flex flex-col gap-1 overflow-x-hidden" aria-label="Secções">
+                      {BASE_LINKS.map((link) => {
+                        const active = location.pathname === link.path;
+                        return (
                           <Link
-                            to="/Dashboard"
+                            key={link.path}
+                            to={link.path}
                             onClick={() => setOpen(false)}
-                            className="w-full min-h-[48px] flex items-center gap-2 px-4 py-3 text-[15px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                            aria-current={active ? "page" : undefined}
+                            className={`min-h-[44px] flex items-center px-4 py-2.5 text-[14px] font-medium rounded-xl transition-all duration-200 ${
+                              active
+                                ? "bg-primary text-primary-foreground shadow-soft"
+                                : "text-foreground/80 hover:text-foreground hover:bg-muted/50"
+                            }`}
                           >
-                            <UserAvatar user={user} className="h-8 w-8" />
-                            {dashboardLinkLabel}
+                            {link.label}
                           </Link>
+                        );
+                      })}
+                      <div className="mt-2 border-t border-border pt-2">
+                        {isLoggedIn ? (
+                          <div className="min-w-0">
+                            <div className="px-4 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <UserAvatar user={user} className="h-11 w-11 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="truncate text-[14px] font-semibold text-foreground leading-tight">
+                                    {user?.full_name || "Conta"}
+                                  </p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {user?.email}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            {isAdmin ? (
+                              <div className="px-2 pb-2 min-w-0 flex flex-col gap-2">
+                                {adminContaGroup ? (
+                                  <details className="group rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
+                                    <summary className="list-none cursor-pointer select-none flex min-h-[44px] items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-foreground border-b border-border/60 [&::-webkit-details-marker]:hidden">
+                                      <span>Conta</span>
+                                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+                                    </summary>
+                                    <div className="px-2 py-2 max-h-[40vh] overflow-y-auto overflow-x-hidden">
+                                      <AdminNavLinks
+                                        groups={[adminContaGroup]}
+                                        canUseAdminTabs={canUseAdminTabs}
+                                        icons={adminMenuIcons}
+                                        layout="sheet"
+                                        hideGroupTitles
+                                        getHref={adminTabHref}
+                                        onTabPick={() => setOpen(false)}
+                                      />
+                                    </div>
+                                  </details>
+                                ) : null}
+                                {adminAdministracaoGroup ? (
+                                  <details className="group rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
+                                    <summary className="list-none cursor-pointer select-none flex min-h-[44px] items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-foreground border-b border-border/60 [&::-webkit-details-marker]:hidden">
+                                      <span>Administração</span>
+                                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+                                    </summary>
+                                    <div className="px-2 py-2 max-h-[40vh] overflow-y-auto overflow-x-hidden">
+                                      <AdminNavLinks
+                                        groups={[adminAdministracaoGroup]}
+                                        canUseAdminTabs={canUseAdminTabs}
+                                        icons={adminMenuIcons}
+                                        layout="sheet"
+                                        hideGroupTitles
+                                        getHref={adminTabHref}
+                                        onTabPick={() => setOpen(false)}
+                                      />
+                                    </div>
+                                  </details>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <Link
+                                to={accountAreaPath}
+                                onClick={() => setOpen(false)}
+                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-muted-foreground hover:bg-muted/80 hover:text-foreground min-w-0"
+                              >
+                                <UserAvatar user={user} className="h-8 w-8 shrink-0" />
+                                <span className="truncate">{accountAreaLabel}</span>
+                              </Link>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpen(false);
+                                authLogout();
+                              }}
+                              className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-destructive hover:bg-muted/80 min-w-0"
+                            >
+                              <LogOut className="w-4 h-4 shrink-0" /> <span className="truncate">Sair</span>
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             type="button"
                             onClick={() => {
                               setOpen(false);
-                              authLogout();
+                              navigateToLogin();
                             }}
-                            className="w-full min-h-[48px] flex items-center gap-2 px-4 py-3 text-[15px] font-medium rounded-xl text-destructive hover:bg-muted/80"
+                            className="w-full min-h-[44px] flex items-center gap-2 px-4 py-2.5 text-[14px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80 min-w-0"
                           >
-                            <LogOut className="w-4 h-4" /> Sair
+                            <User className="w-4 h-4 shrink-0" /> <span className="truncate">Entrar</span>
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpen(false);
-                            navigateToLogin();
-                          }}
-                          className="w-full min-h-[48px] flex items-center gap-2 px-4 py-3 text-[15px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                        >
-                          <User className="w-4 h-4" /> Entrar
-                        </button>
-                      )}
-                    </div>
-                  </nav>
+                        )}
+                      </div>
+                    </nav>
+                  </div>
                 </SheetContent>
               </Sheet>
             </div>

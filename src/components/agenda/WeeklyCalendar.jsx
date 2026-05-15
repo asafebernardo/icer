@@ -9,6 +9,7 @@ import {
   periodKeyFromDecimalHour,
 } from "@/lib/eventPeriod";
 import { cn } from "@/lib/utils";
+import SafeImg from "@/components/shared/SafeImg";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 
 const categoriaColorsBg = CATEGORY_BAR_CLASS;
@@ -117,7 +118,7 @@ function EventoCard({ evento, idx, onSelect, periodKey, showPreletorCards }) {
         {showPreletorCards ? (
           <div className="mt-1 flex items-center gap-1.5 min-w-0">
             {evento.preletor_avatar_url ? (
-              <img
+              <SafeImg
                 src={evento.preletor_avatar_url}
                 alt=""
                 className="h-4 w-4 rounded-full object-cover border border-border/70 shrink-0"

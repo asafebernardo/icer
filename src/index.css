@@ -144,6 +144,10 @@
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
+    /* Evita “salto” horizontal quando modais/Sheet removem a barra de rolagem (ex.: menu com painel admin). */
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) hsl(var(--background));
   }
 
   body {
@@ -156,10 +160,6 @@
   }
 
   /* Scrollbars com cores do tema (Firefox + Chrome/Edge/Safari). */
-  html {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) hsl(var(--background));
-  }
 
   *::-webkit-scrollbar {
     width: 10px;

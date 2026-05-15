@@ -16,13 +16,16 @@ export default function AdminActiveSessionsFab() {
   const [open, setOpen] = useState(false);
   const [kickingUser, setKickingUser] = useState({});
 
-  const onDashboard =
-    location.pathname === "/Dashboard" || location.pathname.endsWith("/Dashboard");
+  const onAdminShell =
+    location.pathname === "/Dashboard" ||
+    location.pathname.endsWith("/Dashboard") ||
+    location.pathname === "/Admin" ||
+    location.pathname.endsWith("/Admin");
   const showFab =
     isServerAuthEnabled() &&
     user?._authSource === "server" &&
     isAdminUser(user) &&
-    !onDashboard;
+    !onAdminShell;
 
   const {
     data: activeSessions = [],

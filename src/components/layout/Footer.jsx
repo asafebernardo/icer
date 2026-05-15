@@ -113,6 +113,7 @@ export default function Footer() {
   const [showSocialCol, setShowSocialCol] = useState(() =>
     hasAnyResolvedSocialLinks(getSiteConfig()),
   );
+  const [homeViewsSummary, setHomeViewsSummary] = useState(null);
 
   useEffect(() => {
     const saved = getSiteConfig();
@@ -124,6 +125,25 @@ export default function Footer() {
     sync();
     window.addEventListener("icer-site-config", sync);
     return () => window.removeEventListener("icer-site-config", sync);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/metrics/home-views-summary", {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!cancelled) setHomeViewsSummary(data);
+      } catch {
+        // silencioso no footer se a métrica falhar
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const update = (key, value) => {
@@ -270,6 +290,18 @@ export default function Footer() {
         </div>
 
         <div className="mt-14 pt-10 border-t border-border text-center">
+          {homeViewsSummary && (
+            <p className="text-xs text-muted-foreground mb-2">
+              Acessos à Home:{" "}
+              <span className="font-medium text-foreground">
+                {Number(homeViewsSummary.total_views || 0).toLocaleString("pt-BR")}
+              </span>
+              {" · IPs únicos: "}
+              <span className="font-medium text-foreground">
+                {Number(homeViewsSummary.unique_ips || 0).toLocaleString("pt-BR")}
+              </span>
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} ICER Chapecó. Todos os direitos
             reservados.
