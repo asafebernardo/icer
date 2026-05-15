@@ -238,7 +238,7 @@ export function createApplication(db, options = {}) {
     const schema = z.object({
       full_name: z.string().min(1).optional(),
       email: z.string().email().optional(),
-      current_password: z.string().min(1),
+      current_password: z.string().min(1).optional(),
       new_password: z.string().min(10).optional(),
     });
     const parsed = schema.safeParse(req.body);
@@ -254,11 +254,6 @@ export function createApplication(db, options = {}) {
       res.status(404).json({ message: "not_found" });
       return;
     }
-    const pwOk = await verifyPassword(row.password_hash, parsed.data.current_password);
-    if (!pwOk) {
-      res.status(401).json({ message: "invalid_credentials" });
-      return;
-    }
     const nextEmail =
       parsed.data.email != null ? parsed.data.email.toLowerCase().trim() : undefined;
     if (nextEmail && nextEmail !== row.email) {
@@ -268,6 +263,28 @@ export function createApplication(db, options = {}) {
         return;
       }
     }
+
+    const wantsPasswordChange = !!parsed.data.new_password;
+    const wantsEmailChange = !!(nextEmail && nextEmail !== row.email);
+    const requiresPassword =
+      wantsPasswordChange || wantsEmailChange;
+
+    if (requiresPassword) {
+      if (!row.password_hash) {
+        res.status(409).json({ message: "password_not_set" });
+        return;
+      }
+      if (!parsed.data.current_password) {
+        res.status(400).json({ message: "current_password_required" });
+        return;
+      }
+      const pwOk = await verifyPassword(row.password_hash, parsed.data.current_password);
+      if (!pwOk) {
+        res.status(401).json({ message: "invalid_credentials" });
+        return;
+      }
+    }
+
     let password_hash;
     if (parsed.data.new_password) {
       password_hash = await hashPassword(parsed.data.new_password);
