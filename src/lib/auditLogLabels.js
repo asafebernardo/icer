@@ -5,6 +5,7 @@ export const ACTION_LABELS = {
   "user.profile_update": "Alteração de perfil",
   "admin.user.create": "Conta criada (admin)",
   "admin.user.update": "Conta atualizada (admin)",
+  "admin.user.delete": "Conta eliminada (admin)",
   "file.upload": "Envio de ficheiro",
   "data.menu_permissions.update": "Permissões de menus (admin)",
   "data.posts.create": "Postagem criada",
