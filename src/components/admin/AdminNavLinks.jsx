@@ -18,6 +18,13 @@ function NavLabel({ item }) {
         >
           Em breve
         </Badge>
+      ) : item.badge ? (
+        <Badge
+          variant="secondary"
+          className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+        >
+          {item.badge}
+        </Badge>
       ) : null}
     </span>
   );
@@ -30,7 +37,7 @@ function itemDisabled(item, canUseAdminTabs) {
 /**
  * Secções do painel admin (Conta + Administração), para Sheet ou dropdown.
  * @param {{
- *   groups: Array<{ id: string; label: string; items: Array<{ id: string; label: string; requiresServerAuth?: boolean; comingSoon?: boolean }> }>;
+ *   groups: Array<{ id: string; label: string; items: Array<{ id: string; label: string; requiresServerAuth?: boolean; comingSoon?: boolean; badge?: string }> }>;
  *   activeTab?: string | null;
  *   canUseAdminTabs: boolean;
  *   icons?: Record<string, React.ComponentType<{ className?: string }>>;

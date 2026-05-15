@@ -30,6 +30,7 @@ import {
 import { MaterialForm } from "./MaterialForm";
 import SafeImg from "@/components/shared/SafeImg";
 import LinksUteisSection from "@/components/useful-links/LinksUteisSection";
+import { toast } from "sonner";
 
 export default function MateriaisTab({ perm }) {
   const queryClient = useQueryClient();
@@ -61,6 +62,7 @@ export default function MateriaisTab({ perm }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materiais"] });
       setShowForm(false);
+      toast.success("Material criado com sucesso.");
     },
   });
 
@@ -69,6 +71,7 @@ export default function MateriaisTab({ perm }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materiais"] });
       setEditingMaterial(null);
+      toast.success("Material salvo com sucesso.");
     },
   });
 

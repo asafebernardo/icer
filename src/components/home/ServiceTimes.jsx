@@ -153,16 +153,21 @@ export default function ServiceTimes() {
   const fileInputRef = useRef(null);
 
   const persist = useCallback(
-    (nextCards) => {
+    (nextCards, successMessage) => {
       const patch = { [CONFIG_KEY]: { cards: nextCards } };
       if (canEditHome) {
         savePublicSiteConfigAdmin(patch)
           .then(() => refreshPublicSiteConfig())
+          .then(() => {
+            if (successMessage) toast.success(successMessage);
+          })
           .catch(() => {
             setSiteConfig(patch);
+            if (successMessage) toast.success(successMessage);
           });
       } else {
         setSiteConfig(patch);
+        if (successMessage) toast.success(successMessage);
       }
       setCards(nextCards);
     },
@@ -220,7 +225,7 @@ export default function ServiceTimes() {
         highlight: c.id === draft.id,
       }));
     }
-    persist(next);
+    persist(next, "Horário salvo com sucesso.");
     setEditOpen(false);
     setDraft(null);
     setIsNewCard(false);
@@ -237,7 +242,7 @@ export default function ServiceTimes() {
     if (!next.some((c) => c.highlight)) {
       adjusted = next.map((c, i) => ({ ...c, highlight: i === 0 }));
     }
-    persist(adjusted);
+    persist(adjusted, "Horário removido.");
     setEditOpen(false);
     setDraft(null);
     setIsNewCard(false);

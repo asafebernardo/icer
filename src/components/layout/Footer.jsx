@@ -22,6 +22,7 @@ import { hasAnyResolvedSocialLinks } from "@/lib/socialLinks";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const DEFAULT_CONFIG = {
   footerDescricao:
@@ -98,7 +99,7 @@ function EditableText({ value, onSave, className, multiline = false }) {
           setDraft(value);
           setEditing(true);
         }}
-        className="opacity-0 group-hover/editable:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+        className="opacity-100 transition-opacity p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 mt-0.5 sm:opacity-0 sm:group-hover/editable:opacity-100 focus-visible:opacity-100"
       >
         <Pencil className="w-2.5 h-2.5" />
       </button>
@@ -152,9 +153,14 @@ export default function Footer() {
     if (canEditHome) {
       savePublicSiteConfigAdmin({ [key]: value })
         .then(() => refreshPublicSiteConfig())
-        .catch(() => setSiteConfig({ [key]: value }));
+        .then(() => toast.success("Rodapé salvo com sucesso."))
+        .catch(() => {
+          setSiteConfig({ [key]: value });
+          toast.success("Rodapé salvo com sucesso.");
+        });
     } else {
       setSiteConfig({ [key]: value });
+      toast.success("Rodapé salvo com sucesso.");
     }
   };
 

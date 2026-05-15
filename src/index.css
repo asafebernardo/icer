@@ -144,7 +144,8 @@
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
-    /* Evita “salto” horizontal quando modais/Sheet removem a barra de rolagem (ex.: menu com painel admin). */
+    overflow-y: scroll;
+    /* Evita salto horizontal quando modais/Sheet removem a barra de rolagem. */
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) hsl(var(--background));
@@ -157,6 +158,20 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  html body[data-scroll-locked] {
+    --removed-body-scroll-bar-size: 0px !important;
+    margin-right: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  html .width-before-scroll-bar {
+    margin-right: 0 !important;
+  }
+
+  html .right-scroll-bar-position {
+    right: 0 !important;
   }
 
   /* Scrollbars com cores do tema (Firefox + Chrome/Edge/Safari). */

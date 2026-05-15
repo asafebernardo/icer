@@ -507,6 +507,10 @@ export default function EventoFormPanel({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["eventos"] });
+      toast({
+        title: evento ? "Evento salvo" : "Evento criado",
+        description: "As alterações foram salvas com sucesso.",
+      });
       if (typeof onSaved === "function") onSaved();
       else onCancel?.();
     },

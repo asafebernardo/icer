@@ -17,6 +17,7 @@ import {
   IMAGE_UPLOAD_RECOMMENDATION,
   uploadImageFile,
 } from "@/lib/uploadImage";
+import { toast } from "sonner";
 
 export default function ProfileSettings({ user: userProp }) {
   const { updateProfile } = useAuth();
@@ -91,7 +92,8 @@ export default function ProfileSettings({ user: userProp }) {
         newPassword: newPassword || undefined,
         ...(canAvatar ? { avatar_url: avatarUrl } : {}),
       });
-      setMessage("Alterações guardadas.");
+      setMessage("Alterações salvas.");
+      toast.success("Alterações salvas com sucesso.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");

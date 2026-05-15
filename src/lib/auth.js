@@ -64,13 +64,10 @@ async function loginWithServer(email, senha, opts = {}) {
   if (opts?.forceNewSession === true) {
     body.force_new_session = true;
   }
-  const r = await fetchJson("/auth/login", {
+  await fetchJson("/auth/login", {
     method: "POST",
     body,
   });
-  if (r && typeof r === "object" && r.message === "2fa_required") {
-    return { twoFactorRequired: true, login_token: r.login_token, expires_at: r.expires_at };
-  }
   const u = await fetchJson("/auth/me", { method: "GET" });
   const userData = {
     id: u.id,
@@ -79,31 +76,6 @@ async function loginWithServer(email, senha, opts = {}) {
     role: u.role,
     funcao: u.funcao ?? "",
     avatar_url: u.avatar_url ? String(u.avatar_url) : "",
-    totp_enabled: u.totp_enabled === true,
-    totp_grace_started_at: u.totp_grace_started_at || null,
-    _authSource: "server",
-  };
-  persistSessionUser(userData);
-  recordMemberLogin(userData);
-  return { twoFactorRequired: false };
-}
-
-export async function loginWithServer2FA(login_token, codeOrRecovery) {
-  const body =
-    codeOrRecovery && /^[0-9]{4,12}$/.test(String(codeOrRecovery).trim())
-      ? { login_token, code: String(codeOrRecovery).trim() }
-      : { login_token, recovery_code: String(codeOrRecovery || "").trim() };
-  await fetchJson("/auth/login-2fa", { method: "POST", body });
-  const u = await fetchJson("/auth/me", { method: "GET" });
-  const userData = {
-    id: u.id,
-    email: u.email,
-    full_name: u.full_name,
-    role: u.role,
-    funcao: u.funcao ?? "",
-    avatar_url: u.avatar_url ? String(u.avatar_url) : "",
-    totp_enabled: u.totp_enabled === true,
-    totp_grace_started_at: u.totp_grace_started_at || null,
     _authSource: "server",
   };
   persistSessionUser(userData);
@@ -159,16 +131,7 @@ export async function login(email, senha, opts = {}) {
   }
 
   try {
-    const r = await loginWithServer(email, senha, opts);
-    if (r?.twoFactorRequired) {
-      return {
-        ok: false,
-        message: "Código 2FA necessário.",
-        twoFactorRequired: true,
-        login_token: r.login_token,
-        expires_at: r.expires_at,
-      };
-    }
+    await loginWithServer(email, senha, opts);
     return { ok: true };
   } catch (e) {
     const status = /** @type {Error & { status?: number }} */ (e)?.status;
@@ -342,14 +305,6 @@ export async function updateUserProfile(fields) {
         full_name: u.full_name,
         role: u.role,
         avatar_url: u.avatar_url ? String(u.avatar_url) : "",
-        totp_enabled:
-          typeof u.totp_enabled === "boolean"
-            ? u.totp_enabled
-            : cur.totp_enabled,
-        totp_grace_started_at:
-          u.totp_grace_started_at !== undefined
-            ? u.totp_grace_started_at || null
-            : cur.totp_grace_started_at,
         _authSource: "server",
       };
       persistSessionUser(next);

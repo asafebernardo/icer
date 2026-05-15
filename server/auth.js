@@ -88,8 +88,6 @@ export async function getSessionUser(db, token) {
         role: 1,
         funcao: 1,
         avatar_url: 1,
-        totp_enabled: 1,
-        totp_grace_started_at: 1,
       },
     },
   );

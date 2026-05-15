@@ -17,6 +17,7 @@ import {
 } from "@/lib/siteConfig";
 import { LinkCardIcon } from "./LinkCardIcon";
 import { UsefulLinkForm } from "./UsefulLinkForm";
+import { toast } from "sonner";
 
 const linkCategoriaBg = {
   Bíblia:
@@ -50,28 +51,33 @@ export default function LinksUteisSection({ perm }) {
     return () => window.removeEventListener("icer-site-config", load);
   }, []);
 
-  const saveLinks = (newLinks) => {
+  const saveLinks = async (newLinks, successMessage) => {
     setLinks(newLinks);
     if (perm?.create || perm?.edit || perm?.delete) {
-      savePublicSiteConfigAdmin({ linksUteis: newLinks })
-        .then(() => refreshPublicSiteConfig())
-        .catch(() => setSiteConfig({ linksUteis: newLinks }));
+      try {
+        await savePublicSiteConfigAdmin({ linksUteis: newLinks });
+        await refreshPublicSiteConfig();
+      } catch {
+        setSiteConfig({ linksUteis: newLinks });
+      }
     } else {
       setSiteConfig({ linksUteis: newLinks });
     }
+    if (successMessage) toast.success(successMessage);
   };
 
-  const handleAdd = (data) => {
-    saveLinks([...links, { ...data, id: Date.now() }]);
+  const handleAdd = async (data) => {
+    await saveLinks([...links, { ...data, id: Date.now() }], "Link salvo com sucesso.");
     setShowForm(false);
   };
-  const handleEdit = (data) => {
-    saveLinks(
+  const handleEdit = async (data) => {
+    await saveLinks(
       links.map((l) => (l.id === editingLink.id ? { ...l, ...data } : l)),
+      "Link salvo com sucesso.",
     );
     setEditingLink(null);
   };
-  const handleDelete = (id) => saveLinks(links.filter((l) => l.id !== id));
+  const handleDelete = (id) => saveLinks(links.filter((l) => l.id !== id), "Link removido.");
 
   const allCats = [
     "Todos",
@@ -187,7 +193,7 @@ export default function LinksUteisSection({ perm }) {
                   Acessar <ExternalLink className="w-3.5 h-3.5" />
                 </a>
                 {(perm.edit || perm.delete) && (
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
                     {perm.edit ? (
                       <Button
                         variant="ghost"
