@@ -143,7 +143,7 @@ function ImageCarousel({ urls, intervalSec, showControls = true }) {
   if (!urls?.length) {
     return (
       <div className="aspect-video rounded-xl bg-muted flex items-center justify-center">
-        <Images className="w-12 h-12 text-muted-foreground/40" />
+        <Images className="w-12 h-12 text-muted-foreground/55" />
       </div>
     );
   }
@@ -247,7 +247,7 @@ function PostPreviewThumb({ post }) {
   }
   return (
     <div className="w-full h-full flex items-center justify-center bg-muted">
-      <BookOpen className="w-10 h-10 text-muted-foreground/40" />
+      <BookOpen className="w-10 h-10 text-muted-foreground/55" />
     </div>
   );
 }
@@ -443,6 +443,17 @@ function PostFormDialog({ open, onOpenChange, onSave, autorEmail, editingPost })
                     onChange={handleAddImages}
                   />
                 </label>
+                {imagens_urls.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive -mt-1"
+                    onClick={() => setImagensUrls([])}
+                  >
+                    Remover todas as imagens
+                  </Button>
+                ) : null}
               </div>
               {imagens_urls.length > 0 && (
                 <>
@@ -828,11 +839,11 @@ export default function Postagens() {
         pageKey="postagens"
         tag="Comunidade"
         title="Postagens"
-        description="Conteúdos da igreja"
+        description="Notícias, avisos e reflexões da comunidade para acompanhar a vida da igreja."
       />
 
       <section className="py-16 max-w-5xl mx-auto px-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-end mb-6">
           {canCreate ? (
             <Button
               onClick={() => {
@@ -844,9 +855,7 @@ export default function Postagens() {
               <Plus className="w-4 h-4" />
               Novo post
             </Button>
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end mb-8">

@@ -9,7 +9,7 @@ Este documento explica como correr o projeto no **computador local** e como **pu
 | Peça | Função |
 |------|--------|
 | **Pasta `dist/`** | Site React compilado (`npm run build`). O Nginx/OpenLiteSpeed/Apache serve estes ficheiros. |
-| **Node (`server/index.js`)** | API em `http://127.0.0.1:PORT` (ex.: 3001). Autenticação, dados em MongoDB, uploads privados. |
+| **Node (`server/index.js`)** | API em `http://127.0.0.1:PORT` (ex.: 3001). Autenticação, dados em MongoDB, ficheiros de media em disco (`server/uploads/`). |
 | **MongoDB** | Base configurada em `MONGODB_URI` / `MONGODB_DB_NAME` (Atlas ou instância própria). |
 | **Reverse proxy** | O domínio público encaminha `/api` para o Node; o resto é ficheiros estáticos ou `index.html` (SPA). |
 
@@ -84,7 +84,7 @@ Consulte também **`env.example`** na raiz do projeto.
 
 6. **HTTPS** no domínio público — necessário para cookies de sessão **Secure** em produção (o Express já usa `trust proxy`).
 
-7. **Permissões** — o utilizador do serviço Node precisa de **escrita** em `server/private_uploads/` (ficheiros enviados). O MongoDB gere os dados na instância remota ou local.
+7. **Permissões e uploads** — escrita na pasta de media (`server/uploads/` por defeito, ou `ICER_UPLOAD_DIR`). Ficheiros servidos em `/api/files/:id`; registos JSON no MongoDB. No Nginx/OpenLiteSpeed, `client_max_body_size` ≥ ao `ICER_UPLOAD_MAX_MB` (ex.: 80 MB).
 
 ---
 

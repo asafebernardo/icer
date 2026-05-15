@@ -2,19 +2,26 @@
  * Cor da barra do card de evento (independente da categoria quando não for "auto").
  */
 
+import {
+  CATEGORY_BAR_CLASS,
+  CATEGORY_ACCENT_HEX,
+  EVENT_BAR_PRESET_CLASS,
+  EVENT_BAR_PRESET_HEX,
+} from "@/lib/categoryAppearance";
+
 export const EVENT_CARD_COLOR_OPTIONS = [
   { value: "auto", label: "Igual à categoria" },
-  { value: "blue", label: "Azul", tailwind: "bg-blue-600" },
-  { value: "green", label: "Verde", tailwind: "bg-green-600" },
-  { value: "purple", label: "Roxo", tailwind: "bg-purple-600" },
-  { value: "pink", label: "Rosa", tailwind: "bg-pink-500" },
-  { value: "orange", label: "Laranja", tailwind: "bg-orange-500" },
-  { value: "yellow", label: "Amarelo", tailwind: "bg-yellow-500" },
-  { value: "red", label: "Vermelho", tailwind: "bg-red-600" },
-  { value: "indigo", label: "Índigo", tailwind: "bg-indigo-600" },
-  { value: "teal", label: "Teal", tailwind: "bg-teal-600" },
-  { value: "cyan", label: "Ciano", tailwind: "bg-cyan-600" },
-  { value: "slate", label: "Cinza", tailwind: "bg-slate-600" },
+  { value: "blue", label: "Azul", tailwind: EVENT_BAR_PRESET_CLASS.blue },
+  { value: "green", label: "Verde", tailwind: EVENT_BAR_PRESET_CLASS.green },
+  { value: "purple", label: "Roxo", tailwind: EVENT_BAR_PRESET_CLASS.purple },
+  { value: "pink", label: "Rosa", tailwind: EVENT_BAR_PRESET_CLASS.pink },
+  { value: "orange", label: "Laranja", tailwind: EVENT_BAR_PRESET_CLASS.orange },
+  { value: "yellow", label: "Amarelo", tailwind: EVENT_BAR_PRESET_CLASS.yellow },
+  { value: "red", label: "Vermelho", tailwind: EVENT_BAR_PRESET_CLASS.red },
+  { value: "indigo", label: "Índigo", tailwind: EVENT_BAR_PRESET_CLASS.indigo },
+  { value: "teal", label: "Teal", tailwind: EVENT_BAR_PRESET_CLASS.teal },
+  { value: "cyan", label: "Ciano", tailwind: EVENT_BAR_PRESET_CLASS.cyan },
+  { value: "slate", label: "Cinza", tailwind: EVENT_BAR_PRESET_CLASS.slate },
 ];
 
 const BAR_BY_PRESET = Object.fromEntries(
@@ -23,7 +30,7 @@ const BAR_BY_PRESET = Object.fromEntries(
 
 /**
  * @param {object} evento
- * @param {Record<string, string>} categoriaBg - mapa categoria -> classe Tailwind (ex.: Eventos)
+ * @param {Record<string, string>} categoriaBg — mapa categoria → classe (ex.: CATEGORY_BAR_CLASS)
  */
 export function eventCardBarClass(evento, categoriaBg) {
   const raw = evento?.cor_barra ?? evento?.cor_card;
@@ -33,31 +40,9 @@ export function eventCardBarClass(evento, categoriaBg) {
   return "bg-primary";
 }
 
-/** Hex aproximado (Tailwind 500/600) para degradês inline */
-const PRESET_HEX = {
-  blue: "#2563eb",
-  green: "#16a34a",
-  purple: "#9333ea",
-  pink: "#ec4899",
-  orange: "#ea580c",
-  yellow: "#ca8a04",
-  red: "#dc2626",
-  indigo: "#4f46e5",
-  teal: "#0d9488",
-  cyan: "#0891b2",
-  slate: "#475569",
-};
+const PRESET_HEX = { ...EVENT_BAR_PRESET_HEX };
 
-const CATEGORIA_HEX = {
-  culto: "#2563eb",
-  estudo: "#16a34a",
-  jovens: "#9333ea",
-  mulheres: "#ec4899",
-  homens: "#ea580c",
-  criancas: "#ca8a04",
-  especial: "#dc2626",
-  conferencia: "#4f46e5",
-};
+const CATEGORIA_HEX = { ...CATEGORY_ACCENT_HEX };
 
 /**
  * Cor principal do evento em hex (degradês, overlays).
@@ -68,5 +53,5 @@ export function eventCardAccentHex(evento) {
   if (raw && raw !== "auto" && PRESET_HEX[raw]) return PRESET_HEX[raw];
   const cat = evento?.categoria;
   if (cat && CATEGORIA_HEX[cat]) return CATEGORIA_HEX[cat];
-  return "#6366f1";
+  return CATEGORY_ACCENT_HEX.culto;
 }

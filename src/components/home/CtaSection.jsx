@@ -10,7 +10,7 @@ export default function CtaSection() {
         <div className="absolute top-0 left-0 w-96 h-96 bg-accent rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent rounded-full translate-x-1/2 translate-y-1/2 blur-3xl" />
       </div>
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+      <div className="max-w-3xl w-full min-w-0 mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -20,7 +20,7 @@ export default function CtaSection() {
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-primary-foreground mb-6">
             Faça parte da nossa família
           </h2>
-          <p className="text-primary-foreground/70 text-lg leading-relaxed mb-10 max-w-xl mx-auto">
+          <p className="text-primary-foreground/88 text-lg leading-relaxed mb-10 max-w-xl mx-auto">
             Estamos aqui para acolher você. Entre em contato ou confira nossa
             agenda de eventos.
           </p>

@@ -1,9 +1,9 @@
 import { api } from "@/api/client";
-import { getUser, isServerAuthEnabled } from "@/lib/auth";
+import { isServerAuthEnabled } from "@/lib/auth";
 
 /**
- * Com `VITE_LOCAL_IMAGE_UPLOAD=true` no .env, as imagens não são enviadas ao servidor:
- * usam-se data URLs (base64), úteis para testes locais sem API de upload.
+ * Com `VITE_USE_SERVER_AUTH=true`, imagens e documentos vão para `POST /api/files` (disco no servidor).
+ * Com `VITE_LOCAL_IMAGE_UPLOAD=true`, as imagens ficam em data URL (base64) só no browser — útil para testes sem Mongo/API.
  */
 export function isLocalImageUploadEnabled() {
   return import.meta.env.VITE_LOCAL_IMAGE_UPLOAD === "true";
@@ -174,18 +174,18 @@ async function uploadPrivateServerFile(file) {
   return { file_url: url };
 }
 
-function shouldUsePrivateServerUpload() {
-  const u = getUser();
-  return isServerAuthEnabled() && u?._authSource === "server";
+/** Com API Node + auth no servidor, os ficheiros vão para disco (`server/uploads`) e só metadados no MongoDB. */
+function shouldUploadToServerDisk() {
+  return isServerAuthEnabled();
 }
 
 /**
- * PDF e outros ficheiros (ex.: Material) — mesmo armazenamento privado em modo servidor.
+ * PDF e outros ficheiros (ex.: Material) — disco no servidor quando a API ICER está ativa.
  * @param {File | Blob} file
  */
 export async function uploadIntegrationFile(file) {
   if (!file) throw new Error("Sem ficheiro");
-  if (shouldUsePrivateServerUpload()) {
+  if (shouldUploadToServerDisk()) {
     return uploadPrivateServerFile(file);
   }
   const res = await api.integrations.Core.UploadFile({ file });
@@ -206,7 +206,7 @@ export async function uploadImageFile(file) {
     return { file_url };
   }
   const fileToSend = await imageFileToCompressedFile(file).catch(() => file);
-  if (shouldUsePrivateServerUpload()) {
+  if (shouldUploadToServerDisk()) {
     return uploadPrivateServerFile(fileToSend);
   }
   const res = await api.integrations.Core.UploadFile({ file: fileToSend });
@@ -234,7 +234,7 @@ export async function imageFileToStorableUrl(file) {
   }
   try {
     const fileToSend = await imageFileToCompressedFile(file).catch(() => file);
-    if (shouldUsePrivateServerUpload()) {
+    if (shouldUploadToServerDisk()) {
       return (await uploadPrivateServerFile(fileToSend)).file_url;
     }
     const res = await api.integrations.Core.UploadFile({ file: fileToSend });

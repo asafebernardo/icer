@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Church,
   MapPin,
   Phone,
   Mail,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import SiteLogoMark from "@/components/layout/SiteLogoMark";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
 
@@ -45,7 +45,7 @@ function EditableText({ value, onSave, className, multiline = false }) {
       <span className="inline-flex flex-col gap-1 w-full">
         {multiline ? (
           <textarea
-            className="bg-primary-foreground/10 border border-primary-foreground/30 text-primary-foreground rounded px-2 py-1 text-sm w-full resize-none focus:outline-none"
+            className="bg-muted border border-border text-foreground rounded px-2 py-1 text-sm w-full resize-none focus:outline-none focus:ring-2 focus:ring-ring/50"
             rows={2}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -53,7 +53,7 @@ function EditableText({ value, onSave, className, multiline = false }) {
           />
         ) : (
           <input
-            className="bg-primary-foreground/10 border border-primary-foreground/30 text-primary-foreground rounded px-2 py-1 text-sm w-full focus:outline-none"
+            className="bg-muted border border-border text-foreground rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-ring/50"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus
@@ -61,14 +61,16 @@ function EditableText({ value, onSave, className, multiline = false }) {
         )}
         <span className="flex gap-1">
           <button
+            type="button"
             onClick={save}
-            className="p-0.5 rounded bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
+            className="p-0.5 rounded bg-muted hover:bg-muted/80 text-foreground border border-border"
           >
             <Check className="w-3 h-3" />
           </button>
           <button
+            type="button"
             onClick={cancel}
-            className="p-0.5 rounded bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground/70"
+            className="p-0.5 rounded bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
           >
             <X className="w-3 h-3" />
           </button>
@@ -83,11 +85,12 @@ function EditableText({ value, onSave, className, multiline = false }) {
     >
       <span>{value}</span>
       <button
+        type="button"
         onClick={() => {
           setDraft(value);
           setEditing(true);
         }}
-        className="opacity-0 group-hover/editable:opacity-100 transition-opacity p-0.5 rounded hover:bg-primary-foreground/20 text-primary-foreground/60 hover:text-primary-foreground shrink-0 mt-0.5"
+        className="opacity-0 group-hover/editable:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
       >
         <Pencil className="w-2.5 h-2.5" />
       </button>
@@ -129,36 +132,41 @@ export default function Footer() {
   };
 
   return (
-    <footer className="relative bg-primary text-primary-foreground border-t border-primary-foreground/10">
+    <footer className="relative bg-background text-foreground border-t border-border overflow-hidden">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent"
+        className="pointer-events-none absolute -top-24 right-0 w-96 h-96 rounded-full bg-accent/[0.07] blur-3xl dark:bg-accent/[0.05]"
         aria-hidden
       />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
+      <div className="container-page relative py-14 lg:py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-14">
           {/* Brand */}
           <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-soft shrink-0">
-                <Church className="w-5 h-5 text-accent-foreground" />
-              </div>
+            <Link
+              to="/Home"
+              className="flex items-start gap-3 group rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <SiteLogoMark
+                imgClassName="h-9 w-auto max-h-10 max-w-[120px] sm:max-w-[200px] object-contain object-left shrink-0 rounded-md group-hover:opacity-90 transition-opacity"
+                fallbackClassName="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/85 flex items-center justify-center shrink-0 shadow-soft ring-1 ring-primary/15 group-hover:scale-[1.02] transition-transform duration-200"
+                iconClassName="w-4 h-4 text-primary-foreground"
+              />
               <div className="min-w-0 pt-0.5">
                 <span className="font-display text-lg font-semibold tracking-tight block">
                   ICER Chapecó
                 </span>
-                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary-foreground/55 block mt-0.5">
+                <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground block mt-0.5">
                   Casa de Oração
                 </span>
               </div>
-            </div>
-            <p className="text-[15px] text-primary-foreground/75 leading-relaxed max-w-sm">
+            </Link>
+            <p className="text-[15px] text-muted-foreground leading-relaxed max-w-sm">
               <Txt field="footerDescricao" multiline />
             </p>
           </div>
 
           {/* Links */}
           <div className="space-y-4">
-            <h4 className="font-semibold text-xs tracking-[0.14em] uppercase text-primary-foreground/45">
+            <h4 className="font-display font-semibold text-xs tracking-[0.16em] uppercase text-muted-foreground">
               Navegação
             </h4>
             <div className="flex flex-col gap-1">
@@ -171,7 +179,7 @@ export default function Footer() {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className="inline-flex items-center min-h-[44px] text-[15px] text-primary-foreground/75 hover:text-primary-foreground transition-colors rounded-lg py-2 -mx-1 px-2 hover:bg-primary-foreground/8"
+                  className="inline-flex items-center min-h-[44px] text-[15px] text-foreground/90 hover:text-foreground transition-all duration-200 rounded-lg py-2 -mx-1 px-2 hover:bg-muted/80"
                 >
                   {link.label}
                 </Link>
@@ -181,20 +189,20 @@ export default function Footer() {
 
           {/* Contact */}
           <div className="space-y-4">
-            <h4 className="font-semibold text-xs tracking-[0.14em] uppercase text-primary-foreground/45">
+            <h4 className="font-display font-semibold text-xs tracking-[0.16em] uppercase text-muted-foreground">
               Contato
             </h4>
             <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-2.5 text-sm text-primary-foreground/70">
-                <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-foreground/70" />
                 <Txt field="footerEndereco" />
               </div>
-              <div className="flex items-center gap-2.5 text-sm text-primary-foreground/70">
-                <Phone className="w-4 h-4 shrink-0" />
+              <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                <Phone className="w-4 h-4 shrink-0 text-foreground/70" />
                 <Txt field="footerTelefone" />
               </div>
-              <div className="flex items-center gap-2.5 text-sm text-primary-foreground/70">
-                <Mail className="w-4 h-4 shrink-0" />
+              <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                <Mail className="w-4 h-4 shrink-0 text-foreground/70" />
                 <Txt field="footerEmail" />
               </div>
             </div>
@@ -202,23 +210,23 @@ export default function Footer() {
 
           {/* Hours */}
           <div className="space-y-4">
-            <h4 className="font-semibold text-xs tracking-[0.14em] uppercase text-primary-foreground/45">
+            <h4 className="font-display font-semibold text-xs tracking-[0.16em] uppercase text-muted-foreground">
               Horários
             </h4>
             <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-2.5 text-sm text-primary-foreground/70">
-                <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                <Clock className="w-4 h-4 mt-0.5 shrink-0 text-foreground/70" />
                 <div>
-                  <p className="font-medium text-primary-foreground">
+                  <p className="font-medium text-foreground">
                     <Txt field="footerHorario1Dia" />
                   </p>
                   <Txt field="footerHorario1Desc" />
                 </div>
               </div>
-              <div className="flex items-start gap-2.5 text-sm text-primary-foreground/70">
-                <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                <Clock className="w-4 h-4 mt-0.5 shrink-0 text-foreground/70" />
                 <div>
-                  <p className="font-medium text-primary-foreground">
+                  <p className="font-medium text-foreground">
                     <Txt field="footerHorario2Dia" />
                   </p>
                   <Txt field="footerHorario2Desc" />
@@ -228,13 +236,13 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-primary-foreground/10 text-center">
-          <p className="text-xs text-primary-foreground/45">
+        <div className="mt-14 pt-10 border-t border-border text-center">
+          <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} ICER Chapecó. Todos os direitos
             reservados.
           </p>
           {canEditHome && (
-            <p className="text-xs text-primary-foreground/35 mt-2 max-w-md mx-auto">
+            <p className="text-xs text-muted-foreground/90 mt-2 max-w-md mx-auto">
               Como administrador, pode apontar o rato sobre um texto e clicar no
               lápis para alterar.
             </p>

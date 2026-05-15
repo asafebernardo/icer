@@ -1,6 +1,6 @@
 # ICER
 
-Frontend Vite + React. Autenticação e ficheiros privados opcionais via `server/index.js` (Express + **MongoDB**).
+Frontend Vite + React. Com API ICER (`VITE_USE_SERVER_AUTH=true`), **media** (imagens, PDF, vídeo) fica em **`server/uploads/`** no servidor; **MongoDB** guarda só os registos e URLs.
 
 ## Desenvolvimento
 
@@ -20,7 +20,7 @@ Ver **[GUIA-HOSPEDAGEM.md](./GUIA-HOSPEDAGEM.md)** (proxy `/api`, SPA fallback, 
 ## Scripts
 
 - `npm run dev` — só Vite (frontend)
-- `npm run dev:all` — Vite + API Node (backend e ficheiro SQLite)
+- `npm run dev:all` — Vite + API Node (MongoDB + media em `server/uploads/`)
 - `npm run dev:server` / `npm run start:server` — só API Node
 - `npm run build` — `dist/` estático
 - `npm run test:server` — testes de integração da API (`mongodb-memory-server`, `supertest`)

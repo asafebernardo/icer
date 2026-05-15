@@ -1,7 +1,12 @@
 /** Autenticação real via API Node (`server/index.js`). Ative com `VITE_USE_SERVER_AUTH=true`. */
 
+/**
+ * Alinhado com `vite.config.js` (proxy): aceita `true`, `1`, `yes`, `on`.
+ * Só `=== "true"` falhava quando o .env usa `=1`.
+ */
 export function isServerAuthEnabled() {
-  return import.meta.env.VITE_USE_SERVER_AUTH === "true";
+  const v = String(import.meta.env.VITE_USE_SERVER_AUTH ?? "").trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes" || v === "on";
 }
 
 export async function fetchJson(path, opts = {}) {

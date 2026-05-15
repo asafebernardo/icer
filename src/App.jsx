@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NativeTitleLifetime from "@/components/layout/NativeTitleLifetime";
@@ -8,6 +9,8 @@ import {
   Route,
   Routes,
   Navigate,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
@@ -22,9 +25,9 @@ import Dashboard from "./pages/Dashboard";
 import EventoPage from "./pages/EventoPage";
 import Eventos from "./pages/Eventos";
 import Postagens from "./pages/Postagens";
-import Login from "./pages/Login";
+import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
-// Wrapper que protege rotas privadas — redireciona ao login se não autenticado
+// Wrapper que protege rotas privadas — abre modal de login e envia para Home
 const PrivateRoute = ({ children }) => {
   const {
     isAuthenticated,
@@ -35,8 +38,8 @@ const PrivateRoute = ({ children }) => {
 
   if (isLoadingAuth || isLoadingPublicSettings) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
       </div>
     );
   }
@@ -49,13 +52,39 @@ const PrivateRoute = ({ children }) => {
   return children;
 };
 
+function TrackLastVisitedPath() {
+  const location = useLocation();
+  useEffect(() => {
+    const p = location.pathname + location.search;
+    if (p !== "/login") {
+      sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
+    }
+  }, [location.pathname, location.search]);
+  return null;
+}
+
+/** Abre o modal de login e redireciona para Início (links antigos para /login). */
+function LoginPathRedirect() {
+  const { openLoginModal } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    openLoginModal();
+    navigate("/Home", { replace: true });
+  }, [openLoginModal, navigate]);
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
+    </div>
+  );
+}
+
 const AppRoutes = () => {
   const { isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
   if (isLoadingPublicSettings) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
       </div>
     );
   }
@@ -64,7 +93,6 @@ const AppRoutes = () => {
     if (authError.type === "user_not_registered") {
       return <UserNotRegisteredError />;
     }
-    // Para outros erros de auth (ex: app privado), redireciona ao login
     if (authError.type === "auth_required") {
       navigateToLogin();
       return null;
@@ -75,16 +103,13 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/Home" replace />} />
 
-      {/* LOGIN FORA DO LAYOUT */}
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<LoginPathRedirect />} />
 
       <Route element={<Layout />}>
-        {/* públicas */}
         <Route path="/Home" element={<Home />} />
         <Route path="/Recursos" element={<Recursos />} />
         <Route path="/Agenda" element={<Agenda />} />
 
-        {/* Área autenticada: perfil para todos; separador Membros só para admin */}
         <Route
           path="/Dashboard"
           element={
@@ -106,17 +131,18 @@ const AppRoutes = () => {
 function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <TooltipProvider delayDuration={300}>
-            <NativeTitleLifetime />
-            <Router>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <AuthProvider>
+            <TooltipProvider delayDuration={300}>
+              <NativeTitleLifetime />
+              <TrackLastVisitedPath />
               <AppRoutes />
-            </Router>
-          </TooltipProvider>
-          <Toaster />
-        </QueryClientProvider>
-      </AuthProvider>
+            </TooltipProvider>
+            <Toaster />
+          </AuthProvider>
+        </Router>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

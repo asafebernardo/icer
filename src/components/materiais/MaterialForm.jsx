@@ -10,22 +10,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Upload } from "lucide-react";
+import { X, Upload, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getSiteConfig } from "@/lib/siteConfig";
+import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
 import {
-  materialCategorias,
-  getMergedCategoriaIconIds,
-  categoriaIconComponent,
+  SEM_CATEGORIA_ID,
+  getMaterialCategoriasList,
+  normalizeMaterialCategoriaForSave,
+  isValidMaterialIconId,
 } from "./materiaisConfig";
+import { MaterialIconPicker } from "./MaterialIconPicker";
+import MaterialCategoriasManager from "./MaterialCategoriasManager";
 
 export function MaterialForm({ material, onSave, onCancel, inDialog }) {
   const [siteCfgTick, setSiteCfgTick] = useState(0);
+  const [catManagerOpen, setCatManagerOpen] = useState(false);
   const [form, setForm] = useState({
     titulo: material?.titulo || "",
     descricao: material?.descricao || "",
     tipo: material?.tipo || "pdf",
-    categoria: material?.categoria || "estudo",
+    categoria: material?.categoria || SEM_CATEGORIA_ID,
+    icone_id: material?.icone_id || "",
     arquivo_url: material?.arquivo_url || "",
     imagem_url: material?.imagem_url || "",
   });
@@ -37,16 +42,27 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
       titulo: material?.titulo || "",
       descricao: material?.descricao || "",
       tipo: material?.tipo || "pdf",
-      categoria: material?.categoria || "estudo",
+      categoria: material?.categoria || SEM_CATEGORIA_ID,
+      icone_id: material?.icone_id || "",
       arquivo_url: material?.arquivo_url || "",
       imagem_url: material?.imagem_url || "",
     });
-  }, [material]);
+  }, [material?.id]);
 
   useEffect(() => {
     const fn = () => setSiteCfgTick((n) => n + 1);
     window.addEventListener("icer-site-config", fn);
     return () => window.removeEventListener("icer-site-config", fn);
+  }, []);
+
+  useEffect(() => {
+    const cfg = getSiteConfig();
+    if (cfg.materialCategoriasDef == null) {
+      setSiteConfig({
+        materialCategoriasDef: getMaterialCategoriasList(cfg),
+      });
+      setSiteCfgTick((n) => n + 1);
+    }
   }, []);
 
   const handleFileUpload = async (e) => {
@@ -74,10 +90,26 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
   };
 
   void siteCfgTick;
-  const categoriaIconIds = getMergedCategoriaIconIds(getSiteConfig());
-  const CategoriaPreviewIcon = categoriaIconComponent(
-    categoriaIconIds[form.categoria],
-  );
+  const cfg = getSiteConfig();
+  const categorias = getMaterialCategoriasList(cfg);
+  const categoriaSelectValue = categorias.some((c) => c.id === form.categoria)
+    ? form.categoria
+    : SEM_CATEGORIA_ID;
+
+  const submit = () => {
+    const cfgNow = getSiteConfig();
+    const base = {
+      ...form,
+      categoria: normalizeMaterialCategoriaForSave(form.categoria, cfgNow),
+    };
+    const rawIcon = String(form.icone_id || "").trim();
+    if (rawIcon && isValidMaterialIconId(rawIcon)) {
+      base.icone_id = rawIcon;
+    } else {
+      base.icone_id = null;
+    }
+    onSave(base);
+  };
 
   return (
     <div
@@ -107,59 +139,102 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
         onChange={(e) => setForm({ ...form, descricao: e.target.value })}
         className="h-20 resize-none"
       />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Select
-          value={form.tipo}
-          onValueChange={(v) => setForm({ ...form, tipo: v })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Tipo" />
-          </SelectTrigger>
-          <SelectContent>
-            {[
-              "pdf",
-              "audio",
-              "video",
-              "imagem",
-              "documento",
-              "apresentacao",
-            ].map((t) => (
-              <SelectItem key={t} value={t}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="flex gap-2 min-w-0">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40"
-            title="Ícone da categoria (configurável em «Ícones por categoria»)"
-          >
-            <CategoriaPreviewIcon className="h-5 w-5 text-muted-foreground" />
+
+      <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Categoria do material
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Escolha a categoria ou crie novas em «Gerir categorias».
+            </p>
           </div>
-          <Select
-            value={form.categoria}
-            onValueChange={(v) => setForm({ ...form, categoria: v })}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 shrink-0"
+            onClick={() => setCatManagerOpen(true)}
           >
-            <SelectTrigger className="min-w-0 flex-1">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(materialCategorias).map(([k, v]) => {
-                const OptIcon = categoriaIconComponent(categoriaIconIds[k]);
-                return (
-                  <SelectItem key={k} value={k}>
-                    <span className="flex items-center gap-2">
-                      <OptIcon className="h-4 w-4 shrink-0 opacity-80" />
-                      {v}
-                    </span>
+            <Settings2 className="w-4 h-4" />
+            Gerir categorias
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Tipo de ficheiro
+            </label>
+            <Select
+              value={form.tipo}
+              onValueChange={(v) => setForm({ ...form, tipo: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                {[
+                  "pdf",
+                  "audio",
+                  "video",
+                  "imagem",
+                  "documento",
+                  "apresentacao",
+                ].map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
                   </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Categoria
+            </label>
+            <Select
+              value={categoriaSelectValue}
+              onValueChange={(v) =>
+                setForm((prev) => ({ ...prev, categoria: v }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categorias.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
+
+      <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            Ícone do material
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Opcional. Se não escolher, usa-se o ícone do tipo de ficheiro. O
+            mesmo conjunto serve para qualquer categoria.
+          </p>
+        </div>
+        <MaterialIconPicker
+          value={form.icone_id}
+          onChange={(id) => setForm((f) => ({ ...f, icone_id: id }))}
+        />
+      </div>
+
+      <MaterialCategoriasManager
+        open={catManagerOpen}
+        onOpenChange={setCatManagerOpen}
+      />
+
       <div>
         <label className="block text-sm font-medium text-foreground mb-2">
           Arquivo
@@ -177,6 +252,17 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
           </span>
           <input type="file" className="hidden" onChange={handleFileUpload} />
         </label>
+        {form.arquivo_url ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-2 text-destructive hover:text-destructive"
+            onClick={() => setForm((f) => ({ ...f, arquivo_url: "" }))}
+          >
+            Remover arquivo
+          </Button>
+        ) : null}
       </div>
       <div>
         <label className="block text-sm font-medium text-foreground mb-2">
@@ -200,23 +286,29 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
             onChange={handleImageUpload}
           />
         </label>
-        {form.imagem_url && (
-          <img
-            src={form.imagem_url}
-            alt=""
-            className="mt-2 h-16 rounded-lg object-cover"
-          />
-        )}
+        {form.imagem_url ? (
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <img
+              src={form.imagem_url}
+              alt=""
+              className="h-16 rounded-lg object-cover border border-border"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setForm((f) => ({ ...f, imagem_url: "" }))}
+            >
+              Remover imagem
+            </Button>
+          </div>
+        ) : null}
       </div>
       <div className="flex gap-2 justify-end">
         <Button variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button
-          variant="success"
-          onClick={() => onSave(form)}
-          disabled={!form.titulo}
-        >
+        <Button variant="success" onClick={submit} disabled={!form.titulo}>
           Salvar
         </Button>
       </div>

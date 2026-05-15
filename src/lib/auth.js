@@ -131,11 +131,30 @@ async function loginWithServer(email, senha) {
   };
   persistSessionUser(userData);
   recordMemberLogin(userData);
-  return true;
+}
+
+/** @param {Error & { status?: number; data?: unknown }} e */
+function mapServerLoginError(e) {
+  const raw =
+    (e?.data && typeof e.data === "object" && "message" in e.data
+      ? /** @type {{ message?: string }} */ (e.data).message
+      : null) || e?.message;
+  const code = String(raw || "");
+  if (code === "invalid_credentials") {
+    return "E-mail ou palavra-passe incorrectos.";
+  }
+  if (code === "invalid_request") {
+    return "Dados inválidos.";
+  }
+  if (code === "too_many_requests") {
+    return "Demasiadas tentativas. Aguarde alguns minutos e tente novamente.";
+  }
+  if (code && code !== "Error") return code;
+  return "Não foi possível iniciar sessão.";
 }
 
 /**
- * @returns {Promise<boolean>}
+ * @returns {Promise<{ ok: true } | { ok: false; message: string }>}
  */
 export async function login(email, senha) {
   const demo = resolveLoginUser(email, senha);
@@ -152,19 +171,39 @@ export async function login(email, senha) {
     };
     persistSessionUser(userData);
     recordMemberLogin(userData);
-    return true;
+    return { ok: true };
   }
 
+  let serverReachAttempt = false;
   if (isServerAuthEnabled()) {
     try {
-      return await loginWithServer(email, senha);
-    } catch {
-      /* continua para conta local no browser */
+      await loginWithServer(email, senha);
+      return { ok: true };
+    } catch (e) {
+      const status = /** @type {Error & { status?: number }} */ (e)?.status;
+      if (status === 401 || status === 400) {
+        return {
+          ok: false,
+          message: mapServerLoginError(
+            /** @type {Error & { status?: number; data?: unknown }} */ (e),
+          ),
+        };
+      }
+      serverReachAttempt = true;
+      /* rede / 5xx: tenta conta local no browser (modo híbrido) */
     }
   }
 
   const local = await verifyLocalLogin(email, senha);
-  if (!local) return false;
+  if (!local) {
+    return {
+      ok: false,
+      message:
+        serverReachAttempt && isServerAuthEnabled()
+          ? "Não foi possível validar no servidor (offline ou erro). Confirme `npm run dev:server` e a porta no proxy (ex.: 3001), ou use credenciais de conta local neste navegador."
+          : "Credenciais inválidas ou conta inexistente neste navegador.",
+    };
+  }
   const userData = {
     email: local.email,
     role: local.role,
@@ -173,7 +212,7 @@ export async function login(email, senha) {
   };
   persistSessionUser(userData);
   recordMemberLogin(userData);
-  return true;
+  return { ok: true };
 }
 
 export function logout() {

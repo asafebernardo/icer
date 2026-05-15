@@ -34,7 +34,8 @@ export const tipoIcons = {
   apresentacao: FileText,
 };
 
-export const materialCategorias = {
+/** Categorias pré-definidas (antes de `materialCategoriasDef` em siteConfig). Só migração. */
+const LEGACY_MATERIAL_CATEGORIAS = {
   liturgia: "Liturgia",
   louvor: "Louvor",
   estudo: "Estudo",
@@ -43,7 +44,13 @@ export const materialCategorias = {
   divulgacao: "Divulgação",
 };
 
-/** Opções de ícone (Lucide) para cada categoria — id estável guardado em siteConfig. */
+/** @deprecated Use getMaterialCategoriasList(getSiteConfig()) */
+export const materialCategorias = LEGACY_MATERIAL_CATEGORIAS;
+
+/** Id fixo da categoria padrão (não pode ser removida). */
+export const SEM_CATEGORIA_ID = "sem_categoria";
+
+/** Opções de ícone Lucide para o material (campo `icone_id`). */
 export const CATEGORIA_ICON_OPTIONS = [
   { id: "church", Icon: Church, label: "Igreja" },
   { id: "cross", Icon: Cross, label: "Cruz" },
@@ -74,33 +81,109 @@ const ICON_BY_ID = Object.fromEntries(
   CATEGORIA_ICON_OPTIONS.map((o) => [o.id, o.Icon]),
 );
 
-const DEFAULT_CATEGORIA_ICON_IDS = {
-  liturgia: "church",
-  louvor: "music",
-  estudo: "book-open",
-  infantil: "baby",
-  administrativo: "briefcase",
-  divulgacao: "megaphone",
-};
+/** Componente Lucide para um id de ícone (ou Tag). */
+export function categoriaIconComponent(iconId) {
+  if (!iconId) return Tag;
+  return ICON_BY_ID[iconId] || Tag;
+}
+
+export function isValidMaterialIconId(id) {
+  return typeof id === "string" && Boolean(ICON_BY_ID[id]);
+}
 
 /**
- * Mapa categoria → id de ícone, com defaults e validação.
- * @param {Record<string, unknown>} cfg — resultado de getSiteConfig()
+ * @param {string} label
+ * @returns {string}
  */
-export function getMergedCategoriaIconIds(cfg = {}) {
-  const raw = cfg.materialCategoriaIcons;
-  const out = { ...DEFAULT_CATEGORIA_ICON_IDS };
-  if (!raw || typeof raw !== "object") return out;
-  for (const key of Object.keys(materialCategorias)) {
-    const v = raw[key];
-    if (typeof v === "string" && ICON_BY_ID[v]) {
-      out[key] = v;
-    }
+export function slugifyCategoryId(label) {
+  const base = label
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return base || "categoria";
+}
+
+/**
+ * @param {Array<{ id: string, label: string, locked?: boolean }>} arr
+ */
+export function normalizeMaterialCategoriasDef(arr) {
+  const seen = new Set();
+  const out = [];
+  let hasSem = false;
+  for (const row of arr) {
+    if (!row || typeof row.id !== "string" || typeof row.label !== "string")
+      continue;
+    const id = row.id.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const locked = Boolean(row.locked) || id === SEM_CATEGORIA_ID;
+    out.push({
+      id,
+      label: row.label.trim() || id,
+      locked,
+    });
+    if (id === SEM_CATEGORIA_ID) hasSem = true;
   }
+  if (!hasSem) {
+    out.unshift({
+      id: SEM_CATEGORIA_ID,
+      label: "Sem categoria",
+      locked: true,
+    });
+  }
+  out.sort((a, b) => {
+    if (a.id === SEM_CATEGORIA_ID) return -1;
+    if (b.id === SEM_CATEGORIA_ID) return 1;
+    return a.label.localeCompare(b.label, "pt");
+  });
   return out;
 }
 
-/** Componente Lucide para um id de ícone (ou Tag). */
-export function categoriaIconComponent(iconId) {
-  return ICON_BY_ID[iconId] || Tag;
+/**
+ * Lista de categorias (siteConfig.materialCategoriasDef ou migração a partir do legado).
+ * @param {Record<string, unknown>} cfg
+ */
+export function getMaterialCategoriasList(cfg = {}) {
+  const raw = cfg.materialCategoriasDef;
+  if (Array.isArray(raw) && raw.length > 0) {
+    return normalizeMaterialCategoriasDef(raw);
+  }
+  const migrated = [
+    { id: SEM_CATEGORIA_ID, label: "Sem categoria", locked: true },
+    ...Object.entries(LEGACY_MATERIAL_CATEGORIAS).map(([id, label]) => ({
+      id,
+      label,
+    })),
+  ];
+  return normalizeMaterialCategoriasDef(migrated);
+}
+
+/**
+ * @param {Record<string, unknown>} cfg
+ * @returns {Record<string, string>}
+ */
+export function getMaterialCategoriaLabelMap(cfg = {}) {
+  const list = getMaterialCategoriasList(cfg);
+  return Object.fromEntries(list.map((x) => [x.id, x.label]));
+}
+
+/**
+ * @param {Record<string, unknown>} cfg
+ * @returns {Set<string>}
+ */
+export function getValidMaterialCategoryIds(cfg = {}) {
+  return new Set(getMaterialCategoriasList(cfg).map((x) => x.id));
+}
+
+/**
+ * Garante categoria válida ao gravar; desconhecidos → sem_categoria.
+ */
+export function normalizeMaterialCategoriaForSave(categoria, cfg) {
+  const ids = getValidMaterialCategoryIds(cfg);
+  const c = String(categoria ?? "").trim();
+  if (ids.has(c)) return c;
+  return SEM_CATEGORIA_ID;
 }

@@ -34,6 +34,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
 import { isAdminUser, getUser } from "@/lib/auth";
 import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import { getPageBackgroundUrl } from "@/lib/usePageBackground";
+import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -124,14 +126,14 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
           <Button
             onClick={handleInvite}
             disabled={!inviteEmail.trim() || inviteLoading}
-            className="bg-accent text-accent-foreground hover:bg-accent/90"
+            className="shrink-0 gap-2"
           >
             {inviteLoading ? (
               <RefreshCw className="w-4 h-4 animate-spin" />
             ) : (
               <UserPlus className="w-4 h-4" />
             )}
-            <span className="ml-2 hidden sm:inline">Convidar</span>
+            <span className="hidden sm:inline">Convidar</span>
           </Button>
         </div>
         {inviteSuccess && (
@@ -248,6 +250,12 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
 // ── Aba Site ──────────────────────────────────────────────────
 function TabSite() {
   const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
+  const [loginHeroUrl, setLoginHeroUrl] = useState(() =>
+    getPageBackgroundUrl("login"),
+  );
+  const [loginFormBgUrl, setLoginFormBgUrl] = useState(() =>
+    getPageBackgroundUrl("login_form"),
+  );
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [menuConfig, setMenuConfig] = useState(() => {
     try {
@@ -275,6 +283,31 @@ function TabSite() {
       setUploadingLogo(false);
       e.target.value = "";
     }
+  };
+
+  const applyLoginBackground = async (e, key) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const url = await imageFileToStorableUrl(file);
+      const cfg = getSiteConfig();
+      const nextBg = { ...(cfg.pageBackgrounds || {}), [key]: url };
+      setSiteConfig({ pageBackgrounds: nextBg });
+      if (key === "login") setLoginHeroUrl(url);
+      else setLoginFormBgUrl(url);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const clearLoginBackground = (key) => {
+    const cfg = getSiteConfig();
+    const nextBg = { ...(cfg.pageBackgrounds || {}) };
+    delete nextBg[key];
+    setSiteConfig({ pageBackgrounds: nextBg });
+    if (key === "login") setLoginHeroUrl("");
+    else setLoginFormBgUrl("");
   };
 
   const handleToggleMenu = (key) => {
@@ -348,6 +381,121 @@ function TabSite() {
         </div>
       </motion.div>
 
+      {/* Página de login — só administradores acedem a esta área */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+        className="bg-card border border-border rounded-2xl p-6"
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+            <ImagePlus className="w-5 h-5 text-accent" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-foreground text-lg">
+              Página de login
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Fundo do cabeçalho (hero) e fundo da zona do formulário — guardado
+              neste navegador
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-foreground">
+              1. Cabeçalho (hero)
+            </p>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              id="login-hero-bg"
+              onChange={(e) => applyLoginBackground(e, "login")}
+            />
+            {loginHeroUrl ? (
+              <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
+                <img
+                  src={loginHeroUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => document.getElementById("login-hero-bg")?.click()}
+              >
+                Carregar
+              </Button>
+              {loginHeroUrl ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => clearLoginBackground("login")}
+                >
+                  Remover
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-foreground">
+              2. Zona do formulário
+            </p>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              id="login-form-bg"
+              onChange={(e) => applyLoginBackground(e, "login_form")}
+            />
+            {loginFormBgUrl ? (
+              <div className="h-24 rounded-lg border border-border overflow-hidden bg-muted">
+                <img
+                  src={loginFormBgUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nenhuma imagem</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  document.getElementById("login-form-bg")?.click()
+                }
+              >
+                Carregar
+              </Button>
+              {loginFormBgUrl ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => clearLoginBackground("login_form")}
+                >
+                  Remover
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* Visibilidade de menus */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -391,7 +539,7 @@ function TabSite() {
                   className={`relative w-11 h-6 rounded-full transition-colors ${enabled ? "bg-accent" : "bg-muted-foreground/30"}`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`}
+                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`}
                   />
                 </button>
               </div>
@@ -485,11 +633,15 @@ function TabConteudo() {
   );
 
   const categoriaColors = {
-    devocional: "bg-amber-50 text-amber-700 border-amber-200",
-    aviso: "bg-blue-50 text-blue-700 border-blue-200",
-    testemunho: "bg-green-50 text-green-700 border-green-200",
-    reflexao: "bg-purple-50 text-purple-700 border-purple-200",
-    noticias: "bg-rose-50 text-rose-700 border-rose-200",
+    devocional:
+      "border border-accent/30 bg-accent/10 text-accent dark:border-accent/35 dark:bg-accent/15",
+    aviso: "border border-primary/25 bg-primary/10 text-primary dark:border-primary/35 dark:bg-primary/15",
+    testemunho:
+      "border border-category-estudo/30 bg-category-estudo/10 text-category-estudo dark:border-category-estudo/35 dark:bg-category-estudo/12",
+    reflexao:
+      "border border-category-jovens/30 bg-category-jovens/10 text-category-jovens dark:border-category-jovens/35 dark:bg-category-jovens/12",
+    noticias:
+      "border border-category-mulheres/30 bg-category-mulheres/10 text-category-mulheres dark:border-category-mulheres/35 dark:bg-category-mulheres/12",
   };
 
   return (

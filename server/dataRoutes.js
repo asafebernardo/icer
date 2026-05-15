@@ -8,6 +8,7 @@ import {
   setMenuPermissionsBlob,
 } from "./menuPermissions.js";
 import { nextSeq } from "./sequences.js";
+import { clientIp, recordAudit } from "./auditLog.js";
 
 const CONTATO_WINDOW_MS = 15 * 60 * 1000;
 const CONTATO_MAX = 30;
@@ -120,6 +121,13 @@ export function createDataRouter(db) {
       return;
     }
     await setMenuPermissionsBlob(db, req.body);
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "data.menu_permissions.update",
+      details: {},
+      ip: clientIp(req),
+    });
     res.json({ ok: true });
   });
 
@@ -180,6 +188,13 @@ export function createDataRouter(db) {
         updated_at: now,
       });
       const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "data.posts.create",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.status(201).json(rowToRecord(row));
     },
   );
@@ -205,6 +220,13 @@ export function createDataRouter(db) {
         { $set: { body_json, updated_at: now } },
       );
       const next = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.posts.update",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.json(rowToRecord(next));
     },
   );
@@ -221,6 +243,13 @@ export function createDataRouter(db) {
       }
       const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
       if (!assertOwnerOrAdmin(req, res, row)) return;
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.posts.delete",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       await db.collection("posts").deleteOne({ id });
       res.status(204).end();
     },
@@ -262,6 +291,13 @@ export function createDataRouter(db) {
       const row = await db
         .collection("eventos")
         .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "data.eventos.create",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.status(201).json(rowToRecord(row));
     },
   );
@@ -290,6 +326,13 @@ export function createDataRouter(db) {
       const next = await db
         .collection("eventos")
         .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.eventos.update",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.json(rowToRecord(next));
     },
   );
@@ -306,6 +349,13 @@ export function createDataRouter(db) {
       }
       const row = await db.collection("eventos").findOne({ id }, { projection: { _id: 0 } });
       if (!assertOwnerOrAdmin(req, res, row)) return;
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.eventos.delete",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       await db.collection("eventos").deleteOne({ id });
       res.status(204).end();
     },
@@ -345,6 +395,13 @@ export function createDataRouter(db) {
       const row = await db
         .collection("materiais")
         .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "data.materiais.create",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.status(201).json(rowToRecord(row));
     },
   );
@@ -372,6 +429,13 @@ export function createDataRouter(db) {
       const next = await db
         .collection("materiais")
         .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.materiais.update",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.json(rowToRecord(next));
     },
   );
@@ -388,6 +452,13 @@ export function createDataRouter(db) {
       }
       const row = await db.collection("materiais").findOne({ id }, { projection: { _id: 0 } });
       if (!assertOwnerOrAdmin(req, res, row)) return;
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.materiais.delete",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       await db.collection("materiais").deleteOne({ id });
       res.status(204).end();
     },
@@ -427,6 +498,13 @@ export function createDataRouter(db) {
       const row = await db
         .collection("fotos_galeria")
         .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "data.fotos_galeria.create",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.status(201).json(rowToRecord(row));
     },
   );
@@ -456,6 +534,13 @@ export function createDataRouter(db) {
       const next = await db
         .collection("fotos_galeria")
         .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.fotos_galeria.update",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       res.json(rowToRecord(next));
     },
   );
@@ -474,6 +559,13 @@ export function createDataRouter(db) {
         .collection("fotos_galeria")
         .findOne({ id }, { projection: { _id: 0 } });
       if (!assertOwnerOrAdmin(req, res, row)) return;
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.fotos_galeria.delete",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
       await db.collection("fotos_galeria").deleteOne({ id });
       res.status(204).end();
     },

@@ -8,7 +8,8 @@ function readCanEdit(pageKey) {
   return canEditPageBackground(getUser(), pageKey);
 }
 
-function readBgUrl(pageKey) {
+/** URL do fundo guardada em `siteConfig` (ex.: hero da página de login). */
+export function getPageBackgroundUrl(pageKey) {
   if (!pageKey) return "";
   const cfg = getSiteConfig();
   if (pageKey === "home") {
@@ -17,6 +18,10 @@ function readBgUrl(pageKey) {
     return cfg.pageBackgrounds?.home || cfg.heroBg || "";
   }
   return cfg.pageBackgrounds?.[pageKey] || "";
+}
+
+function readBgUrl(pageKey) {
+  return getPageBackgroundUrl(pageKey);
 }
 
 /**

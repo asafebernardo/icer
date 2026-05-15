@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { motion } from "framer-motion";
@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   File,
   FolderOpen,
-  Palette,
   Plus,
   Pencil,
   Trash2,
@@ -18,58 +17,44 @@ import EmptyState from "@/components/shared/EmptyState";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
-import { toast } from "sonner";
+import { getSiteConfig } from "@/lib/siteConfig";
 import {
   tipoIcons,
-  materialCategorias,
-  CATEGORIA_ICON_OPTIONS,
-  getMergedCategoriaIconIds,
+  getMaterialCategoriasList,
+  getMaterialCategoriaLabelMap,
   categoriaIconComponent,
 } from "./materiaisConfig";
 import { MaterialForm } from "./MaterialForm";
 
-function readCategoriaIcons() {
-  return getMergedCategoriaIconIds(getSiteConfig());
-}
-
-export default function MateriaisTab({ perm }) {
+export default function MateriaisTab({
+  perm,
+  hideCreateButton = false,
+  openCreateSignal = 0,
+}) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
-  const [categoriaIconIds, setCategoriaIconIds] = useState(readCategoriaIcons);
-  const [iconsDialogOpen, setIconsDialogOpen] = useState(false);
-  const [iconsDraft, setIconsDraft] = useState(readCategoriaIcons);
-
-  const syncIcons = useCallback(() => {
-    setCategoriaIconIds(readCategoriaIcons());
-  }, []);
+  const [cfgTick, setCfgTick] = useState(0);
+  const prevOpenCreateSig = useRef(0);
 
   useEffect(() => {
-    window.addEventListener("icer-site-config", syncIcons);
-    return () => window.removeEventListener("icer-site-config", syncIcons);
-  }, [syncIcons]);
-
-  const openIconsDialog = () => {
-    setIconsDraft(readCategoriaIcons());
-    setIconsDialogOpen(true);
-  };
-
-  const saveCategoriaIcons = () => {
-    try {
-      setSiteConfig({ materialCategoriaIcons: iconsDraft });
-      setCategoriaIconIds({ ...iconsDraft });
-      setIconsDialogOpen(false);
-      toast.success("Ícones das categorias guardados.");
-    } catch (e) {
-      toast.error(e?.message || "Não foi possível guardar.");
+    if (!hideCreateButton) return;
+    if (openCreateSignal > prevOpenCreateSig.current) {
+      setShowForm(true);
+      setEditingMaterial(null);
     }
-  };
+    prevOpenCreateSig.current = openCreateSignal;
+  }, [hideCreateButton, openCreateSignal]);
+
+  useEffect(() => {
+    const fn = () => setCfgTick((n) => n + 1);
+    window.addEventListener("icer-site-config", fn);
+    return () => window.removeEventListener("icer-site-config", fn);
+  }, []);
 
   const { data: materiais = [], isLoading } = useQuery({
     queryKey: ["materiais"],
@@ -109,97 +94,26 @@ export default function MateriaisTab({ perm }) {
       ? materiais
       : materiais.filter((m) => m.categoria === filter);
 
+  void cfgTick;
+  const siteCfg = getSiteConfig();
+  const categoriasLista = getMaterialCategoriasList(siteCfg);
+  const labelMap = getMaterialCategoriaLabelMap(siteCfg);
+
   return (
     <div>
-      {(perm.create || perm.edit) && (
+      {perm.create && !hideCreateButton ? (
         <div className="flex flex-wrap justify-end gap-2 mb-4">
           <Button
-            type="button"
-            variant="outline"
-            className="gap-2"
-            onClick={openIconsDialog}
-            title="Escolher ícone por categoria (filtros e etiquetas)"
+            className="w-fit gap-2"
+            onClick={() => {
+              setShowForm(true);
+              setEditingMaterial(null);
+            }}
           >
-            <Palette className="w-4 h-4" />
-            Ícones por categoria
+            <Plus className="w-4 h-4" /> Novo Material
           </Button>
-          {perm.create ? (
-            <Button
-              className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
-              onClick={() => {
-                setShowForm(true);
-                setEditingMaterial(null);
-              }}
-            >
-              <Plus className="w-4 h-4" /> Novo Material
-            </Button>
-          ) : null}
         </div>
-      )}
-      {(perm.edit || perm.create) && (
-        <Dialog open={iconsDialogOpen} onOpenChange={setIconsDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Ícone por categoria</DialogTitle>
-              <p className="text-sm text-muted-foreground font-normal">
-                Cada categoria pode ter um ícone. As escolhas ficam guardadas
-                neste navegador e aparecem nos filtros e nas etiquetas dos
-                cartões.
-              </p>
-            </DialogHeader>
-            <div className="space-y-6 py-2">
-              {Object.entries(materialCategorias).map(([catKey, catLabel]) => {
-                const selected = iconsDraft[catKey];
-                return (
-                  <div key={catKey} className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">
-                      {catLabel}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CATEGORIA_ICON_OPTIONS.map(({ id, Icon, label }) => {
-                        const isOn = selected === id;
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            title={label}
-                            onClick={() =>
-                              setIconsDraft((d) => ({ ...d, [catKey]: id }))
-                            }
-                            className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors ${
-                              isOn
-                                ? "border-accent bg-accent/15 text-accent"
-                                : "border-border bg-muted/40 text-muted-foreground hover:border-accent/50 hover:bg-muted"
-                            }`}
-                          >
-                            <Icon className="h-5 w-5 shrink-0" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIconsDialogOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="success"
-                onClick={saveCategoriaIcons}
-              >
-                Salvar ícones
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      ) : null}
       {(perm.create || perm.edit) && (
         <Dialog
           open={Boolean(showForm || editingMaterial)}
@@ -210,7 +124,7 @@ export default function MateriaisTab({ perm }) {
             }
           }}
         >
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingMaterial ? "Editar material" : "Novo material"}
@@ -250,21 +164,17 @@ export default function MateriaisTab({ perm }) {
         >
           Todos
         </Button>
-        {Object.entries(materialCategorias).map(([key, label]) => {
-          const CatIcon = categoriaIconComponent(categoriaIconIds[key]);
-          return (
-            <Button
-              key={key}
-              variant={filter === key ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(key)}
-              className="rounded-full gap-1.5"
-            >
-              <CatIcon className="h-3.5 w-3.5 shrink-0" />
-              {label}
-            </Button>
-          );
-        })}
+        {categoriasLista.map((c) => (
+          <Button
+            key={c.id}
+            variant={filter === c.id ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter(c.id)}
+            className="rounded-full"
+          >
+            {c.label}
+          </Button>
+        ))}
       </div>
 
       {isLoading ? (
@@ -288,10 +198,10 @@ export default function MateriaisTab({ perm }) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((material, index) => {
-            const Icon = tipoIcons[material.tipo] || File;
-            const CatIcon = material.categoria
-              ? categoriaIconComponent(categoriaIconIds[material.categoria])
-              : null;
+            const IconTipo = tipoIcons[material.tipo] || File;
+            const IconMat = material.icone_id
+              ? categoriaIconComponent(material.icone_id)
+              : IconTipo;
             return (
               <motion.div
                 key={material.id}
@@ -310,22 +220,18 @@ export default function MateriaisTab({ perm }) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Icon className="w-6 h-6 text-primary group-hover:text-accent transition-colors" />
+                      <IconMat className="w-6 h-6 text-primary group-hover:text-accent transition-colors" />
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    {material.categoria && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs gap-1 pl-1.5 pr-2"
-                      >
-                        {CatIcon ? (
-                          <CatIcon className="h-3 w-3 shrink-0 opacity-90" />
-                        ) : null}
-                        {materialCategorias[material.categoria] ||
-                          material.categoria}
-                      </Badge>
-                    )}
+                    <Badge
+                      variant="secondary"
+                      className="text-xs pl-1.5 pr-2"
+                    >
+                      {labelMap[material.categoria] ??
+                        material.categoria ??
+                        "—"}
+                    </Badge>
                   </div>
                 </div>
                 <h3 className="font-semibold text-foreground mb-2">

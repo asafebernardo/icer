@@ -8,17 +8,9 @@ import { Calendar, Clock, MapPin, ArrowRight, Star, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 
-const categoriaBg = {
-  culto: "bg-blue-600",
-  estudo: "bg-green-600",
-  jovens: "bg-purple-600",
-  mulheres: "bg-pink-500",
-  homens: "bg-orange-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-red-600",
-  conferencia: "bg-indigo-600",
-};
+const categoriaBg = CATEGORY_BAR_CLASS;
 
 const categoriaLabels = {
   culto: "Culto",
@@ -92,18 +84,18 @@ export default function EventoDestaquePopup() {
             <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg pointer-events-auto overflow-hidden">
               <div className={`h-1.5 w-full ${barColor}`} />
               {/* Degradê preto/cinza (não segue cor do evento) */}
-              <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-800 p-5 relative">
-                <div className="flex items-center gap-2 mb-3">
-                  <Star className="w-4 h-4 text-white fill-white" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-white/80">
+              <div className="relative bg-gradient-to-r from-primary via-primary to-primary/90 p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <Star className="h-4 w-4 fill-primary-foreground text-primary-foreground" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-primary-foreground/85">
                     Evento em Destaque
                   </span>
                 </div>
-                <h2 className="font-display text-2xl font-bold text-white leading-snug pr-8">
+                <h2 className="pr-8 font-display text-2xl font-bold leading-snug text-primary-foreground">
                   {destaque.titulo}
                 </h2>
                 {destaque.categoria && (
-                  <span className="inline-block mt-2 text-xs font-bold px-2.5 py-1 rounded-full bg-white/20 text-white">
+                  <span className="mt-2 inline-block rounded-full bg-primary-foreground/20 px-2.5 py-1 text-xs font-bold text-primary-foreground">
                     {categoriaLabels[destaque.categoria] || destaque.categoria}
                   </span>
                 )}
@@ -116,7 +108,7 @@ export default function EventoDestaquePopup() {
                 )}
                 <button
                   onClick={dismiss}
-                  className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/30 text-white transition-colors"
+                  className="absolute right-4 top-4 rounded-full p-1.5 text-primary-foreground transition-colors hover:bg-primary-foreground/15"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -160,7 +152,7 @@ export default function EventoDestaquePopup() {
                   >
                     <button
                       type="button"
-                      className={`w-full inline-flex items-center justify-center gap-2 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity ${barColor}`}
+                      className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 ${barColor}`}
                     >
                       Ver detalhes <ArrowRight className="w-4 h-4" />
                     </button>

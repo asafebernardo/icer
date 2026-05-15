@@ -27,15 +27,15 @@ const categorias = [
 
 const categoriaBg = {
   Bíblia:
-    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-zinc-800/50 dark:text-zinc-200 dark:border-zinc-600",
+    "border border-primary/25 bg-primary/10 text-primary dark:border-primary/35 dark:bg-primary/15 dark:text-primary",
   Estudos:
-    "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800",
+    "border border-accent/30 bg-accent/10 text-accent dark:border-accent/35 dark:bg-accent/15 dark:text-accent",
   Música:
-    "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800",
+    "border border-category-jovens/30 bg-category-jovens/10 text-category-jovens dark:border-category-jovens/35 dark:bg-category-jovens/12",
   Notícias:
-    "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800",
+    "border border-category-homens/30 bg-category-homens/10 text-category-homens dark:border-category-homens/35 dark:bg-category-homens/12",
   Recursos:
-    "bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-900/20 dark:text-pink-300 dark:border-pink-800",
+    "border border-category-mulheres/30 bg-category-mulheres/10 text-category-mulheres dark:border-category-mulheres/35 dark:bg-category-mulheres/12",
 };
 
 export default function LinksUteis() {
@@ -107,7 +107,7 @@ export default function LinksUteis() {
           {perm.create && (
             <div className="flex justify-end mb-6">
               <Button
-                className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
+                className="w-fit gap-2"
                 onClick={() => {
                   setShowForm(true);
                   setEditingLink(null);

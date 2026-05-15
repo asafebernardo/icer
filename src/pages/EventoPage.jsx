@@ -28,6 +28,8 @@ import {
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { useAuth } from "@/lib/AuthContext";
 import { canEditPageBackground, canMenuAction, MENU } from "@/lib/auth";
+import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
+import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -40,20 +42,11 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-/** Banner sem imagem: degradê só preto/cinza (não usa cor do evento) */
+/** Banner sem imagem — superfície institucional */
 const BANNER_FALLBACK_CLASS =
-  "bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-800";
+  "bg-gradient-to-r from-brand-surface via-brand-surface to-brand-surface/90";
 
-const categoriaColorsBg = {
-  culto: "bg-blue-600",
-  estudo: "bg-green-600",
-  jovens: "bg-purple-600",
-  mulheres: "bg-pink-500",
-  homens: "bg-orange-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-red-600",
-  conferencia: "bg-indigo-600",
-};
+const categoriaColorsBg = CATEGORY_BAR_CLASS;
 
 export default function EventoPage() {
   const { id } = useParams();
@@ -61,7 +54,7 @@ export default function EventoPage() {
   const { user } = useAuth();
   const canEditEvento = canMenuAction(user, MENU.EVENTOS, "edit");
   const canEditBanner = canEditPageBackground(user, "evento");
-  const { url: bannerBgUrl, handleFile } = usePageBackground("evento");
+  const { url: bannerBgUrl, handleFile, applyUrl } = usePageBackground("evento");
   const [diaAtivo, setDiaAtivo] = useState(null);
   const [editing, setEditing] = useState(false);
 
@@ -127,7 +120,8 @@ export default function EventoPage() {
         {bannerBgUrl ? (
           <>
             <ResponsivePageBgImage src={bannerBgUrl} />
-            <div className="absolute inset-0 bg-black/55 pointer-events-none" />
+            <div className={imageScrimFlat} aria-hidden />
+            <div className={imageScrimBottom} aria-hidden />
           </>
         ) : (
           <>
@@ -158,26 +152,28 @@ export default function EventoPage() {
           <AdminPageBgButton
             visible={canEditBanner}
             onSelectFile={handleFile}
+            onClear={() => applyUrl("")}
+            hasBackground={Boolean((bannerBgUrl || "").trim())}
             className="relative"
           />
         </div>
         <div className="max-w-4xl mx-auto relative z-10">
           <Link
             to="/Agenda"
-            className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-sm mb-6 transition-colors"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm text-primary-foreground/85 transition-colors hover:text-primary-foreground"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar para a agenda
           </Link>
           {evento.categoria && (
-            <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">
+            <span className="mb-4 inline-block rounded-full bg-primary-foreground/20 px-3 py-1 text-xs font-bold text-primary-foreground">
               {categoriaLabels[evento.categoria] || evento.categoria}
             </span>
           )}
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
+          <h1 className="text-3xl font-bold leading-tight text-primary-foreground sm:text-4xl lg:text-5xl">
             {evento.titulo}
           </h1>
           {date && (
-            <p className="text-white/80 mt-3 text-lg">
+            <p className="mt-3 text-lg text-primary-foreground/85">
               {format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
             </p>
           )}

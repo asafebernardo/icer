@@ -2,6 +2,7 @@
 .env
 .env.*
 server/private_uploads/
+server/uploads/
 server/data/
 
 # Logs
