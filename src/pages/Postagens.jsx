@@ -50,7 +50,6 @@ import ConfirmDialog from "../components/shared/ConfirmDialog";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
-import { api } from "@/api/client";
 import { uploadImageFile } from "@/lib/uploadImage";
 
 function getYouTubeId(url) {

@@ -5,13 +5,14 @@ import { openDb } from "./db.js";
 import { hashPassword } from "./auth.js";
 import { nowIso } from "./security.js";
 import { createApplication } from "./createApp.js";
+import { nextSeq } from "./sequences.js";
 
 dotenv.config();
 
 const PORT = Number(process.env.PORT || process.env.ICER_SERVER_PORT || 3001);
 const UPLOAD_DIR = path.resolve("server", "private_uploads");
 
-const db = openDb();
+const db = await openDb();
 
 async function ensureAdminSeed() {
   const email = String(process.env.ICER_ADMIN_EMAIL || "").toLowerCase().trim();
@@ -20,14 +21,21 @@ async function ensureAdminSeed() {
   if (!email || !full_name || !password) {
     return;
   }
-  const existing = db.prepare(`SELECT id FROM users WHERE email = ?`).get(email);
+  const existing = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
   if (existing) return;
   const password_hash = await hashPassword(password);
   const now = nowIso();
-  db.prepare(
-    `INSERT INTO users (email, full_name, role, password_hash, created_at, updated_at)
-     VALUES (?, ?, 'admin', ?, ?, ?)`,
-  ).run(email, full_name, password_hash, now, now);
+  const id = await nextSeq(db, "users");
+  await db.collection("users").insertOne({
+    id,
+    email,
+    full_name,
+    role: "admin",
+    funcao: "",
+    password_hash,
+    created_at: now,
+    updated_at: now,
+  });
   // eslint-disable-next-line no-console
   console.log(`[ICER] Admin seed criado: ${email}`);
 }

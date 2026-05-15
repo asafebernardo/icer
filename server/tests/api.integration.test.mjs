@@ -2,13 +2,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, it, before } from "node:test";
+import { describe, it, before, after } from "node:test";
 import request from "supertest";
+import { MongoMemoryServer } from "mongodb-memory-server";
 
 import { createApplication } from "../createApp.js";
-import { openDbMemory } from "../db.js";
+import { openDbFromUri, closeDb } from "../db.js";
 import { hashPassword } from "../auth.js";
 import { nowIso } from "../security.js";
+import { nextSeq } from "../sequences.js";
 
 const ADMIN_EMAIL = "admin@test.icer";
 const ADMIN_PASS = "AdminPassword12";
@@ -16,43 +18,68 @@ const USER_EMAIL = "user@test.icer";
 const USER_PASS = "UserPassword12";
 
 describe("ICER API", () => {
-  /** @type {import("better-sqlite3").Database} */
+  /** @type {import("mongodb").Db} */
   let db;
   /** @type {import("express").Express} */
   let app;
   /** @type {string} */
   let uploadDir;
+  /** @type {MongoMemoryServer} */
+  let memoryServer;
 
   before(async () => {
+    memoryServer = await MongoMemoryServer.create();
+    const uri = memoryServer.getUri();
+    const dbName = `icer_test_${Date.now()}`;
     uploadDir = path.join(os.tmpdir(), `icer-api-test-${Date.now()}`);
     fs.mkdirSync(uploadDir, { recursive: true });
-    db = openDbMemory();
+    db = await openDbFromUri(uri, dbName);
+
     const now = nowIso();
     const adminHash = await hashPassword(ADMIN_PASS);
     const userHash = await hashPassword(USER_PASS);
-    db.prepare(
-      `INSERT INTO users (email, full_name, role, password_hash, created_at, updated_at)
-       VALUES (?, ?, 'admin', ?, ?, ?)`,
-    ).run(ADMIN_EMAIL, "Admin Test", adminHash, now, now);
-    db.prepare(
-      `INSERT INTO users (email, full_name, role, password_hash, created_at, updated_at)
-       VALUES (?, ?, 'user', ?, ?, ?)`,
-    ).run(USER_EMAIL, "User Test", userHash, now, now);
+    const id1 = await nextSeq(db, "users");
+    const id2 = await nextSeq(db, "users");
+    await db.collection("users").insertMany([
+      {
+        id: id1,
+        email: ADMIN_EMAIL,
+        full_name: "Admin Test",
+        role: "admin",
+        funcao: "",
+        password_hash: adminHash,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: id2,
+        email: USER_EMAIL,
+        full_name: "User Test",
+        role: "user",
+        funcao: "",
+        password_hash: userHash,
+        created_at: now,
+        updated_at: now,
+      },
+    ]);
 
-    const rowUser = db.prepare(`SELECT id FROM users WHERE email = ?`).get(USER_EMAIL);
-    const uid = String(rowUser.id);
-    db.prepare(
-      `INSERT INTO app_kv (key, value) VALUES ('menu_permissions', ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    ).run(
-      JSON.stringify({
-        [uid]: {
-          eventos: { create: false, edit: true, delete: false },
-          postagens: { create: false, edit: false, delete: false },
-          materiais_tab: { create: true, edit: false, delete: false },
-          galeria: { create: false, edit: false, delete: false },
+    const uid = String(id2);
+    await db.collection("app_kv").updateOne(
+      { key: "menu_permissions" },
+      {
+        $set: {
+          key: "menu_permissions",
+          value: JSON.stringify({
+            [uid]: {
+              eventos: { create: false, edit: true, delete: false },
+              postagens: { create: false, edit: false, delete: false },
+              materiais_tab: { create: true, edit: false, delete: false },
+              galeria: { create: false, edit: false, delete: false },
+            },
+          }),
         },
-      }),
+      },
+      { upsert: true },
     );
 
     app = createApplication(db, {
@@ -60,6 +87,11 @@ describe("ICER API", () => {
       enableUpstreamProxy: false,
       loginRateLimit: false,
     });
+  });
+
+  after(async () => {
+    await closeDb();
+    if (memoryServer) await memoryServer.stop();
   });
 
   it("GET /api/health", async () => {
