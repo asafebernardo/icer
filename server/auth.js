@@ -1,5 +1,5 @@
 import argon2 from "argon2";
-import { randomToken, sha256Hex, nowIso, addDaysIso } from "./security.js";
+import { randomToken, sha256Hex, nowIso, addDaysIso, addMinutesIso } from "./security.js";
 
 const COOKIE_NAME = process.env.ICER_SESSION_COOKIE_NAME || "icer_session";
 
@@ -10,7 +10,6 @@ function cookieOptions() {
     sameSite: "lax",
     secure: isProd,
     path: "/",
-    // Em produção, prefira HTTPS + secure=true
   };
 }
 
@@ -38,36 +37,61 @@ export function clearSessionCookie(res) {
   res.clearCookie(COOKIE_NAME, cookieOptions());
 }
 
-export function createSession(db, userId, { days = 14 } = {}) {
+/**
+ * @param {import("mongodb").Db} db
+ */
+export async function createSession(db, userId, { days = 14, minutes } = {}) {
   const token = randomToken();
   const token_hash = sha256Hex(token);
   const created_at = nowIso();
-  const expires_at = addDaysIso(days);
-  db.prepare(
-    `INSERT INTO sessions (user_id, token_hash, created_at, expires_at)
-     VALUES (?, ?, ?, ?)`,
-  ).run(userId, token_hash, created_at, expires_at);
+  const expires_at =
+    minutes != null && Number.isFinite(Number(minutes)) && Number(minutes) > 0
+      ? addMinutesIso(Number(minutes))
+      : addDaysIso(days);
+  await db.collection("sessions").insertOne({
+    user_id: userId,
+    token_hash,
+    created_at,
+    expires_at,
+  });
   return { token, expires_at };
 }
 
-export function deleteSessionByToken(db, token) {
+/**
+ * @param {import("mongodb").Db} db
+ */
+export async function deleteSessionByToken(db, token) {
   const token_hash = sha256Hex(token);
-  db.prepare(`DELETE FROM sessions WHERE token_hash = ?`).run(token_hash);
+  await db.collection("sessions").deleteOne({ token_hash });
 }
 
-export function getSessionUser(db, token) {
+/**
+ * @param {import("mongodb").Db} db
+ */
+export async function getSessionUser(db, token) {
   if (!token) return null;
   const token_hash = sha256Hex(token);
-  const row = db
-    .prepare(
-      `SELECT u.id, u.email, u.full_name, u.role, u.funcao
-       FROM sessions s
-       JOIN users u ON u.id = s.user_id
-       WHERE s.token_hash = ?
-         AND s.expires_at > ?`,
-    )
-    .get(token_hash, nowIso());
-  return row || null;
+  const now = nowIso();
+  const s = await db.collection("sessions").findOne({
+    token_hash,
+    expires_at: { $gt: now },
+  });
+  if (!s) return null;
+  const u = await db.collection("users").findOne(
+    { id: s.user_id },
+    {
+      projection: {
+        _id: 0,
+        id: 1,
+        email: 1,
+        full_name: 1,
+        role: 1,
+        funcao: 1,
+        avatar_url: 1,
+      },
+    },
+  );
+  return u || null;
 }
 
 export function requireAuth(req, res, next) {
@@ -89,4 +113,3 @@ export function requireAdmin(req, res, next) {
   }
   next();
 }
-

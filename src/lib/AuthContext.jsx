@@ -14,12 +14,22 @@ import {
   logout as authLogout,
   updateUserProfile as authUpdateUserProfile,
   isServerAuthEnabled,
+  isDemoAdminSession,
   setServerMenuEffective,
 } from "@/lib/auth";
 import {
   persistSessionUser,
   clearSessionUser,
 } from "@/lib/sessionIntegrity";
+import LoginModal from "@/components/auth/LoginModal";
+import { toast } from "sonner";
+import { queryClientInstance } from "@/lib/query-client";
+import {
+  PUBLIC_WORKSPACE_QUERY_KEY,
+  fetchPublicWorkspaceJson,
+  shouldUseRemotePublicWorkspace,
+} from "@/lib/publicWorkspace";
+import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 
 const AuthContext = createContext(null);
 
@@ -49,48 +59,54 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (isServerAuthEnabled()) {
-        try {
-          const r = await fetch("/api/auth/me", { credentials: "include" });
-          if (r.ok) {
-            const u = await r.json();
-            persistSessionUser({
-              id: u.id,
-              email: u.email,
-              full_name: u.full_name,
-              role: u.role,
-              funcao: u.funcao ?? "",
-              _authSource: "server",
-            });
-            try {
-              const mr = await fetch("/api/auth/menu-effective", {
-                credentials: "include",
-              });
-              if (mr.ok) {
-                setServerMenuEffective(await mr.json());
-              }
-            } catch {
-              /* ignore */
-            }
-          } else {
-            const cur = getUser();
-            if (cur?._authSource === "server") {
-              clearSessionUser();
-              setServerMenuEffective(null);
-            }
+  const validateServerSessionRef = useRef(null);
+  const validateServerSession = useCallback(async () => {
+    if (!isServerAuthEnabled()) {
+      checkUserAuth();
+      return;
+    }
+    if (validateServerSessionRef.current) {
+      await validateServerSessionRef.current;
+      return;
+    }
+    const run = (async () => {
+      try {
+        const r = await fetch("/api/auth/me", { credentials: "include" });
+        if (r.ok) {
+          const u = await r.json();
+          persistSessionUser({
+            id: u.id,
+            email: u.email,
+            full_name: u.full_name,
+            role: u.role,
+            funcao: u.funcao ?? "",
+            avatar_url: u.avatar_url ? String(u.avatar_url) : "",
+            _authSource: "server",
+          });
+          setServerMenuEffective(null);
+          const { ensureCsrfCookieClient } = await import("@/lib/csrf");
+          await ensureCsrfCookieClient();
+        } else if (r.status === 401) {
+          const cur = getUser();
+          // Qualquer espelho local que não seja sessão demo: se o servidor não reconhece sessão, limpar.
+          // Inclui registos antigos sem `_authSource` (antes do campo existir).
+          if (cur && !isDemoAdminSession(cur)) {
+            clearSessionUser();
+            setServerMenuEffective(null);
           }
-        } catch {
-          /* rede / servidor offline */
         }
+      } catch {
+        /* rede / servidor offline — não limpar sessão local */
+      } finally {
+        checkUserAuth();
       }
-      if (!cancelled) checkUserAuth();
     })();
-    return () => {
-      cancelled = true;
-    };
+    validateServerSessionRef.current = run;
+    try {
+      await run;
+    } finally {
+      validateServerSessionRef.current = null;
+    }
   }, [checkUserAuth]);
 
   useEffect(() => {
@@ -203,16 +219,14 @@ export function AuthProvider({ children }) {
     if (!result.ok) return result;
     setUser(getUser());
     if (isServerAuthEnabled()) {
-      try {
-        const mr = await fetch("/api/auth/menu-effective", {
-          credentials: "include",
-        });
-        if (mr.ok) {
-          setServerMenuEffective(await mr.json());
-        }
-      } catch {
-        /* ignore */
-      }
+      void queryClientInstance
+        .fetchQuery({
+          queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+          queryFn: fetchPublicWorkspaceJson,
+        })
+        .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+        .catch(() => {});
+      setServerMenuEffective(null);
     }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("icer-user-session"));

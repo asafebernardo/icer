@@ -11,13 +11,9 @@ import {
 } from "@/lib/sessionIntegrity";
 import { fetchJson, isServerAuthEnabled } from "@/lib/serverAuth";
 import {
-  findLocalAccount,
-  verifyLocalLogin,
-  updateLocalAccountMeta,
-  updateLocalAccountPassword,
-} from "@/lib/localAccounts";
-import { verifyPassword } from "@/lib/passwordCrypto";
-import { fetchJson, isServerAuthEnabled } from "@/lib/serverAuth";
+  isAccountPasswordPolicyCode,
+  passwordPolicyErrorMessagePt,
+} from "@/lib/passwordPolicy";
 
 /** Mapa `menuKey` → `{ create, edit, delete }` vindo do servidor (sessão com cookie). */
 let serverMenuEffective = null;
@@ -86,47 +82,36 @@ async function loginWithServer(email, senha, opts = {}) {
   recordMemberLogin(userData);
 }
 
-export { isServerAuthEnabled };
-
-function syncLocalUsersSnapshot(oldEmail, newEmail, full_name) {
-  try {
-    const raw = localStorage.getItem("users");
-    const list = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(list)) return;
-    const oe = String(oldEmail || "").toLowerCase().trim();
-    const ne = String(newEmail || "").toLowerCase().trim();
-    const next = list.map((u) => {
-      if (String(u.email || "").toLowerCase() !== oe) return u;
-      return { ...u, email: ne, full_name: full_name ?? u.full_name };
-    });
-    localStorage.setItem("users", JSON.stringify(next));
-  } catch {
-    /* ignore */
+/** @param {Error & { status?: number; data?: unknown }} e */
+function mapServerLoginError(e) {
+  const raw =
+    (e?.data && typeof e.data === "object" && "message" in e.data
+      ? /** @type {{ message?: string }} */ (e.data).message
+      : null) || e?.message;
+  const code = String(raw || "");
+  if (code === "invalid_credentials") {
+    return "E-mail ou palavra-passe incorrectos.";
+  }
+  if (code === "password_not_set") {
+    return "A sua conta ainda não tem palavra-passe. Use o link do convite para criar a sua palavra-passe.";
+  }
+  if (code === "session_already_active") {
+    return "Esta conta já está com uma sessão ativa. Saia (logout) na outra sessão ou aguarde expirar para entrar novamente.";
+  }
+  if (code === "invalid_request") {
+    return "Dados inválidos.";
+  }
+  if (code === "too_many_requests") {
+    return "Demasiadas tentativas. Aguarde alguns minutos e tente novamente.";
+  }
+  if (code === "login_temporarily_blocked") {
+    return "Muitas tentativas incorretas. Aguarde alguns minutos e tente novamente.";
   }
   if (code === "login_unavailable") {
     return "Acesso temporariamente indisponível para esta conta/rede por excesso de tentativas. Tente novamente mais tarde.";
   }
   if (code && code !== "Error") return code;
   return "Não foi possível iniciar sessão.";
-}
-
-async function loginWithServer(email, senha) {
-  await fetchJson("/auth/login", {
-    method: "POST",
-    body: { email, password: senha },
-  });
-  const u = await fetchJson("/auth/me", { method: "GET" });
-  const userData = {
-    id: u.id,
-    email: u.email,
-    full_name: u.full_name,
-    role: u.role,
-    funcao: u.funcao ?? "",
-    _authSource: "server",
-  };
-  persistSessionUser(userData);
-  recordMemberLogin(userData);
-  return true;
 }
 
 /**
@@ -145,31 +130,53 @@ export async function login(email, senha, opts = {}) {
     };
   }
 
-  if (isServerAuthEnabled()) {
-    try {
-      return await loginWithServer(email, senha);
-    } catch {
-      /* continua para conta local no browser */
+  try {
+    await loginWithServer(email, senha, opts);
+    return { ok: true };
+  } catch (e) {
+    const status = /** @type {Error & { status?: number }} */ (e)?.status;
+    if (
+      status === 400 ||
+      status === 401 ||
+      status === 403 ||
+      status === 409 ||
+      status === 423 ||
+      status === 429 ||
+      status === 503
+    ) {
+      const data = /** @type {{ message?: string }} */ (
+        /** @type {Error & { data?: unknown }} */ (e)?.data
+      );
+      const code = String(data?.message || "");
+      return {
+        ok: false,
+        message: mapServerLoginError(
+          /** @type {Error & { status?: number; data?: unknown }} */ (e),
+        ),
+        ...(status === 409 && code === "session_already_active"
+          ? { sessionAlreadyActive: true }
+          : {}),
+      };
     }
+    return {
+      ok: false,
+      message:
+        "Não foi possível validar no servidor. Confirme que o servidor está no ar (`npm run dev:server`) e o proxy/porta estão corretos.",
+    };
   }
-
-  const local = await verifyLocalLogin(email, senha);
-  if (!local) return false;
-  const userData = {
-    email: local.email,
-    role: local.role,
-    full_name: local.full_name,
-    _authSource: "local",
-  };
-  persistSessionUser(userData);
-  recordMemberLogin(userData);
-  return true;
 }
 
 export function logout() {
   const cur = readSessionUser();
   if (isServerAuthEnabled() || cur?._authSource === "server") {
-    void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    // eslint-disable-next-line no-void
+    void import("@/lib/csrf").then(({ withCsrfHeader }) =>
+      fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: withCsrfHeader(),
+      }),
+    );
   }
   clearServerMenuEffective();
   clearSessionUser();
@@ -247,15 +254,6 @@ export async function verifyCurrentPassword(user, plainPassword) {
   if (user?._authSource === "server") {
     return false;
   }
-  const email = String(user?.email || "").toLowerCase().trim();
-  if (isDemoEmail(email)) {
-    const demoPass = String(import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "");
-    return plainPassword === demoPass;
-  }
-  const acc = findLocalAccount(email);
-  if (acc?.passwordHash && acc?.salt) {
-    return verifyPassword(plainPassword, acc.salt, acc.passwordHash);
-  }
   return false;
 }
 
@@ -287,14 +285,18 @@ export async function updateUserProfile(fields) {
 
   if (cur._authSource === "server") {
     try {
+      const body = {
+        full_name: nextName,
+        email: nextEmail,
+        current_password: currentPassword || undefined,
+        new_password: newPassword || undefined,
+      };
+      if (fields.avatar_url !== undefined) {
+        body.avatar_url = String(fields.avatar_url ?? "").trim();
+      }
       const u = await fetchJson("/users/me", {
         method: "PUT",
-        body: {
-          full_name: nextName,
-          email: nextEmail,
-          current_password: currentPassword,
-          new_password: newPassword || undefined,
-        },
+        body,
       });
       const next = {
         ...cur,
@@ -302,27 +304,17 @@ export async function updateUserProfile(fields) {
         email: u.email,
         full_name: u.full_name,
         role: u.role,
+        avatar_url: u.avatar_url ? String(u.avatar_url) : "",
         _authSource: "server",
       };
       persistSessionUser(next);
       recordMemberLogin(next);
       return next;
     } catch (e) {
-      throw new Error(
-        e?.message === "invalid_credentials"
-          ? "Palavra-passe atual incorreta."
-          : e?.message || "Não foi possível atualizar o perfil.",
-      );
-    }
-  }
-
-  const ok = await verifyCurrentPassword(cur, currentPassword);
-  if (!ok) {
-    throw new Error("Palavra-passe atual incorreta.");
-  }
-
-  if (isDemoEmail(oldEmail)) {
-    if (nextEmail !== oldEmail || newPassword.length > 0) {
+      const m = String(e?.message || "");
+      if (isAccountPasswordPolicyCode(m)) {
+        throw new Error(passwordPolicyErrorMessagePt(m));
+      }
       throw new Error(
         m === "current_password_required"
           ? "Informe a palavra-passe atual."

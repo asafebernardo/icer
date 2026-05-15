@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import { getUser, isServerAuthEnabled } from "@/lib/auth";
+import { isServerAuthEnabled } from "@/lib/auth";
 
 /**
  * Com `VITE_USE_SERVER_AUTH=true`, imagens e documentos vão para `POST /api/files` (disco no servidor).
@@ -146,49 +146,83 @@ function parseUploadResponse(res) {
 /**
  * Upload para `POST /api/files` (armazenamento privado no servidor Node).
  * @param {File | Blob} file
+ * @param {{ purpose?: string }} [opts]
+ * @param {(percent: number) => void} [onProgress] 0–100 durante o envio (XHR `upload.onprogress`)
  */
-async function uploadPrivateServerFile(file) {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/files", {
-    method: "POST",
-    credentials: "include",
-    body: fd,
+async function uploadPrivateServerFile(file, opts = {}, onProgress) {
+  const { withCsrfHeaderAsync } = await import("@/lib/csrf");
+  const headers = await withCsrfHeaderAsync();
+
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (opts?.purpose) fd.append("purpose", String(opts.purpose));
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/files");
+    xhr.withCredentials = true;
+    Object.entries(headers || {}).forEach(([k, v]) => {
+      if (v != null && String(v) !== "") xhr.setRequestHeader(k, String(v));
+    });
+
+    xhr.upload.onprogress = (ev) => {
+      if (typeof onProgress !== "function" || !ev.lengthComputable) return;
+      const pct = Math.min(
+        100,
+        Math.max(0, Math.round((ev.loaded / ev.total) * 100)),
+      );
+      onProgress(pct);
+    };
+
+    xhr.onload = () => {
+      const text = xhr.responseText || "";
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { message: text };
+        }
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(
+          new Error(data?.message || xhr.statusText || "Upload falhou"),
+        );
+        return;
+      }
+      const url =
+        data?.url ||
+        (data?.id != null ? `/api/files/${data.id}` : null);
+      if (!url) {
+        reject(new Error("Resposta sem URL de ficheiro"));
+        return;
+      }
+      resolve({ file_url: url });
+    };
+
+    xhr.onerror = () => reject(new Error("Upload falhou"));
+    xhr.send(fd);
   });
-  const text = await res.text();
-  let data = null;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
-  }
-  if (!res.ok) {
-    throw new Error(data?.message || res.statusText || "Upload falhou");
-  }
-  const url =
-    data?.url ||
-    (data?.id != null ? `/api/files/${data.id}` : null);
-  if (!url) throw new Error("Resposta sem URL de ficheiro");
-  return { file_url: url };
 }
 
-function shouldUsePrivateServerUpload() {
-  const u = getUser();
-  return isServerAuthEnabled() && u?._authSource === "server";
+/** Com API Node + auth no servidor, os ficheiros vão para disco (`server/uploads`) e só metadados no MongoDB. */
+function shouldUploadToServerDisk() {
+  return isServerAuthEnabled();
 }
 
 /**
- * PDF e outros ficheiros (ex.: Material) — mesmo armazenamento privado em modo servidor.
+ * PDF e outros ficheiros (ex.: Material) — disco no servidor quando a API ICER está ativa.
  * @param {File | Blob} file
+ * @param {{ purpose?: string; onProgress?: (percent: number) => void }} [opts]
  */
-export async function uploadIntegrationFile(file) {
+export async function uploadIntegrationFile(file, opts = {}) {
   if (!file) throw new Error("Sem ficheiro");
-  if (shouldUsePrivateServerUpload()) {
-    return uploadPrivateServerFile(file);
+  const { onProgress, purpose } = opts;
+  if (shouldUploadToServerDisk()) {
+    return uploadPrivateServerFile(file, { purpose }, onProgress);
   }
   const res = await api.integrations.Core.UploadFile({ file });
+  if (typeof onProgress === "function") onProgress(100);
   return parseUploadResponse(res);
 }
 
@@ -206,7 +240,7 @@ export async function uploadImageFile(file) {
     return { file_url };
   }
   const fileToSend = await imageFileToCompressedFile(file).catch(() => file);
-  if (shouldUsePrivateServerUpload()) {
+  if (shouldUploadToServerDisk()) {
     return uploadPrivateServerFile(fileToSend);
   }
   const res = await api.integrations.Core.UploadFile({ file: fileToSend });
@@ -234,7 +268,7 @@ export async function imageFileToStorableUrl(file) {
   }
   try {
     const fileToSend = await imageFileToCompressedFile(file).catch(() => file);
-    if (shouldUsePrivateServerUpload()) {
+    if (shouldUploadToServerDisk()) {
       return (await uploadPrivateServerFile(fileToSend)).file_url;
     }
     const res = await api.integrations.Core.UploadFile({ file: fileToSend });

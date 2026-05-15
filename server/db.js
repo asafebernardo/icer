@@ -1,126 +1,149 @@
-import fs from "node:fs";
-import path from "node:path";
-import Database from "better-sqlite3";
+import { MongoClient } from "mongodb";
+import { backfillPostsPubSortAt } from "./dataRoutes.js";
 
-const DATA_DIR = path.resolve("server", "data");
-const DB_PATH = path.join(DATA_DIR, "app.db");
+/** @type {MongoClient | null} */
+let client = null;
 
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
+function resolveMongoTimeouts() {
+  const serverSelectionTimeoutMS = Number(
+    process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 8000,
+  );
+  const connectTimeoutMS = Number(process.env.MONGODB_CONNECT_TIMEOUT_MS || 8000);
+  const socketTimeoutMS = Number(process.env.MONGODB_SOCKET_TIMEOUT_MS || 0);
+  return {
+    serverSelectionTimeoutMS:
+      Number.isFinite(serverSelectionTimeoutMS) && serverSelectionTimeoutMS > 0
+        ? serverSelectionTimeoutMS
+        : 8000,
+    connectTimeoutMS:
+      Number.isFinite(connectTimeoutMS) && connectTimeoutMS > 0
+        ? connectTimeoutMS
+        : 8000,
+    socketTimeoutMS:
+      Number.isFinite(socketTimeoutMS) && socketTimeoutMS >= 0
+        ? socketTimeoutMS
+        : 0,
+  };
 }
 
-function columnExists(db, table, col) {
-  const rows = db.prepare(`PRAGMA table_info(${table})`).all();
-  return rows.some((r) => r.name === col);
+/**
+ * Atlas / mongodb+srv: password com @ : # / etc. → use credenciais separadas (encoding automático).
+ * Aceita MONGODB_USER / MONGODB_PASSWORD ou MONGODB_SRV_USER / MONGODB_SRV_PASSWORD.
+ */
+function resolveMongoUri() {
+  const host = String(process.env.MONGODB_SRV_HOST || "").trim();
+  const user = String(
+    process.env.MONGODB_USER || process.env.MONGODB_SRV_USER || "",
+  ).trim();
+  const pass =
+    process.env.MONGODB_PASSWORD ?? process.env.MONGODB_SRV_PASSWORD;
+  if (host) {
+    const missing = [];
+    if (!user) {
+      missing.push("MONGODB_USER ou MONGODB_SRV_USER");
+    }
+    if (pass === undefined || String(pass).length === 0) {
+      missing.push("MONGODB_PASSWORD ou MONGODB_SRV_PASSWORD");
+    }
+    if (missing.length) {
+      throw new Error(
+        `[ICER] Com MONGODB_SRV_HOST defina ${missing.join(" e ")} (ou comente MONGODB_SRV_HOST e use só MONGODB_URI).`,
+      );
+    }
+    const u = encodeURIComponent(user);
+    const p = encodeURIComponent(String(pass));
+    return `mongodb+srv://${u}:${p}@${host}/?retryWrites=true&w=majority`;
+  }
+  return String(process.env.MONGODB_URI || "").trim();
 }
 
-export function openDb() {
-  ensureDir(DATA_DIR);
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  migrate(db);
+/**
+ * @param {import("mongodb").Db} db
+ */
+export async function ensureMongoIndexes(db) {
+  await db.collection("users").createIndex({ id: 1 }, { unique: true });
+  await db.collection("users").createIndex({ email: 1 }, { unique: true });
+  await db.collection("sessions").createIndex({ token_hash: 1 }, { unique: true });
+  await db.collection("sessions").createIndex({ expires_at: 1 });
+  await db.collection("user_invites").createIndex({ token_hash: 1 }, { unique: true });
+  await db.collection("user_invites").createIndex({ user_id: 1, created_at: -1 });
+  await db.collection("user_invites").createIndex({ expires_at: 1 });
+  await db.collection("files").createIndex({ id: 1 }, { unique: true });
+  await db.collection("app_kv").createIndex({ key: 1 }, { unique: true });
+  await db.collection("event_bulk_runs_v1").createIndex({ id: 1 }, { unique: true });
+  await db.collection("event_bulk_runs_v1").createIndex({ batch_id: 1 }, { unique: true });
+  await db.collection("event_bulk_runs_v1").createIndex({ created_at: -1 });
+  await db.collection("event_bulk_schedule_templates_v1").createIndex({ id: 1 }, { unique: true });
+  await db.collection("event_bulk_schedule_templates_v1").createIndex({ updated_at: -1 });
+  await db.collection("event_bulk_schedule_templates_v1").createIndex({ created_by_user_id: 1 });
+  await db.collection("auth_google_login_oauth_states_v1").createIndex(
+    { state: 1 },
+    { unique: true },
+  );
+  await db.collection("auth_google_login_oauth_states_v1").createIndex(
+    { expires_at: 1 },
+    { expireAfterSeconds: 0 },
+  );
+  for (const c of [
+    "posts",
+    "eventos",
+    "materiais",
+    "fotos_galeria",
+    "contatos",
+  ]) {
+    await db.collection(c).createIndex({ id: 1 }, { unique: true });
+  }
+  await db.collection("posts").createIndex({ created_at: 1 });
+  await db.collection("posts").createIndex({ pub_sort_at: -1, created_at: -1 });
+  await backfillPostsPubSortAt(db);
+  await db.collection("eventos").createIndex({ event_date: 1, created_at: 1 });
+  await db.collection("materiais").createIndex({ created_at: 1 });
+  await db.collection("fotos_galeria").createIndex({ created_at: 1 });
+  await db.collection("contatos").createIndex({ created_at: 1 });
+  await db.collection("audit_logs").createIndex({ id: 1 }, { unique: true });
+  await db.collection("audit_logs").createIndex({ user_id: 1, created_at: -1 });
+  await db.collection("audit_logs").createIndex({ created_at: -1 });
+  await db.collection("permission_groups").createIndex({ id: 1 }, { unique: true });
+  await db.collection("permission_groups").createIndex({ slug: 1 }, { unique: true, sparse: true });
+}
+
+/**
+ * @param {string} uri
+ * @param {string} [dbName]
+ * @returns {Promise<import("mongodb").Db>}
+ */
+export async function openDbFromUri(uri, dbName = "icer") {
+  const timeouts = resolveMongoTimeouts();
+  client = new MongoClient(uri, {
+    ...timeouts,
+  });
+  await client.connect();
+  const db = client.db(dbName);
+  await ensureMongoIndexes(db);
   return db;
 }
 
-/** Base em memória para testes de integração (sem ficheiros em disco). */
-export function openDbMemory() {
-  const db = new Database(":memory:");
-  db.pragma("journal_mode = MEMORY");
-  db.pragma("foreign_keys = ON");
-  migrate(db);
-  return db;
+/**
+ * Liga a MongoDB usando `process.env.MONGODB_URI` (obrigatório).
+ * @returns {Promise<import("mongodb").Db>}
+ */
+export async function openDb() {
+  const uri = resolveMongoUri();
+  if (!uri) {
+    throw new Error(
+      "[ICER] MongoDB: defina MONGODB_URI (ex.: mongodb://127.0.0.1:27017) ou Atlas com MONGODB_SRV_HOST + (MONGODB_USER ou MONGODB_SRV_USER) + (MONGODB_PASSWORD ou MONGODB_SRV_PASSWORD). Ver env.example.",
+    );
+  }
+  const dbName =
+    String(
+      process.env.MONGODB_DB_NAME || process.env.MONGODB_SRV_DATABASE || "icer",
+    ).trim() || "icer";
+  return openDbFromUri(uri, dbName);
 }
 
-function migrate(db) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL UNIQUE,
-      full_name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('admin','user')),
-      password_hash TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      token_hash TEXT NOT NULL UNIQUE,
-      created_at TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_user_id INTEGER NOT NULL,
-      original_name TEXT NOT NULL,
-      mime TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      storage_path TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY(owner_user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS app_kv (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS posts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_user_id INTEGER,
-      body_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY(owner_user_id) REFERENCES users(id) ON DELETE SET NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS eventos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_user_id INTEGER,
-      event_date TEXT NOT NULL DEFAULT '',
-      body_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY(owner_user_id) REFERENCES users(id) ON DELETE SET NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS materiais (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_user_id INTEGER,
-      body_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY(owner_user_id) REFERENCES users(id) ON DELETE SET NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS fotos_galeria (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_user_id INTEGER,
-      body_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY(owner_user_id) REFERENCES users(id) ON DELETE SET NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS contatos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      body_json TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at);
-    CREATE INDEX IF NOT EXISTS idx_eventos_date ON eventos(event_date);
-    CREATE INDEX IF NOT EXISTS idx_eventos_created ON eventos(created_at);
-    CREATE INDEX IF NOT EXISTS idx_materiais_created ON materiais(created_at);
-    CREATE INDEX IF NOT EXISTS idx_fotos_created ON fotos_galeria(created_at);
-    CREATE INDEX IF NOT EXISTS idx_contatos_created ON contatos(created_at);
-  `);
-
-  if (!columnExists(db, "users", "funcao")) {
-    db.exec(`ALTER TABLE users ADD COLUMN funcao TEXT NOT NULL DEFAULT '';`);
+export async function closeDb() {
+  if (client) {
+    await client.close();
+    client = null;
   }
 }
