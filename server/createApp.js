@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,6 +9,7 @@ import multer from "multer";
 import { z } from "zod";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { httpAccessLogger, log, color } from "./log.js";
+import { fetchGithubBranchReleases, DEFAULT_ICER_GITHUB_REPO_RAW, parseGithubRepo } from "./githubBranchReleases.js";
 
 let _sharp = null;
 async function getSharp() {
@@ -61,6 +63,10 @@ import {
 } from "./auditLog.js";
 import { findFileReferences } from "./fileReferences.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
+import {
+  BUILTIN_ADMIN_GROUP_SLUG,
+  defaultGroupPermissionsMap,
+} from "./permissionGroupDefaults.js";
 import {
   buildGoogleLoginAuthorizeUrl,
   consumeGoogleLoginOauthState,
@@ -1273,12 +1279,163 @@ export function createApplication(db, options = {}) {
             invited_at: 1,
             last_login_at: 1,
             avatar_url: 1,
+            permission_group_id: 1,
           },
         },
       )
       .sort({ role: -1, created_at: -1 })
       .toArray();
     res.json(users);
+  });
+
+  const permissionBlockSchema = z
+    .object({
+      create: z.boolean().optional(),
+      edit: z.boolean().optional(),
+      delete: z.boolean().optional(),
+    })
+    .strict()
+    .partial();
+
+  const permissionGroupPermissionsSchema = z.record(z.string(), permissionBlockSchema);
+
+  app.get("/api/admin/permission-groups", requireAdmin, async (_req, res) => {
+    const rows = await db
+      .collection("permission_groups")
+      .find(
+        {},
+        {
+          projection: {
+            _id: 0,
+            id: 1,
+            slug: 1,
+            name: 1,
+            description: 1,
+            permissions: 1,
+            created_at: 1,
+            updated_at: 1,
+          },
+        },
+      )
+      .sort({ id: 1 })
+      .toArray();
+    res.json(rows);
+  });
+
+  app.post("/api/admin/permission-groups", requireAdmin, async (req, res) => {
+    const schema = z.object({
+      name: z.string().min(1).max(120),
+      description: z.string().max(500).optional().default(""),
+      permissions: permissionGroupPermissionsSchema.optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const now = nowIso();
+    const id = await nextSeq(db, "permission_groups");
+    const permissions =
+      parsed.data.permissions && typeof parsed.data.permissions === "object"
+        ? parsed.data.permissions
+        : defaultGroupPermissionsMap();
+    await db.collection("permission_groups").insertOne({
+      id,
+      name: parsed.data.name.trim(),
+      description: String(parsed.data.description || "").trim(),
+      permissions,
+      created_at: now,
+      updated_at: now,
+    });
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.permission_group.create",
+      details: { id, name: parsed.data.name.trim() },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.status(201).json({ id });
+  });
+
+  app.put("/api/admin/permission-groups/:id", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const schema = z.object({
+      name: z.string().min(1).max(120).optional(),
+      description: z.string().max(500).optional(),
+      permissions: permissionGroupPermissionsSchema.optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    const cur = await db.collection("permission_groups").findOne({ id }, { projection: { id: 1 } });
+    if (!cur) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    const now = nowIso();
+    const $set = { updated_at: now };
+    if (parsed.data.name != null) $set.name = parsed.data.name.trim();
+    if (parsed.data.description !== undefined) {
+      $set.description = String(parsed.data.description ?? "").trim();
+    }
+    if (parsed.data.permissions != null) {
+      $set.permissions = parsed.data.permissions;
+    }
+    await db.collection("permission_groups").updateOne({ id }, { $set });
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.permission_group.update",
+      details: { id },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
+  });
+
+  app.delete("/api/admin/permission-groups/:id", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = await db
+      .collection("permission_groups")
+      .findOne({ id }, { projection: { id: 1, slug: 1 } });
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    if (row.slug === BUILTIN_ADMIN_GROUP_SLUG) {
+      res.status(400).json({ message: "builtin_permission_group" });
+      return;
+    }
+    const inUse = await db.collection("users").countDocuments({ permission_group_id: id });
+    if (inUse > 0) {
+      res.status(409).json({ message: "permission_group_in_use", count: inUse });
+      return;
+    }
+    const del = await db.collection("permission_groups").deleteOne({ id });
+    if (del.deletedCount === 0) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    await recordAudit(db, {
+      userId: null,
+      actorUserId: req.user.id,
+      action: "admin.permission_group.delete",
+      details: { id },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
   });
 
   app.get("/api/admin/metrics/home-views", requireAdmin, async (req, res) => {
@@ -1666,6 +1823,166 @@ export function createApplication(db, options = {}) {
         },
       },
       time_iso: new Date().toISOString(),
+    });
+  });
+
+  /** Histórico Git (tags = versões), CHANGELOG e opcionalmente branches no GitHub. */
+  app.get("/api/admin/site-releases", requireAdmin, async (_req, res) => {
+    const root = process.cwd();
+    let packageJson = { name: "icer", version: "0.0.0" };
+    try {
+      const raw = fs.readFileSync(path.join(root, "package.json"), "utf8");
+      const j = JSON.parse(raw);
+      if (typeof j.name === "string") packageJson.name = j.name;
+      if (typeof j.version === "string") packageJson.version = j.version;
+    } catch {
+      /* defaults */
+    }
+
+    let changelogMarkdown = null;
+    try {
+      const cp = path.join(root, "CHANGELOG.md");
+      if (fs.existsSync(cp)) {
+        changelogMarkdown = fs.readFileSync(cp, "utf8").slice(0, 48_000);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    let gitInside = false;
+    try {
+      execSync("git rev-parse --is-inside-work-tree", {
+        cwd: root,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      gitInside = true;
+    } catch {
+      gitInside = false;
+    }
+
+    /** @type {Array<{ tag: string; tag_date: string; commits: Array<{ hash: string; subject: string; date: string }> }>} */
+    const releases = [];
+    /** @type {Array<{ hash: string; subject: string; date: string }>} */
+    const recentCommits = [];
+
+    if (gitInside) {
+      try {
+        const tagsOut = execSync("git tag --sort=-creatordate", {
+          cwd: root,
+          encoding: "utf8",
+          maxBuffer: 2_000_000,
+        })
+          .trim()
+          .split("\n")
+          .filter(Boolean)
+          .slice(0, 30);
+
+        for (let i = 0; i < tagsOut.length; i++) {
+          const tag = tagsOut[i];
+          const older = tagsOut[i + 1];
+          let logOut = "";
+          try {
+            if (older) {
+              logOut = execSync(`git log ${older}..${tag} --pretty=format:%h%x09%s%x09%ci`, {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 4_000_000,
+              });
+            } else {
+              logOut = execSync(`git log -n 120 --pretty=format:%h%x09%s%x09%ci ${tag}`, {
+                cwd: root,
+                encoding: "utf8",
+                maxBuffer: 4_000_000,
+              });
+            }
+          } catch {
+            logOut = "";
+          }
+          const commits = [];
+          for (const line of logOut.trim().split("\n")) {
+            if (!line) continue;
+            const parts = line.split("\t");
+            if (parts.length >= 3) {
+              commits.push({
+                hash: parts[0],
+                subject: parts[1] || "",
+                date: parts[2] || "",
+              });
+            }
+          }
+          let tagDate = "";
+          try {
+            tagDate = execSync(`git log -1 --format=%ci ${tag}`, {
+              cwd: root,
+              encoding: "utf8",
+            }).trim();
+          } catch {
+            /* ignore */
+          }
+          releases.push({ tag, tag_date: tagDate, commits });
+        }
+
+        const headLog = execSync("git log -n 80 --pretty=format:%h%x09%s%x09%ci HEAD", {
+          cwd: root,
+          encoding: "utf8",
+          maxBuffer: 2_000_000,
+        });
+        for (const line of headLog.trim().split("\n")) {
+          if (!line) continue;
+          const parts = line.split("\t");
+          if (parts.length >= 3) {
+            recentCommits.push({
+              hash: parts[0],
+              subject: parts[1] || "",
+              date: parts[2] || "",
+            });
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const gitData =
+      gitInside && (releases.length > 0 || recentCommits.length > 0);
+
+    let github = {
+      configured: true,
+      using_default_repo: true,
+      repo: "asafebernardo/icer",
+      html_url: "https://github.com/asafebernardo/icer",
+      error: null,
+      default_branch: null,
+      commits_branch: null,
+      commit_versions: [],
+    };
+    try {
+      github = await fetchGithubBranchReleases();
+    } catch (e) {
+      const raw =
+        String(process.env.ICER_GITHUB_REPO || "").trim() || DEFAULT_ICER_GITHUB_REPO_RAW;
+      const parsed = parseGithubRepo(raw);
+      const full = parsed?.full || null;
+      github = {
+        configured: true,
+        using_default_repo: !String(process.env.ICER_GITHUB_REPO || "").trim(),
+        repo: full || raw,
+        html_url: full ? `https://github.com/${full}` : null,
+        error: String(e?.message || e),
+        default_branch: null,
+        commits_branch: null,
+        commit_versions: [],
+      };
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      app: { name: packageJson.name, version: packageJson.version },
+      git_available: gitData,
+      releases,
+      recent_commits: recentCommits,
+      changelog_markdown: changelogMarkdown,
+      github,
     });
   });
 
@@ -2165,6 +2482,7 @@ export function createApplication(db, options = {}) {
       password: z.string().min(1).optional(),
       funcao: z.string().optional(),
       disabled: z.boolean().optional(),
+      permission_group_id: z.union([z.number().int().positive(), z.null()]).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -2203,6 +2521,22 @@ export function createApplication(db, options = {}) {
     if (parsed.data.funcao != null) $set.funcao = String(parsed.data.funcao);
     if (password_hash) $set.password_hash = password_hash;
     if (parsed.data.disabled != null) $set.disabled = parsed.data.disabled;
+    if (parsed.data.permission_group_id !== undefined) {
+      const gid = parsed.data.permission_group_id;
+      if (gid === null) {
+        $set.permission_group_id = null;
+      } else {
+        const g = await db.collection("permission_groups").findOne(
+          { id: gid },
+          { projection: { id: 1 } },
+        );
+        if (!g) {
+          res.status(400).json({ message: "invalid_permission_group" });
+          return;
+        }
+        $set.permission_group_id = gid;
+      }
+    }
     await db.collection("users").updateOne({ id }, { $set });
     const fields = [];
     if (nextEmail != null) fields.push("email");
@@ -2210,6 +2544,7 @@ export function createApplication(db, options = {}) {
     if (parsed.data.funcao != null) fields.push("funcao");
     if (password_hash) fields.push("password");
     if (parsed.data.disabled != null) fields.push("disabled");
+    if (parsed.data.permission_group_id !== undefined) fields.push("permission_group_id");
     await recordAudit(db, {
       userId: id,
       actorUserId: req.user.id,
@@ -2351,15 +2686,25 @@ export function createApplication(db, options = {}) {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
     const skip = Math.max(0, Math.min(50000, Number(req.query.skip) || 0));
     const q = String(req.query.q || "").trim();
+    const kind = String(req.query.kind || "all").trim().toLowerCase();
+    const clauses = [];
+    if (q.length > 0) {
+      clauses.push({
+        $or: [
+          { original_name: { $regex: escapeMongoRegex(q), $options: "i" } },
+          { mime: { $regex: escapeMongoRegex(q), $options: "i" } },
+        ],
+      });
+    }
+    if (kind === "image") {
+      clauses.push({ mime: { $regex: "^image\\/", $options: "i" } });
+    } else if (kind === "video") {
+      clauses.push({ mime: { $regex: "^video\\/", $options: "i" } });
+    } else if (kind === "audio") {
+      clauses.push({ mime: { $regex: "^audio\\/", $options: "i" } });
+    }
     const filter =
-      q.length > 0
-        ? {
-            $or: [
-              { original_name: { $regex: escapeMongoRegex(q), $options: "i" } },
-              { mime: { $regex: escapeMongoRegex(q), $options: "i" } },
-            ],
-          }
-        : {};
+      clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
     const [items, total] = await Promise.all([
       db
         .collection("files")

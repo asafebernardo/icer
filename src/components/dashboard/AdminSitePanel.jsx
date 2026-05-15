@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ImagePlus,
   Lock,
+  MapPin,
   Palette,
   RefreshCw,
   LayoutGrid,
@@ -34,10 +35,11 @@ import {
   getSiteConfig,
   refreshPublicSiteConfig,
   savePublicSiteConfigAdmin,
+  FOOTER_SITE_CONFIG_DEFAULTS,
 } from "@/lib/siteConfig";
 import SafeImg from "@/components/shared/SafeImg";
-import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
+import { getUserColorPalette, setUserColorPalette } from "@/lib/userColorPalette";
 import { useAuth } from "@/lib/AuthContext";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import {
@@ -88,9 +90,11 @@ export default function AdminSitePanel() {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [paletteId, setPaletteId] = useState(
-    () => getSiteConfig().colorPalette || "azul",
-  );
+  const [paletteId, setPaletteId] = useState(() => getUserColorPalette(undefined));
+
+  useEffect(() => {
+    setPaletteId(getUserColorPalette(user?.id));
+  }, [user?.id]);
   const [sessionTtl, setSessionTtl] = useState(120);
   const [loadingSessionTtl, setLoadingSessionTtl] = useState(true);
   const [savingSessionTtl, setSavingSessionTtl] = useState(false);
@@ -176,6 +180,51 @@ export default function AdminSitePanel() {
     },
   );
 
+  const footerDef = FOOTER_SITE_CONFIG_DEFAULTS;
+  const [footerEndereco, setFooterEndereco] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerEndereco")
+      ? String(c.footerEndereco ?? "").trim()
+      : footerDef.footerEndereco;
+  });
+  const [footerTelefone, setFooterTelefone] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerTelefone")
+      ? String(c.footerTelefone ?? "").trim()
+      : footerDef.footerTelefone;
+  });
+  const [footerEmail, setFooterEmail] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerEmail")
+      ? String(c.footerEmail ?? "").trim()
+      : footerDef.footerEmail;
+  });
+  const [footerHorario1Dia, setFooterHorario1Dia] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerHorario1Dia")
+      ? String(c.footerHorario1Dia ?? "").trim()
+      : footerDef.footerHorario1Dia;
+  });
+  const [footerHorario1Desc, setFooterHorario1Desc] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerHorario1Desc")
+      ? String(c.footerHorario1Desc ?? "").trim()
+      : footerDef.footerHorario1Desc;
+  });
+  const [footerHorario2Dia, setFooterHorario2Dia] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerHorario2Dia")
+      ? String(c.footerHorario2Dia ?? "").trim()
+      : footerDef.footerHorario2Dia;
+  });
+  const [footerHorario2Desc, setFooterHorario2Desc] = useState(() => {
+    const c = getSiteConfig();
+    return cfgOwn(c, "footerHorario2Desc")
+      ? String(c.footerHorario2Desc ?? "").trim()
+      : footerDef.footerHorario2Desc;
+  });
+  const [savingFooter, setSavingFooter] = useState(false);
+
   const loadHomeCardFieldsFromConfig = () => {
     const c = getSiteConfig();
     setHomeSocialSectionTag(
@@ -229,12 +278,34 @@ export default function AdminSitePanel() {
     );
   };
 
+  const loadFooterFieldsFromConfig = () => {
+    const c = getSiteConfig();
+    const d = FOOTER_SITE_CONFIG_DEFAULTS;
+    setFooterEndereco(cfgOwn(c, "footerEndereco") ? String(c.footerEndereco ?? "").trim() : d.footerEndereco);
+    setFooterTelefone(cfgOwn(c, "footerTelefone") ? String(c.footerTelefone ?? "").trim() : d.footerTelefone);
+    setFooterEmail(cfgOwn(c, "footerEmail") ? String(c.footerEmail ?? "").trim() : d.footerEmail);
+    setFooterHorario1Dia(
+      cfgOwn(c, "footerHorario1Dia") ? String(c.footerHorario1Dia ?? "").trim() : d.footerHorario1Dia,
+    );
+    setFooterHorario1Desc(
+      cfgOwn(c, "footerHorario1Desc") ? String(c.footerHorario1Desc ?? "").trim() : d.footerHorario1Desc,
+    );
+    setFooterHorario2Dia(
+      cfgOwn(c, "footerHorario2Dia") ? String(c.footerHorario2Dia ?? "").trim() : d.footerHorario2Dia,
+    );
+    setFooterHorario2Desc(
+      cfgOwn(c, "footerHorario2Desc") ? String(c.footerHorario2Desc ?? "").trim() : d.footerHorario2Desc,
+    );
+  };
+
   useEffect(() => {
     loadSocialFieldsFromConfig();
     loadHomeCardFieldsFromConfig();
+    loadFooterFieldsFromConfig();
     const onCfg = () => {
       loadSocialFieldsFromConfig();
       loadHomeCardFieldsFromConfig();
+      loadFooterFieldsFromConfig();
     };
     window.addEventListener("icer-site-config", onCfg);
     return () => window.removeEventListener("icer-site-config", onCfg);
@@ -276,6 +347,27 @@ export default function AdminSitePanel() {
       toast.error(e?.message || "Não foi possível guardar as redes sociais.");
     } finally {
       setSavingSocial(false);
+    }
+  };
+
+  const saveFooterTexts = async () => {
+    setSavingFooter(true);
+    try {
+      await savePublicSiteConfigAdmin({
+        footerEndereco: footerEndereco.trim(),
+        footerTelefone: footerTelefone.trim(),
+        footerEmail: footerEmail.trim(),
+        footerHorario1Dia: footerHorario1Dia.trim(),
+        footerHorario1Desc: footerHorario1Desc.trim(),
+        footerHorario2Dia: footerHorario2Dia.trim(),
+        footerHorario2Desc: footerHorario2Desc.trim(),
+      });
+      await refreshPublicSiteConfig();
+      toast.success("Rodapé atualizado.");
+    } catch (e) {
+      toast.error(e?.message || "Não foi possível guardar o rodapé.");
+    } finally {
+      setSavingFooter(false);
     }
   };
 
@@ -417,8 +509,8 @@ export default function AdminSitePanel() {
           <div>
             <h2 className="font-semibold text-foreground text-lg">Redes sociais</h2>
             <p className="text-sm text-muted-foreground">
-              Ícones no rodapé. Os cartões da página inicial (YouTube e Instagram)
-              editam-se na secção seguinte.
+              Ícones no rodapé. Os textos de contacto e horários do rodapé editam-se na secção
+              seguinte. Os cartões da página inicial (YouTube e Instagram) editam-se mais abaixo.
             </p>
           </div>
         </div>
@@ -453,6 +545,113 @@ export default function AdminSitePanel() {
           >
             {savingSocial ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
             Salvar
+          </Button>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.04 }}
+        className="rounded-2xl border border-border bg-card p-6"
+      >
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
+            <MapPin className="h-5 w-5 text-accent" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Rodapé (site público)</h2>
+            <p className="text-sm text-muted-foreground">
+              Endereço (mapa e «Como chegar»), telefone, e-mail e os dois blocos de horários
+              visíveis no rodapé de todas as páginas.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="admin-footer-endereco">Endereço</Label>
+            <Textarea
+              id="admin-footer-endereco"
+              rows={3}
+              value={footerEndereco}
+              onChange={(e) => setFooterEndereco(e.target.value)}
+              placeholder={FOOTER_SITE_CONFIG_DEFAULTS.footerEndereco}
+            />
+            <p className="text-xs text-muted-foreground">
+              Se ficar vazio, o mapa e o botão «Como chegar» deixam de aparecer no rodapé.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-footer-tel">Telefone</Label>
+            <Input
+              id="admin-footer-tel"
+              value={footerTelefone}
+              onChange={(e) => setFooterTelefone(e.target.value)}
+              placeholder={FOOTER_SITE_CONFIG_DEFAULTS.footerTelefone}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="admin-footer-email">E-mail</Label>
+            <Input
+              id="admin-footer-email"
+              type="email"
+              value={footerEmail}
+              onChange={(e) => setFooterEmail(e.target.value)}
+              placeholder={FOOTER_SITE_CONFIG_DEFAULTS.footerEmail}
+            />
+          </div>
+        </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 rounded-xl border border-border/80 bg-muted/15 p-4">
+            <p className="text-sm font-semibold text-foreground">Horário 1</p>
+            <div className="space-y-2">
+              <Label htmlFor="admin-footer-h1-dia">Dia / título</Label>
+              <Input
+                id="admin-footer-h1-dia"
+                value={footerHorario1Dia}
+                onChange={(e) => setFooterHorario1Dia(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="admin-footer-h1-desc">Descrição</Label>
+              <Textarea
+                id="admin-footer-h1-desc"
+                rows={2}
+                value={footerHorario1Desc}
+                onChange={(e) => setFooterHorario1Desc(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-2 rounded-xl border border-border/80 bg-muted/15 p-4">
+            <p className="text-sm font-semibold text-foreground">Horário 2</p>
+            <div className="space-y-2">
+              <Label htmlFor="admin-footer-h2-dia">Dia / título</Label>
+              <Input
+                id="admin-footer-h2-dia"
+                value={footerHorario2Dia}
+                onChange={(e) => setFooterHorario2Dia(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="admin-footer-h2-desc">Descrição</Label>
+              <Textarea
+                id="admin-footer-h2-desc"
+                rows={2}
+                value={footerHorario2Desc}
+                onChange={(e) => setFooterHorario2Desc(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={() => void saveFooterTexts()}
+            disabled={savingFooter}
+            className="gap-2"
+          >
+            {savingFooter ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+            Salvar rodapé
           </Button>
         </div>
       </motion.div>
@@ -543,8 +742,8 @@ export default function AdminSitePanel() {
                 disabled
               />
               <p className="text-xs text-muted-foreground">
-                Para alterar o link do cartão e do rodapé, edite em{" "}
-                <span className="font-medium text-foreground">Redes sociais</span>.
+                O URL do ícone no rodapé vem de{" "}
+                <span className="font-medium text-foreground">Redes sociais</span> acima.
               </p>
             </div>
           </div>
@@ -577,8 +776,8 @@ export default function AdminSitePanel() {
                 disabled
               />
               <p className="text-xs text-muted-foreground">
-                Para alterar o link do cartão e do rodapé, edite em{" "}
-                <span className="font-medium text-foreground">Redes sociais</span>.
+                O URL do ícone no rodapé vem de{" "}
+                <span className="font-medium text-foreground">Redes sociais</span> acima.
               </p>
             </div>
           </div>
@@ -825,9 +1024,10 @@ export default function AdminSitePanel() {
             <Palette className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <h2 className="font-semibold text-foreground text-lg">Cor geral do site</h2>
+            <h2 className="font-semibold text-foreground text-lg">Cor da interface</h2>
             <p className="text-sm text-muted-foreground">
-              Escolha uma de 8 paletas (destaques, botões, foco e tema claro/escuro).
+              Paletas monocromáticas só para a sua conta neste navegador (não altera o site público
+              para visitantes).
             </p>
           </div>
         </div>
@@ -839,11 +1039,10 @@ export default function AdminSitePanel() {
                 key={p.id}
                 type="button"
                 onClick={() => {
+                  setUserColorPalette(user?.id, p.id);
                   setPaletteId(p.id);
-                          savePublicSiteConfigAdmin({ colorPalette: p.id })
-                            .then(() => refreshPublicSiteConfig())
-                            .catch(() => {});
                   applySiteColorPalette(p.id);
+                  toast.success("Preferência de cor guardada neste navegador.");
                 }}
                 className={`rounded-xl border-2 p-3 text-left transition-all hover:opacity-95 ${
                   selected
@@ -863,9 +1062,8 @@ export default function AdminSitePanel() {
           })}
         </div>
         <p className="text-xs text-muted-foreground mt-4">
-          A paleta é guardada no servidor e aplicada a todo o site para todos os
-          visitantes; só um administrador pode alterá-la aqui. O navegador pode
-          guardar uma cópia em cache para carregar mais depressa.
+          Cada utilizador pode escolher um tom neutro diferente; o tema claro/escuro continua no
+          ícone lua/sol da barra.
         </p>
       </motion.div>
     </div>

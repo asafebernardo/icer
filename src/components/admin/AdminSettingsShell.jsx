@@ -1,15 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import {
-  Users,
-  Lock,
-} from "lucide-react";
+import { Lock } from "lucide-react";
 import ProfileSettings from "@/components/dashboard/ProfileSettings";
-import ServerUsersPanel from "@/components/dashboard/ServerUsersPanel";
+import AdminPermissionGroupsPanel from "@/components/dashboard/AdminPermissionGroupsPanel";
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import AdminGooglePanel from "@/components/dashboard/AdminGooglePanel";
 import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
+import AdminSiteReleasesPanel from "@/components/dashboard/AdminSiteReleasesPanel";
 import LoginBlocksPanel from "@/components/dashboard/LoginBlocksPanel";
 import AdminCadastrosOpcoesPanel from "@/components/dashboard/AdminCadastrosOpcoesPanel";
 import AdminServerPanel from "@/components/dashboard/AdminServerPanel";
@@ -34,21 +32,8 @@ function LockedTabNotice() {
   );
 }
 
-function MembrosSemServidorNotice() {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-      <div className="flex items-center gap-2 text-foreground font-medium mb-1">
-        <Users className="w-4 h-4" />
-        Contas no servidor
-      </div>
-      Ative <code className="text-xs bg-muted px-1 rounded">VITE_USE_SERVER_AUTH=true</code> e
-      inicie sessão com uma conta MongoDB para criar e gerir utilizadores aqui.
-    </div>
-  );
-}
-
 /**
- * Painel admin: perfil, membros, site e restantes opções.
+ * Painel admin: perfil, utilizadores, grupos de permissão, site e restantes opções.
  * @param {{ tabMembrosSlot?: import("react").ReactNode }} props
  */
 export default function AdminSettingsShell({ tabMembrosSlot }) {
@@ -69,6 +54,17 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
     isAdmin && auth.isServerAuthEnabled() && user?._authSource === "server";
 
   useEffect(() => {
+    if (tabFromUrl === "members") {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("tab", "admin-users");
+          return next;
+        },
+        { replace: true },
+      );
+      return;
+    }
     if (!tabFromUrl) {
       setActiveTab((c) => (c === "profile" ? c : "profile"));
       return;
@@ -118,11 +114,14 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           <TabsContent value="profile">
             <ProfileSettings user={user} />
           </TabsContent>
-          <TabsContent value="members">
-            <div className="space-y-10">
-              {tabMembrosSlot}
-              {canUseAdminTabs ? <ServerUsersPanel /> : <MembrosSemServidorNotice />}
-            </div>
+          <TabsContent value="admin-users">
+            <div className="space-y-10">{tabMembrosSlot}</div>
+          </TabsContent>
+          <TabsContent value="permission-groups">
+            {canUseAdminTabs ? <AdminPermissionGroupsPanel /> : <LockedTabNotice />}
+          </TabsContent>
+          <TabsContent value="site-updates">
+            <AdminSiteReleasesPanel />
           </TabsContent>
           <TabsContent value="site">
             {canUseAdminTabs ? <AdminSitePanel /> : <LockedTabNotice />}

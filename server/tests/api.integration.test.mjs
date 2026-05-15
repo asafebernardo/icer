@@ -33,6 +33,7 @@ describe("ICER API", () => {
   let memoryServer;
 
   before(async () => {
+    process.env.ICER_GITHUB_DISABLED = "1";
     memoryServer = await MongoMemoryServer.create();
     const uri = memoryServer.getUri();
     const dbName = `icer_test_${Date.now()}`;
@@ -120,6 +121,18 @@ describe("ICER API", () => {
     assert.ok(
       typeof adminRow.last_login_at === "string" && adminRow.last_login_at.length > 5,
     );
+
+    const rel = await agent.get("/api/admin/site-releases").expect(200);
+    assert.ok(rel.body.app);
+    assert.equal(typeof rel.body.app.version, "string");
+    assert.ok("git_available" in rel.body);
+    assert.ok(Array.isArray(rel.body.releases));
+    assert.ok(Array.isArray(rel.body.recent_commits));
+    assert.ok(rel.body.github);
+    assert.equal(typeof rel.body.github.configured, "boolean");
+    assert.equal(typeof rel.body.github.using_default_repo, "boolean");
+    assert.ok(Array.isArray(rel.body.github.commit_versions));
+    assert.equal(rel.body.github.using_default_repo, true);
   });
 
   it("GET /api/admin/users/:id/audit-log (admin)", async () => {
@@ -402,6 +415,13 @@ describe("ICER API", () => {
     const list = await agent.get("/api/admin/files").expect(200);
     assert.ok(Array.isArray(list.body.items));
     assert.ok(list.body.items.some((r) => r.id === id));
+    const listImg = await agent.get("/api/admin/files?kind=image").expect(200);
+    assert.ok(Array.isArray(listImg.body.items));
+    if (listImg.body.items.length > 0) {
+      assert.ok(
+        listImg.body.items.every((r) => String(r.mime || "").toLowerCase().startsWith("image/")),
+      );
+    }
     const det = await agent.get(`/api/admin/files/${id}`).expect(200);
     assert.equal(det.body.file.id, id);
     assert.ok(Array.isArray(det.body.references));

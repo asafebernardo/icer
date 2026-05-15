@@ -1,17 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  format,
-  addMonths,
-  subMonths,
-  addWeeks,
-  subWeeks,
-  startOfMonth,
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-} from "date-fns";
+import { format, addMonths, subMonths, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  LayoutList,
   Table2,
   Check,
   Eye,
@@ -33,8 +22,8 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import MonthlyCalendar from "../components/agenda/MonthlyCalendar";
 import MonthlyAgendaSimple from "../components/agenda/MonthlyAgendaSimple";
-import WeeklyCalendar from "../components/agenda/WeeklyCalendar";
 import AgendaMensalMobile from "@/components/agenda/mobile-monthly/AgendaMensalMobile";
+import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { listEventosMerged } from "@/lib/eventosQuery";
@@ -48,7 +37,7 @@ type Evento = {
   [key: string]: any;
 };
 
-type AgendaView = "mensal" | "semanal" | "simples";
+type AgendaView = "mensal" | "simples";
 
 function AgendaToolbar({
   view,
@@ -60,6 +49,9 @@ function AgendaToolbar({
   showPreletorCards,
   setShowPreletorCards,
   canCreateEvento,
+  hidePreletorToggle = false,
+  /** Vista mensal no telemóvel: mês/setas já estão em `AgendaMensalMobile`. */
+  hidePeriodRowOnMobile = false,
 }: {
   view: AgendaView;
   setView: (v: AgendaView) => void;
@@ -70,6 +62,8 @@ function AgendaToolbar({
   showPreletorCards: boolean;
   setShowPreletorCards: (v: boolean | ((b: boolean) => boolean)) => void;
   canCreateEvento: boolean;
+  hidePreletorToggle?: boolean;
+  hidePeriodRowOnMobile?: boolean;
 }) {
   return (
     <>
@@ -101,8 +95,13 @@ function AgendaToolbar({
         </>
       ) : null}
 
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="mb-6 flex flex-col gap-4 items-center sm:items-stretch sm:flex-row sm:flex-wrap sm:justify-between">
+        <div
+          className={cn(
+            "flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3",
+            hidePeriodRowOnMobile && "hidden",
+          )}
+        >
           <Button variant="outline" size="icon" onClick={prevPeriod} aria-label="Período anterior">
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -115,13 +114,18 @@ function AgendaToolbar({
             <ChevronRight className="w-4 h-4" />
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={goToday} className="shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goToday}
+            className="hidden shrink-0 sm:inline-flex"
+          >
             Hoje
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {view !== "simples" ? (
+        <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-end">
+          {view !== "simples" && !hidePreletorToggle ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -159,7 +163,7 @@ function AgendaToolbar({
               role="tab"
               aria-selected={view === "mensal"}
               onClick={() => setView("mensal")}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
+              className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-0 sm:px-3 ${
                 view === "mensal"
                   ? "bg-background font-semibold text-foreground shadow-sm ring-1 ring-border/60"
                   : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
@@ -172,24 +176,9 @@ function AgendaToolbar({
             <button
               type="button"
               role="tab"
-              aria-selected={view === "semanal"}
-              onClick={() => setView("semanal")}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
-                view === "semanal"
-                  ? "bg-background font-semibold text-foreground shadow-sm ring-1 ring-border/60"
-                  : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-              }`}
-            >
-              <LayoutList className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
-              Semanal
-            </button>
-
-            <button
-              type="button"
-              role="tab"
               aria-selected={view === "simples"}
               onClick={() => setView("simples")}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
+              className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-0 sm:px-3 ${
                 view === "simples"
                   ? "bg-background font-semibold text-foreground shadow-sm ring-1 ring-border/60"
                   : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
@@ -216,10 +205,6 @@ export default function Agenda() {
   );
 
   const [monthDate, setMonthDate] = useState<Date>(startOfMonth(new Date()));
-
-  const [weekDate, setWeekDate] = useState<Date>(
-    startOfWeek(new Date(), { locale: ptBR }),
-  );
 
   const { data: eventos = [], isLoading } = useQuery<Evento[]>({
     queryKey: ["eventos"],
@@ -258,40 +243,15 @@ export default function Agenda() {
     navigate(`/Evento/${evento.id}`);
   };
 
-  // Navegação
-  const prevPeriod = () =>
-    view === "semanal"
-      ? setWeekDate((w) => subWeeks(w, 1))
-      : setMonthDate((m) => subMonths(m, 1));
+  const prevPeriod = () => setMonthDate((m) => subMonths(m, 1));
 
-  const nextPeriod = () =>
-    view === "semanal"
-      ? setWeekDate((w) => addWeeks(w, 1))
-      : setMonthDate((m) => addMonths(m, 1));
+  const nextPeriod = () => setMonthDate((m) => addMonths(m, 1));
 
   const goToday = () => {
     setMonthDate(startOfMonth(new Date()));
-    setWeekDate(startOfWeek(new Date(), { locale: ptBR }));
   };
 
-  // Label do período
-  const periodLabel =
-    view === "semanal"
-      ? (() => {
-          const ws = startOfWeek(weekDate, { locale: ptBR });
-          const we = endOfWeek(weekDate, { locale: ptBR });
-          return `${format(ws, "d 'de' MMM", { locale: ptBR })} – ${format(
-            we,
-            "d 'de' MMM",
-            { locale: ptBR },
-          )}`;
-        })()
-      : format(monthDate, "MMMM 'de' yyyy", { locale: ptBR });
-
-  const weekDays = eachDayOfInterval({
-    start: startOfWeek(weekDate, { locale: ptBR }),
-    end: endOfWeek(weekDate, { locale: ptBR }),
-  });
+  const periodLabel = format(monthDate, "MMMM 'de' yyyy", { locale: ptBR });
 
   return (
     <div>
@@ -315,12 +275,18 @@ export default function Agenda() {
               showPreletorCards={showPreletorCards}
               setShowPreletorCards={setShowPreletorCards}
               canCreateEvento={canCreateEvento}
+              hidePreletorToggle={view === "mensal"}
+              hidePeriodRowOnMobile={view === "mensal"}
             />
             {isLoading ? (
               <div className="h-72 rounded-2xl bg-muted animate-pulse" />
             ) : view === "mensal" ? (
-              <AgendaMensalMobile events={eventos} />
-            ) : view === "simples" ? (
+              <AgendaMensalMobile
+                events={eventos}
+                showPreletorCards={showPreletorCards}
+                setShowPreletorCards={setShowPreletorCards}
+              />
+            ) : (
               <div className="rounded-xl border border-border/70 bg-muted/10 px-4 py-10 text-center shadow-inner">
                 <p className="text-sm font-medium text-foreground">Vista simples</p>
                 <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
@@ -335,14 +301,6 @@ export default function Agenda() {
                   Abrir agenda simples
                 </Button>
               </div>
-            ) : (
-              <WeeklyCalendar
-                weekDays={weekDays}
-                eventos={eventos}
-                showPreletorCards={showPreletorCards}
-                onEventClick={handleEventClick}
-                tituloCorBarraMap={tituloCorBarraMap}
-              />
             )}
           </div>
 
@@ -370,7 +328,7 @@ export default function Agenda() {
                 onDayClick={() => {}}
                 tituloCorBarraMap={tituloCorBarraMap}
               />
-            ) : view === "simples" ? (
+            ) : (
               <div className="rounded-xl border border-border/70 bg-muted/10 px-4 py-12 text-center shadow-inner">
                 <p className="text-base font-medium text-foreground">Vista simples</p>
                 <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
@@ -386,21 +344,18 @@ export default function Agenda() {
                   Abrir agenda simples
                 </Button>
               </div>
-            ) : (
-              <WeeklyCalendar
-                weekDays={weekDays}
-                eventos={eventos}
-                showPreletorCards={showPreletorCards}
-                onEventClick={handleEventClick}
-                tituloCorBarraMap={tituloCorBarraMap}
-              />
             )}
           </div>
 
           <Dialog open={simpleModalOpen} onOpenChange={setSimpleModalOpen}>
             <DialogContent
               hideClose
-              className="left-[50%] top-[2vh] max-h-[96vh] w-[calc(100vw-0.5rem)] max-w-[calc(100vw-0.5rem)] translate-x-[-50%] translate-y-0 gap-0 overflow-y-auto border-border/60 p-0 pb-1 pt-0 shadow-md"
+              className={cn(
+                "gap-0 overflow-hidden border-border/60 p-0 pb-0 pt-0 shadow-md flex h-full max-h-full min-h-0 flex-col sm:h-auto sm:max-h-[96vh]",
+                /* Telemóvel: ocupar o ecrã inteiro (safe areas); conteúdo com scroll, sem escala nem max-height artificial */
+                "max-sm:fixed max-sm:inset-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top,0px)] max-sm:pb-[env(safe-area-inset-bottom,0px)]",
+                "sm:left-[50%] sm:top-[2vh] sm:w-[calc(100vw-0.5rem)] sm:max-w-[calc(100vw-0.5rem)] sm:translate-x-[-50%] sm:translate-y-0 sm:overflow-y-auto sm:rounded-lg sm:border sm:pb-1",
+              )}
             >
               <DialogTitle className="sr-only">
                 Agenda simples — {periodLabel}
@@ -409,9 +364,11 @@ export default function Agenda() {
                 Tabela dos dias com eventos neste período. Use Download na barra superior.
               </DialogDescription>
               {isLoading ? (
-                <div className="h-48 rounded-lg bg-muted animate-pulse" />
+                <div className="h-48 shrink-0 rounded-lg bg-muted animate-pulse" />
               ) : (
-                <MonthlyAgendaSimple monthDate={monthDate} eventos={eventos} />
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <MonthlyAgendaSimple monthDate={monthDate} eventos={eventos} />
+                </div>
               )}
             </DialogContent>
           </Dialog>

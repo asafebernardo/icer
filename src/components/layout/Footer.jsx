@@ -1,211 +1,35 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import {
-  MapPin,
-  Phone,
-  Mail,
-  Clock,
-  Pencil,
-  Check,
-  X,
-  Navigation,
-} from "lucide-react";
+import { MapPin, Phone, Mail, Clock, Navigation } from "lucide-react";
 
-import {
-  getSiteConfig,
-  refreshPublicSiteConfig,
-  savePublicSiteConfigAdmin,
-  setSiteConfig,
-} from "@/lib/siteConfig";
+import { getSiteConfig, FOOTER_SITE_CONFIG_DEFAULTS } from "@/lib/siteConfig";
 import SiteLogoMark from "@/components/layout/SiteLogoMark";
 import SiteSocialLinks from "@/components/layout/SiteSocialLinks";
 import { hasAnyResolvedSocialLinks } from "@/lib/socialLinks";
-import { MENU } from "@/lib/auth";
-import useCanEdit from "@/lib/useCanEdit";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-
-const DEFAULT_CONFIG = {
-  footerDescricao:
-    "Somos uma família comprometida com a pregação do evangelho de Jesus Cristo.",
-  footerEndereco: "Rua Hermes da Fonseca, 1559 — Bela Vista, Chapecó - SC",
-  footerTelefone: "(49) 9952-7840",
-  footerEmail: "icerchap@gmail.com",
-  footerHorario1Dia: "Domingo",
-  footerHorario1Desc: "Culto — 9h e 19h",
-  footerHorario2Dia: "Quarta-feira",
-  footerHorario2Desc: "Reunião de oração — 19h30",
-};
-
-function EditableText({ value, onSave, className, multiline = false, singleLine = false }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  const save = () => {
-    onSave(draft);
-    setEditing(false);
-  };
-  const cancel = () => {
-    setDraft(value);
-    setEditing(false);
-  };
-
-  if (editing) {
-    const field = multiline ? (
-      <textarea
-        className="bg-muted border border-border text-foreground rounded px-2 py-1 text-sm w-full min-w-0 flex-1 resize-none focus:outline-none focus:ring-2 focus:ring-ring/50"
-        rows={2}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        autoFocus
-      />
-    ) : (
-      <input
-        className={cn(
-          "bg-muted border border-border text-foreground rounded px-2 py-1 text-sm min-w-0 focus:outline-none focus:ring-2 focus:ring-ring/50",
-          singleLine ? "flex-1" : "w-full flex-1",
-        )}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        autoFocus
-      />
-    );
-    const actions = (
-      <span className="flex shrink-0 gap-1">
-        <button
-          type="button"
-          onClick={save}
-          className="p-0.5 rounded bg-muted hover:bg-muted/80 text-foreground border border-border"
-        >
-          <Check className="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          onClick={cancel}
-          className="p-0.5 rounded bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </span>
-    );
-
-    if (singleLine && !multiline) {
-      return (
-        <span className="flex w-full min-w-0 max-w-full items-center gap-1">
-          {field}
-          {actions}
-        </span>
-      );
-    }
-
-    return (
-      <span className="inline-flex w-full min-w-0 max-w-full flex-col gap-1">
-        {field}
-        {actions}
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "group/editable flex w-full min-w-0 gap-1",
-        singleLine ? "flex-nowrap items-center" : "flex-wrap items-start",
-        className ?? "",
-      )}
-    >
-      <span
-        className={cn(
-          "min-w-0 flex-1",
-          singleLine ? "truncate" : "break-words [overflow-wrap:anywhere]",
-        )}
-        title={singleLine && value ? String(value) : undefined}
-      >
-        {value}
-      </span>
-      <button
-        type="button"
-        onClick={() => {
-          setDraft(value);
-          setEditing(true);
-        }}
-        className={cn(
-          "opacity-100 transition-opacity p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 sm:opacity-0 sm:group-hover/editable:opacity-100 focus-visible:opacity-100",
-          !singleLine && "mt-0.5",
-        )}
-      >
-        <Pencil className="w-2.5 h-2.5" />
-      </button>
-    </span>
-  );
-}
 
 export default function Footer() {
-  const canEditHome = useCanEdit(MENU.HOME);
-  const [cfg, setCfg] = useState(DEFAULT_CONFIG);
+  const [cfg, setCfg] = useState(() => ({
+    ...FOOTER_SITE_CONFIG_DEFAULTS,
+    ...getSiteConfig(),
+  }));
   const [showSocialCol, setShowSocialCol] = useState(() =>
     hasAnyResolvedSocialLinks(getSiteConfig()),
   );
 
   useEffect(() => {
-    const saved = getSiteConfig();
-    setCfg({ ...DEFAULT_CONFIG, ...saved });
-  }, []);
-
-  useEffect(() => {
-    const sync = () => setShowSocialCol(hasAnyResolvedSocialLinks(getSiteConfig()));
+    const sync = () => {
+      setCfg({ ...FOOTER_SITE_CONFIG_DEFAULTS, ...getSiteConfig() });
+      setShowSocialCol(hasAnyResolvedSocialLinks(getSiteConfig()));
+    };
     sync();
     window.addEventListener("icer-site-config", sync);
     return () => window.removeEventListener("icer-site-config", sync);
   }, []);
 
-  const update = (key, value) => {
-    const next = { ...cfg, [key]: value };
-    setCfg(next);
-    if (canEditHome) {
-      savePublicSiteConfigAdmin({ [key]: value })
-        .then(() => refreshPublicSiteConfig())
-        .then(() => toast.success("Rodapé salvo com sucesso."))
-        .catch(() => {
-          setSiteConfig({ [key]: value });
-          toast.success("Rodapé salvo com sucesso.");
-        });
-    } else {
-      setSiteConfig({ [key]: value });
-      toast.success("Rodapé salvo com sucesso.");
-    }
-  };
+  const value = (field) => String(cfg?.[field] ?? "").trim();
 
-  const Txt = ({ field, className, multiline, singleLine }) => {
-    const value = cfg?.[field] ?? "";
-
-    if (canEditHome) {
-      return (
-        <EditableText
-          value={value}
-          onSave={(v) => update(field, v)}
-          className={className}
-          multiline={multiline}
-          singleLine={singleLine}
-        />
-      );
-    }
-
-    return (
-      <span
-        className={cn(
-          "block min-w-0 max-w-full",
-          singleLine ? "truncate" : "break-words [overflow-wrap:anywhere]",
-          className,
-        )}
-        title={singleLine && value ? String(value) : undefined}
-      >
-        {value}
-      </span>
-    );
-  };
-
-  const endereco = String(cfg?.footerEndereco ?? "").trim();
+  const endereco = value("footerEndereco");
   const encoded = endereco ? encodeURIComponent(endereco) : "";
 
   const gitBranch = String(import.meta.env.VITE_ICER_GIT_BRANCH || "").trim();
@@ -267,7 +91,9 @@ export default function Footer() {
                   <li className="flex min-w-0 items-start gap-2.5 px-3 py-2.5">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
                     <div className="min-w-0 flex-1 break-words leading-relaxed">
-                      <Txt field="footerEndereco" className="block w-full" multiline />
+                      <span className="block w-full min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
+                        {value("footerEndereco")}
+                      </span>
                     </div>
                   </li>
                   <li className="px-3 py-2.5">
@@ -286,13 +112,23 @@ export default function Footer() {
               <li className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
                 <Phone className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
                 <div className="min-w-0 flex-1 overflow-hidden">
-                  <Txt field="footerTelefone" className="block w-full" singleLine />
+                  <span
+                    className="block w-full truncate"
+                    title={value("footerTelefone") || undefined}
+                  >
+                    {value("footerTelefone")}
+                  </span>
                 </div>
               </li>
               <li className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
                 <Mail className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
                 <div className="min-w-0 flex-1 overflow-hidden">
-                  <Txt field="footerEmail" className="block w-full" singleLine />
+                  <span
+                    className="block w-full truncate"
+                    title={value("footerEmail") || undefined}
+                  >
+                    {value("footerEmail")}
+                  </span>
                 </div>
               </li>
             </ul>
@@ -309,19 +145,15 @@ export default function Footer() {
               <li className="flex min-w-0 gap-2.5 py-2.5">
                 <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
                 <div className="min-w-0 flex-1 space-y-0.5 break-words [overflow-wrap:anywhere]">
-                  <p className="font-medium text-foreground">
-                    <Txt field="footerHorario1Dia" />
-                  </p>
-                  <Txt field="footerHorario1Desc" className="leading-relaxed" />
+                  <p className="font-medium text-foreground">{value("footerHorario1Dia")}</p>
+                  <p className="leading-relaxed">{value("footerHorario1Desc")}</p>
                 </div>
               </li>
               <li className="flex min-w-0 gap-2.5 py-2.5">
                 <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
                 <div className="min-w-0 flex-1 space-y-0.5 break-words [overflow-wrap:anywhere]">
-                  <p className="font-medium text-foreground">
-                    <Txt field="footerHorario2Dia" />
-                  </p>
-                  <Txt field="footerHorario2Desc" className="leading-relaxed" />
+                  <p className="font-medium text-foreground">{value("footerHorario2Dia")}</p>
+                  <p className="leading-relaxed">{value("footerHorario2Desc")}</p>
                 </div>
               </li>
             </ul>
@@ -338,11 +170,6 @@ export default function Footer() {
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} ICER Chapecó. Todos os direitos reservados.
           </p>
-          {canEditHome ? (
-            <p className="max-w-sm text-[11px] leading-snug text-muted-foreground/90 sm:max-w-xs sm:text-right">
-              Como administrador, passe o rato sobre um texto e use o ícone de lápis para editar.
-            </p>
-          ) : null}
         </div>
         {gitBranch ? (
           <p

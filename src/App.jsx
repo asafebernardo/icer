@@ -170,10 +170,10 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <AuthProvider>
+    <QueryClientProvider client={queryClientInstance}>
+      <Router>
+        <AuthProvider>
+          <ThemeProvider>
             <EditModeProvider>
               <TooltipProvider delayDuration={300}>
                 <NativeTitleLifetime />
@@ -184,10 +184,10 @@ function App() {
               </TooltipProvider>
               <Toaster />
             </EditModeProvider>
-          </AuthProvider>
-        </Router>
-      </QueryClientProvider>
-    </ThemeProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }
 

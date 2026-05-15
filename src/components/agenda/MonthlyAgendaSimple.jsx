@@ -218,7 +218,7 @@ export default function MonthlyAgendaSimple({ monthDate, eventos }) {
     );
 
   return (
-    <div className="flex flex-col gap-0">
+    <div className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-1 border-b border-border/60 bg-background px-1 sm:gap-2 sm:px-2">
         <div aria-hidden className="min-w-0" />
         {daysWithEvents.length > 0 ? (
@@ -264,15 +264,15 @@ export default function MonthlyAgendaSimple({ monthDate, eventos }) {
           Nenhum evento neste mês.
         </p>
       ) : (
-        <div className="w-full overflow-x-auto px-0">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-0">
           <motion.div
             initial={{ opacity: 0, y: 3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full min-w-0"
+            className="inline-block min-w-full align-top"
           >
             <div ref={exportRef} className="bg-background">
-              <table className="table-auto w-full min-w-0 border-collapse text-foreground">
+              <table className="table-auto w-max min-w-full border-collapse text-foreground">
                   <thead className="sticky top-0 z-20 shadow-[0_1px_0_0_hsl(var(--border))]">
                     <tr>
                       <th
