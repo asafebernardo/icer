@@ -103,6 +103,8 @@ export async function ensureMongoIndexes(db) {
   await db.collection("audit_logs").createIndex({ id: 1 }, { unique: true });
   await db.collection("audit_logs").createIndex({ user_id: 1, created_at: -1 });
   await db.collection("audit_logs").createIndex({ created_at: -1 });
+  await db.collection("permission_groups").createIndex({ id: 1 }, { unique: true });
+  await db.collection("permission_groups").createIndex({ slug: 1 }, { unique: true, sparse: true });
 }
 
 /**

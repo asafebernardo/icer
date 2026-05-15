@@ -20,6 +20,14 @@ import {
   History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tabs,
   TabsList,
@@ -129,93 +137,92 @@ function EventoCard({
   /** Sobre a imagem: degradê neutro a partir da cor de texto do tema */
   const gradientSplitStyle = {
     background:
-      "linear-gradient(90deg, hsl(var(--foreground) / 0.88) 0%, hsl(var(--foreground) / 0.42) 38%, hsl(var(--foreground) / 0.1) 72%, transparent 100%)",
+      "linear-gradient(90deg, hsl(var(--foreground) / 0.72) 0%, hsl(var(--foreground) / 0.28) 42%, hsl(var(--foreground) / 0.06) 78%, transparent 100%)",
   };
 
   const barColor = eventCardBarClass(evento, categoriaBg, tituloCorBarraMap);
   const weekdayShort = date ? shortWeekdayPt(date) : "";
 
   /**
-   * Variante compacta para eventos sem imagem: cartão pequeno com apenas
-   * o dia da semana abreviado, o título e o horário. Categoria/local/preletor
-   * ficam ocultos para reduzir altura — todos os detalhes continuam no link
-   * "Ver detalhes".
+   * Variante compacta (sem imagem): uma linha — dia abreviado + número, título,
+   * horário curto e ações. Destaque sem anel pesado; borda e fundo discretos.
    */
   if (!hasImage) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`border rounded-xl overflow-hidden shadow-sm card-hover ${passado ? "opacity-60" : ""} ${isDestaque ? "border-accent ring-2 ring-accent/30" : "border-border"} relative bg-card`}
+        className={`border border-border/60 rounded-lg overflow-hidden shadow-none transition-colors hover:border-border ${passado ? "opacity-55" : ""} ${isDestaque ? "border-accent/50 bg-accent/[0.03]" : ""} relative bg-card`}
       >
         {showCadastroBg ? (
           <CadastroTitleBackground urls={cadastroBgUrls} />
         ) : null}
-        <div className={`h-1 relative z-20 ${barColor}`} />
-        <div className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0">
-          {/* Bloco do dia: "Qui · 14" — abreviação + dia do mês para contexto */}
+        <div className={`h-0.5 relative z-20 ${barColor}`} />
+        <div className="relative z-10 flex flex-row items-center gap-2 px-2 py-1.5 min-w-0 sm:gap-2.5 sm:px-2.5">
           {date ? (
             <div
-              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-white text-center leading-tight shadow-sm ${barColor}`}
+              className={`shrink-0 rounded-md px-1.5 py-1 text-white text-center leading-none ${barColor}`}
             >
-              <span className="block text-[10px] font-semibold uppercase tracking-wider">
+              <span className="block text-[9px] font-semibold uppercase tracking-wide opacity-95">
                 {weekdayShort}
               </span>
-              <span className="block text-base font-bold tabular-nums">
+              <span className="block text-sm font-bold tabular-nums leading-tight">
                 {format(date, "d")}
               </span>
             </div>
           ) : null}
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex-1 min-w-0 text-left">
+            <div className="flex items-center gap-1 min-w-0">
               {isDestaque ? (
                 <Star
-                  className="w-3 h-3 fill-accent text-accent shrink-0"
+                  className="w-2.5 h-2.5 shrink-0 fill-accent text-accent"
                   aria-label="Destaque"
                 />
               ) : null}
-              <h3 className="font-semibold text-foreground text-sm leading-snug truncate">
+              <h3 className="font-medium text-foreground text-xs leading-tight truncate sm:text-[13px]">
                 {evento.titulo}
               </h3>
             </div>
             {evento.horario || passado ? (
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                 {evento.horario ? (
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-accent shrink-0" />
-                    {evento.horario}
-                    {evento.horario_fim ? ` – ${evento.horario_fim}` : ""}
+                  <span className="flex min-w-0 items-center gap-0.5 truncate">
+                    <Clock className="w-2.5 h-2.5 shrink-0 text-accent/80" aria-hidden />
+                    <span className="truncate">
+                      {evento.horario}
+                      {evento.horario_fim ? `–${evento.horario_fim}` : ""}
+                    </span>
                   </span>
                 ) : null}
                 {passado ? (
-                  <span className="text-[10px] uppercase tracking-wide">
-                    Encerrado
+                  <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground/80">
+                    Enc.
                   </span>
                 ) : null}
               </p>
             ) : null}
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
             <Link to={`/Evento/${evento.id}`}>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 px-2 text-xs gap-1 text-foreground hover:text-accent"
+                className="h-7 px-1.5 text-[11px] gap-0.5 text-muted-foreground hover:text-foreground max-sm:min-h-[40px] max-sm:min-w-[40px] max-sm:px-2"
                 aria-label={`Ver detalhes de ${evento.titulo}`}
               >
-                Detalhes
+                <span className="max-sm:hidden">Detalhes</span>
                 <ChevronRight className="w-3 h-3" />
               </Button>
             </Link>
             {canEdit || canDelete ? (
-              <div className="flex gap-0.5">
+              <div className="flex gap-0.5 max-sm:gap-1">
                 {canEdit ? (
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-6 w-6"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground max-sm:h-10 max-sm:w-10 max-sm:shrink-0"
                     title={
                       isDestaque
                         ? "Remover destaque"
@@ -224,9 +231,9 @@ function EventoCard({
                     onClick={() => onToggleDestaque(evento.id)}
                   >
                     {isDestaque ? (
-                      <StarOff className="w-3 h-3 text-accent" />
+                      <StarOff className="w-3 h-3 text-accent max-sm:h-4 max-sm:w-4" />
                     ) : (
-                      <Star className="w-3 h-3" />
+                      <Star className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
                     )}
                   </Button>
                 ) : null}
@@ -234,20 +241,20 @@ function EventoCard({
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-6 w-6"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground max-sm:h-10 max-sm:w-10 max-sm:shrink-0"
                     onClick={() => onEdit(evento)}
                   >
-                    <Pencil className="w-3 h-3" />
+                    <Pencil className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
                   </Button>
                 ) : null}
                 {canDelete ? (
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-6 w-6 text-destructive hover:text-destructive"
+                    className="h-7 w-7 text-destructive/80 hover:text-destructive max-sm:h-10 max-sm:w-10 max-sm:shrink-0"
                     onClick={() => onDelete(evento.id)}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
                   </Button>
                 ) : null}
               </div>
@@ -260,71 +267,68 @@ function EventoCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`border rounded-2xl overflow-hidden shadow-sm card-hover ${passado ? "opacity-60" : ""} ${isDestaque ? "border-accent ring-2 ring-accent/30" : "border-border"} relative bg-card`}
+      className={`border border-border/60 rounded-lg overflow-hidden shadow-none transition-colors hover:border-border ${passado ? "opacity-55" : ""} ${isDestaque ? "border-accent/50 bg-accent/[0.03]" : ""} relative bg-card`}
     >
       {showCadastroBg ? (
         <CadastroTitleBackground urls={cadastroBgUrls} />
       ) : null}
-      <div className={`h-1.5 relative z-20 ${barColor}`} />
-      <div className="flex flex-col md:flex-row md:min-h-[200px]">
-        {/* Esquerda: texto e meta (sem ícone grande da data) */}
-        <div className="relative z-10 flex-1 md:w-1/2 md:max-w-[50%] p-5 flex flex-col justify-between min-w-0">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              {isDestaque && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-accent">
-                  <Star className="w-3 h-3 fill-accent" /> Destaque
-                </span>
-              )}
-              {evento.categoria && (
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${categoriaLight[evento.categoria] || "bg-muted text-muted-foreground"}`}
-                >
-                  {categoriaLabels[evento.categoria] || evento.categoria}
-                </span>
-              )}
-              {passado && (
-                <span className="text-xs text-muted-foreground">
-                  (Encerrado)
-                </span>
-              )}
-            </div>
-            <h3 className="font-bold text-foreground text-base leading-snug">
-              {evento.titulo}
-            </h3>
-            {evento.descricao && (
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                {evento.descricao}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-3 mt-3 text-xs text-muted-foreground">
-              {evento.horario && (
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-accent" />
+      <div className={`h-0.5 relative z-20 ${barColor}`} />
+      <div className="flex flex-col sm:flex-row sm:min-h-0 md:min-h-[118px]">
+        <div className="relative z-10 flex-1 sm:w-[55%] sm:max-w-[58%] p-3 flex flex-col justify-center min-w-0 sm:py-2.5 sm:pr-2">
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            {isDestaque ? (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-accent" title="Destaque">
+                <Star className="w-2.5 h-2.5 fill-accent" aria-hidden />
+                <span className="sr-only sm:not-sr-only sm:inline">Destaque</span>
+              </span>
+            ) : null}
+            {evento.categoria ? (
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0 rounded-md border ${categoriaLight[evento.categoria] || "bg-muted text-muted-foreground"}`}
+              >
+                {categoriaLabels[evento.categoria] || evento.categoria}
+              </span>
+            ) : null}
+            {passado ? (
+              <span className="text-[10px] text-muted-foreground">Enc.</span>
+            ) : null}
+          </div>
+          <h3 className="font-semibold text-foreground text-sm leading-snug line-clamp-2">
+            {evento.titulo}
+          </h3>
+          {evento.descricao ? (
+            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+              {evento.descricao}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 text-[11px] text-muted-foreground">
+            {evento.horario ? (
+              <span className="inline-flex items-center gap-0.5 min-w-0">
+                <Clock className="w-3 h-3 shrink-0 text-accent/80" aria-hidden />
+                <span className="truncate">
                   {evento.horario}
-                  {evento.horario_fim ? ` – ${evento.horario_fim}` : ""}
+                  {evento.horario_fim ? `–${evento.horario_fim}` : ""}
                 </span>
-              )}
-              {evento.local && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-accent" />
-                  {evento.local}
-                </span>
-              )}
-              {evento.preletor && (
-                <span className="flex items-center gap-1">
-                  <Mic2 className="w-3.5 h-3.5 text-accent" />
-                  {evento.preletor}
-                </span>
-              )}
-            </div>
+              </span>
+            ) : null}
+            {evento.local ? (
+              <span className="inline-flex items-center gap-0.5 min-w-0 max-sm:max-w-full">
+                <MapPin className="w-3 h-3 shrink-0 text-accent/80" aria-hidden />
+                <span className="truncate">{evento.local}</span>
+              </span>
+            ) : null}
+            {evento.preletor ? (
+              <span className="inline-flex items-center gap-0.5 min-w-0 max-sm:max-w-full">
+                <Mic2 className="w-3 h-3 shrink-0 text-accent/80" aria-hidden />
+                <span className="truncate">{evento.preletor}</span>
+              </span>
+            ) : null}
           </div>
         </div>
 
-        {/* Direita: imagem + degradê + bloco da data */}
-        <div className="relative md:w-1/2 md:max-w-[50%] min-h-[160px] md:min-h-0 border-t md:border-t-0 md:border-l border-border/60">
+        <div className="relative sm:w-[45%] sm:min-w-0 min-h-[92px] sm:min-h-[118px] border-t sm:border-t-0 sm:border-l border-border/50">
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${evento.imagem_url})` }}
@@ -333,72 +337,76 @@ function EventoCard({
             className="absolute inset-0 z-[1] pointer-events-none"
             style={gradientSplitStyle}
           />
-          {date && (
+          {date ? (
             <div
-              className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-xl text-white flex flex-col items-center justify-center shadow-lg ring-2 ring-white/25 ${barColor}`}
+              className={`absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-md text-white flex flex-col items-center justify-center ${barColor}`}
             >
-              <span className="text-2xl font-bold leading-none">
+              <span className="text-lg font-bold leading-none tabular-nums">
                 {format(date, "d")}
               </span>
-              <span className="text-[10px] font-semibold uppercase leading-tight">
+              <span className="text-[9px] font-medium uppercase leading-none opacity-95">
                 {format(date, "MMM", { locale: ptBR })}
               </span>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Ações */}
-      <div className="relative z-10 flex items-center justify-between gap-3 px-5 py-4 border-t border-border/60 bg-card/50">
-          <Link to={`/Evento/${evento.id}`}>
-            <Button size="sm" variant="outline" className="text-xs">
-              Ver detalhes & Inscrição
-            </Button>
-          </Link>
-          {canEdit || canDelete ? (
-            <div className="flex gap-1">
-              {canEdit ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  title={
-                    isDestaque
-                      ? "Remover destaque"
-                      : "Marcar como destaque no topo"
-                  }
-                  onClick={() => onToggleDestaque(evento.id)}
-                >
-                  {isDestaque ? (
-                    <StarOff className="w-3.5 h-3.5 text-accent" />
-                  ) : (
-                    <Star className="w-3.5 h-3.5" />
-                  )}
-                </Button>
-              ) : null}
-              {canEdit ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={() => onEdit(evento)}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-              ) : null}
-              {canDelete ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
-                  onClick={() => onDelete(evento.id)}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+      <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 px-2.5 py-2 border-t border-border/40 bg-card/80 sm:justify-between">
+        <Link to={`/Evento/${evento.id}`}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground max-sm:min-h-[40px] max-sm:px-3"
+          >
+            <span className="sm:hidden">Ver evento</span>
+            <span className="hidden sm:inline">Detalhes e inscrição</span>
+          </Button>
+        </Link>
+        {canEdit || canDelete ? (
+          <div className="flex gap-0.5 max-sm:gap-1">
+            {canEdit ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground max-sm:h-10 max-sm:w-10 max-sm:shrink-0"
+                title={
+                  isDestaque
+                    ? "Remover destaque"
+                    : "Marcar como destaque no topo"
+                }
+                onClick={() => onToggleDestaque(evento.id)}
+              >
+                {isDestaque ? (
+                  <StarOff className="w-3 h-3 text-accent max-sm:h-4 max-sm:w-4" />
+                ) : (
+                  <Star className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
+                )}
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground max-sm:h-10 max-sm:w-10 max-sm:shrink-0"
+                onClick={() => onEdit(evento)}
+              >
+                <Pencil className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
+              </Button>
+            ) : null}
+            {canDelete ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-destructive/80 hover:text-destructive max-sm:h-10 max-sm:w-10 max-sm:shrink-0"
+                onClick={() => onDelete(evento.id)}
+              >
+                <Trash2 className="w-3 h-3 max-sm:h-4 max-sm:w-4" />
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </motion.div>
   );
 }
@@ -588,25 +596,27 @@ export default function Eventos() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           {canCreate ? (
             <div className="flex w-full flex-col gap-3 mb-6">
-              <div className="flex flex-wrap items-center justify-end gap-2 w-full">
+            <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:justify-end">
                   <Button
                     type="button"
-                    className="gap-2"
+                    className="gap-2 max-sm:min-h-[44px]"
                     aria-label="Rotinas"
                     asChild
                   >
                     <Link to="/Eventos/rotinas">
-                      <History className="w-4 h-4" />
+                      <History className="w-4 h-4 shrink-0" />
+                      <span className="sm:hidden text-xs font-medium">Rotinas</span>
                       <span className="hidden sm:inline">Rotinas</span>
                     </Link>
                   </Button>
                   <Button
                     type="button"
                     onClick={handleNew}
-                    className="gap-2"
+                    className="gap-2 max-sm:min-h-[44px]"
                     aria-label="Novo evento"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-4 h-4 shrink-0" />
+                    <span className="sm:hidden text-xs font-medium">Novo</span>
                     <span className="hidden sm:inline">Novo evento</span>
                   </Button>
               </div>
@@ -645,62 +655,99 @@ export default function Eventos() {
               </p>
           ) : null}
 
-          {/* Filtros por categoria */}
+          {/* Filtros por categoria: Select no telemóvel; pills a partir de sm */}
           {!isLoading && Object.keys(contagemPorCategoria).length > 0 ? (
-            <div className="mb-6 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
-                Filtrar:
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedCategoria(null)}
-                aria-pressed={!selectedCategoria}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-ring ${
-                  !selectedCategoria
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-card text-foreground border-border hover:bg-muted/60"
-                }`}
-              >
-                Todas
-                <span className="text-[10px] opacity-80">
-                  ({baseContagem.length})
+            <>
+              <div className="mb-6 flex flex-col items-center gap-2 sm:hidden">
+                <Label
+                  htmlFor="eventos-categoria-mobile"
+                  className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center"
+                >
+                  Categoria
+                </Label>
+                <div className="w-full max-w-md mx-auto">
+                <Select
+                  value={selectedCategoria ?? "all"}
+                  onValueChange={(v) =>
+                    setSelectedCategoria(v === "all" ? null : v)
+                  }
+                >
+                  <SelectTrigger
+                    id="eventos-categoria-mobile"
+                    className="h-11 w-full text-sm"
+                  >
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      Todas ({baseContagem.length})
+                    </SelectItem>
+                    {Object.entries(categoriaLabels)
+                      .filter(([key]) => contagemPorCategoria[key] > 0)
+                      .map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label} ({contagemPorCategoria[key]})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                </div>
+              </div>
+              <div className="mb-6 hidden sm:flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+                  Filtrar:
                 </span>
-              </button>
-              {Object.entries(categoriaLabels)
-                .filter(([key]) => contagemPorCategoria[key] > 0)
-                .map(([key, label]) => {
-                  const active = selectedCategoria === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() =>
-                        setSelectedCategoria(active ? null : key)
-                      }
-                      aria-pressed={active}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-ring ${
-                        active
-                          ? "bg-foreground text-background border-foreground"
-                          : "bg-card text-foreground border-border hover:bg-muted/60"
-                      }`}
-                    >
-                      {label}
-                      <span className="text-[10px] opacity-80">
-                        ({contagemPorCategoria[key]})
-                      </span>
-                    </button>
-                  );
-                })}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoria(null)}
+                  aria-pressed={!selectedCategoria}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-ring ${
+                    !selectedCategoria
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-card text-foreground border-border hover:bg-muted/60"
+                  }`}
+                >
+                  Todas
+                  <span className="text-[10px] opacity-80">
+                    ({baseContagem.length})
+                  </span>
+                </button>
+                {Object.entries(categoriaLabels)
+                  .filter(([key]) => contagemPorCategoria[key] > 0)
+                  .map(([key, label]) => {
+                    const active = selectedCategoria === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() =>
+                          setSelectedCategoria(active ? null : key)
+                        }
+                        aria-pressed={active}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-ring ${
+                          active
+                            ? "bg-foreground text-background border-foreground"
+                            : "bg-card text-foreground border-border hover:bg-muted/60"
+                        }`}
+                      >
+                        {label}
+                        <span className="text-[10px] opacity-80">
+                          ({contagemPorCategoria[key]})
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </>
           ) : null}
 
           {/* Lista */}
           {isLoading ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-36 bg-muted rounded-2xl animate-pulse"
+                  className="h-24 bg-muted rounded-lg animate-pulse"
                 />
               ))}
             </div>
@@ -734,7 +781,7 @@ export default function Eventos() {
               }
             />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {destaqueEvento ? (
                 <section
                   className="relative mb-2 overflow-hidden rounded-3xl border border-accent/35 bg-gradient-to-br from-primary/[0.09] via-background to-accent/[0.07] p-5 shadow-[0_16px_48px_-16px_hsl(var(--accent)/0.35)] ring-1 ring-accent/15 sm:p-6 lg:p-8 dark:from-primary/[0.14] dark:via-background dark:to-accent/[0.1]"
@@ -782,7 +829,7 @@ export default function Eventos() {
               ) : null}
 
                 <div className="space-y-3 pt-2 border-t border-border/60">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-col items-center justify-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {verEncerrados
                         ? "Eventos encerrados"
@@ -813,7 +860,7 @@ export default function Eventos() {
                     ) : null}
                   </div>
                   {lista.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5 [&>*]:min-w-0">
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:gap-3 [&>*]:min-w-0">
                       {lista.map((ev) => (
                         <EventoCard
                           key={ev.id}
@@ -839,8 +886,8 @@ export default function Eventos() {
                 </div>
 
                 {mesAtual.length > 0 && totalPagesTodos > 1 ? (
-                  <div className="flex justify-center pt-8 mt-2 border-t border-border/60 sm:justify-end">
-                    <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+                  <div className="flex justify-center pt-8 mt-2 border-t border-border/60">
+                    <div className="flex flex-wrap items-center justify-center gap-2">
                       <Button
                         type="button"
                         variant="outline"

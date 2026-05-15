@@ -2,8 +2,6 @@
 export const ADMIN_NAV_ITEM_ICON_TONE = {
   profile:
     "bg-sky-500/20 text-sky-800 shadow-sm shadow-sky-500/10 dark:bg-sky-500/30 dark:text-sky-50",
-  members:
-    "bg-violet-500/20 text-violet-900 shadow-sm shadow-violet-500/10 dark:bg-violet-500/30 dark:text-violet-50",
   site: "bg-emerald-500/20 text-emerald-900 shadow-sm shadow-emerald-500/10 dark:bg-emerald-500/30 dark:text-emerald-50",
   google:
     "bg-amber-500/25 text-amber-950 shadow-sm shadow-amber-500/15 dark:bg-amber-500/30 dark:text-amber-50",
@@ -17,6 +15,12 @@ export const ADMIN_NAV_ITEM_ICON_TONE = {
     "bg-rose-500/20 text-rose-900 shadow-sm shadow-rose-500/10 dark:bg-rose-500/30 dark:text-rose-50",
   "audit-log":
     "bg-slate-600/18 text-slate-800 shadow-sm dark:bg-slate-500/30 dark:text-slate-100",
+  "admin-users":
+    "bg-violet-500/20 text-violet-900 shadow-sm shadow-violet-500/10 dark:bg-violet-500/30 dark:text-violet-50",
+  "permission-groups":
+    "bg-indigo-500/20 text-indigo-900 shadow-sm shadow-indigo-500/10 dark:bg-indigo-500/30 dark:text-indigo-50",
+  "site-updates":
+    "bg-teal-500/20 text-teal-900 shadow-sm shadow-teal-500/10 dark:bg-teal-500/30 dark:text-teal-50",
 };
 
 /** Marcador ao lado do título do grupo (Conta / Administração). */
@@ -37,6 +41,9 @@ export function getAdminNavItemIconToneClass(tabId) {
 export const DEFAULT_EXTRA_ADMIN_NAV_ITEMS = [];
 
 const ADMINISTRACAO_BASE_ITEMS = [
+  { id: "admin-users", label: "Utilizadores", requiresServerAuth: true },
+  { id: "permission-groups", label: "Grupos de permissão", requiresServerAuth: true },
+  { id: "site-updates", label: "Atualizações", requiresServerAuth: false },
   { id: "site", label: "Site", requiresServerAuth: true },
   {
     id: "google",
@@ -66,18 +73,21 @@ export function getAdminNavGroups(extraAdminItems = DEFAULT_EXTRA_ADMIN_NAV_ITEM
     ...(item.badge ? { badge: item.badge } : {}),
     ...(item.comingSoon ? { comingSoon: true } : {}),
   }));
-  const administracaoItems = [...ADMINISTRACAO_BASE_ITEMS, ...extra].sort((a, b) =>
-    a.label.localeCompare(b.label, "pt", { sensitivity: "base", numeric: true }),
-  );
+  const fixedOrderIds = new Set(["admin-users", "permission-groups", "site-updates"]);
+  const fixedHead = ADMINISTRACAO_BASE_ITEMS.filter((i) => fixedOrderIds.has(i.id));
+  const restBase = ADMINISTRACAO_BASE_ITEMS.filter((i) => !fixedOrderIds.has(i.id));
+  const administracaoItems = [
+    ...fixedHead,
+    ...[...restBase, ...extra].sort((a, b) =>
+      a.label.localeCompare(b.label, "pt", { sensitivity: "base", numeric: true }),
+    ),
+  ];
 
   return [
     {
       id: "conta",
       label: "Conta",
-      items: [
-        { id: "profile", label: "Minha conta" },
-        { id: "members", label: "Membros" },
-      ],
+      items: [{ id: "profile", label: "Minha conta" }],
     },
     {
       id: "administracao",

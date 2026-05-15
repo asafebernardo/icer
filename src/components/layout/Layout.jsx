@@ -35,11 +35,13 @@ export default function Layout() {
       >
         Saltar para o conteúdo
       </a>
-      <Navbar />
+      <div className="hidden sm:block">
+        <Navbar />
+      </div>
       <PostImagePresentationHost />
       <main
         id="main-content"
-        className="flex-1 min-w-0 pt-[4.5rem] pb-[72px] sm:pb-0 relative w-full"
+        className="flex-1 min-w-0 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-[72px] sm:pt-[4.5rem] sm:pb-0 relative w-full"
       >
         {/* Fundo institucional sutil (não altera conteúdo) */}
         <div
@@ -55,7 +57,7 @@ export default function Layout() {
       <BottomNav />
       <WhatsAppFab />
       <div
-        className="pointer-events-auto fixed right-4 z-40 flex flex-col items-end gap-2 max-sm:bottom-[calc(9.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] sm:right-6"
+        className="pointer-events-auto hidden sm:flex fixed right-6 z-40 flex-col items-end gap-2 bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))]"
         aria-label="Atalhos flutuantes"
       >
         <AdminActiveSessionsFab />

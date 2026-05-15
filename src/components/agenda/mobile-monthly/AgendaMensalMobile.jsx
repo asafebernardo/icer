@@ -242,13 +242,16 @@ function UpcomingSkeleton() {
  * - Filtro por categoria
  * - Dados preferem API (prop), com fallback em JSON local (sample)
  */
-export default function AgendaMensalMobile({ events: eventsFromApi = [] }) {
+export default function AgendaMensalMobile({
+  events: eventsFromApi = [],
+  showPreletorCards,
+  setShowPreletorCards,
+}) {
   const [loading, setLoading] = useState(true);
   const [monthDate, setMonthDate] = useState(() => startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => new Date());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [category, setCategory] = useState("Todas");
-  const [showPreletorCards, setShowPreletorCards] = useState(false);
 
   const swipeRef = useRef({ x: 0, y: 0, active: false });
 

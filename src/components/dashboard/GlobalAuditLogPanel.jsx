@@ -37,6 +37,7 @@ import {
 } from "@/lib/auditLogLabels";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import { toast } from "sonner";
+import { api } from "@/api/client";
 
 const PAGE_SIZE = 50;
 
@@ -49,21 +50,6 @@ function formatTs(iso) {
   } catch {
     return "—";
   }
-}
-
-async function fetchServerUsers() {
-  const r = await fetch("/api/admin/users", { credentials: "include" });
-  if (!r.ok) {
-    const t = await r.text();
-    let msg = t;
-    try {
-      msg = JSON.parse(t).message || t;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg || r.statusText);
-  }
-  return r.json();
 }
 
 export function buildGlobalAuditUrl(params) {
@@ -151,8 +137,8 @@ export default function GlobalAuditLogPanel() {
   }, [retentionData?.retention]);
 
   const { data: users = [] } = useQuery({
-    queryKey: ["server-admin-users"],
-    queryFn: fetchServerUsers,
+    queryKey: ["admin-users"],
+    queryFn: () => api.entities.User.list(),
   });
 
   /**

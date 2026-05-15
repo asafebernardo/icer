@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -35,11 +35,53 @@ const NAV_ROUTES = [
   { label: "Recursos", path: "/Recursos", icon: Library },
 ];
 
+/** Rotas já cobertas pelos ícones da barra inferior (mobile). */
+const MOBILE_BOTTOM_NAV_PATHS = new Set([
+  "/Home",
+  "/Postagens",
+  "/Agenda",
+  "/Eventos",
+]);
+
+const MOBILE_MAX = "(max-width: 639px)";
+
+function useIsMobileSearchLayout() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(MOBILE_MAX).matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_MAX);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
+
 export default function CommandPalette({ open, onOpenChange }) {
   const navigate = useNavigate();
   const user = useSyncedAuthUser();
   const isLoggedIn = !!user;
   const isAdmin = isAdminUser(user);
+  const isMobileSearchLayout = useIsMobileSearchLayout();
+  const [mobileSearch, setMobileSearch] = useState("");
+
+  useEffect(() => {
+    if (!open) setMobileSearch("");
+  }, [open]);
+
+  const showSuggestions =
+    !isMobileSearchLayout || mobileSearch.trim().length > 0;
+
+  const cmdkDataEnabled =
+    open &&
+    (!isMobileSearchLayout || mobileSearch.trim().length > 0);
+
+  const cmdkNavRoutes = useMemo(() => {
+    if (!isMobileSearchLayout) return NAV_ROUTES;
+    return NAV_ROUTES.filter((r) => !MOBILE_BOTTOM_NAV_PATHS.has(r.path));
+  }, [isMobileSearchLayout]);
 
   const { data: postsData } = useQuery({
     queryKey: ["cmdk", "posts"],
@@ -52,14 +94,14 @@ export default function CommandPalette({ open, onOpenChange }) {
       if (!r.ok) return { items: [] };
       return r.json();
     },
-    enabled: open,
+    enabled: cmdkDataEnabled,
     staleTime: 60 * 1000,
   });
 
   const { data: eventos } = useQuery({
     queryKey: ["cmdk", "eventos"],
     queryFn: listEventosMerged,
-    enabled: open,
+    enabled: cmdkDataEnabled,
     staleTime: 60 * 1000,
   });
 
@@ -73,14 +115,27 @@ export default function CommandPalette({ open, onOpenChange }) {
     setTimeout(() => fn?.(), 0);
   };
 
+  const searchInputProps = isMobileSearchLayout
+    ? {
+        value: mobileSearch,
+        onValueChange: setMobileSearch,
+        autoComplete: "off",
+        name: "icer-cmdk-search",
+      }
+    : {};
+
   return (
     <CommandDialog open={!!open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Procurar páginas, posts e eventos…" />
+      <CommandInput
+        placeholder="Procurar páginas, posts e eventos…"
+        {...searchInputProps}
+      />
+      {showSuggestions ? (
       <CommandList>
         <CommandEmpty>Sem resultados.</CommandEmpty>
 
         <CommandGroup heading="Navegação">
-          {NAV_ROUTES.map((r) => {
+          {cmdkNavRoutes.map((r) => {
             const Icon = r.icon;
             return (
               <CommandItem
@@ -166,6 +221,7 @@ export default function CommandPalette({ open, onOpenChange }) {
           </CommandItem>
         </CommandGroup>
       </CommandList>
+      ) : null}
     </CommandDialog>
   );
 }

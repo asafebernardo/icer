@@ -87,6 +87,9 @@ export default function AdminNavLinks({
       return false;
     }
     if (itemId === "profile") return !tabFromUrl || tabFromUrl === "profile";
+    if (itemId === "admin-users") {
+      return tabFromUrl === "admin-users" || tabFromUrl === "members";
+    }
     return tabFromUrl === itemId;
   };
 

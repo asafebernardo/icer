@@ -7,6 +7,10 @@ import { nowIso } from "./security.js";
 import { createApplication } from "./createApp.js";
 import { nextSeq } from "./sequences.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
+import {
+  BUILTIN_ADMIN_GROUP_SLUG,
+  defaultGroupPermissionsMap,
+} from "./permissionGroupDefaults.js";
 import { log, color } from "./log.js";
 
 const root = process.cwd();
@@ -115,6 +119,27 @@ async function ensureUserSeed(p) {
   }
 }
 
+async function ensureBuiltinAdminPermissionGroup() {
+  const coll = db.collection("permission_groups");
+  const existing = await coll.findOne({ slug: BUILTIN_ADMIN_GROUP_SLUG });
+  if (existing) return;
+  const now = nowIso();
+  const id = await nextSeq(db, "permission_groups");
+  await coll.insertOne({
+    id,
+    slug: BUILTIN_ADMIN_GROUP_SLUG,
+    name: "Admin",
+    description:
+      "Grupo predefinido com todas as permissões de menus (criar, editar e apagar). Não pode ser eliminado.",
+    permissions: defaultGroupPermissionsMap(),
+    created_at: now,
+    updated_at: now,
+  });
+  log.success(
+    `Grupo de permissões predefinido: ${color.bold("Admin")} ${color.dim(`(id=${id})`)}`,
+  );
+}
+
 async function ensureSeedUsers() {
   await ensureUserSeed({
     label: "admin",
@@ -134,6 +159,7 @@ async function ensureSeedUsers() {
 
 await migrateAllUsersToAdminRole();
 await ensureSeedUsers();
+await ensureBuiltinAdminPermissionGroup();
 
 const enableUpstreamProxy = Boolean(
   process.env.ICER_UPSTREAM_API ||
