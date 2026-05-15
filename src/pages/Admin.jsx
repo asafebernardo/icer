@@ -1,25 +1,12 @@
 ﻿import { useState, useEffect } from "react";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Shield,
-  Lock,
-  UserPlus,
-  Users,
-  Mail,
-  RefreshCw,
-  CheckCircle,
-  Trash2,
-} from "lucide-react";
+import { Lock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
-import EmptyState from "../components/shared/EmptyState";
 import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
+import AdminMembrosPanel from "@/components/dashboard/AdminMembrosPanel";
 import { isAdminUser, getUser } from "@/lib/auth";
+import { isServerAuthEnabled } from "@/lib/serverAuth";
 import UserAvatar from "@/components/shared/UserAvatar";
 
 function GateAdmin() {
@@ -40,232 +27,6 @@ function GateAdmin() {
   );
 }
 
-// ── Aba Membros ───────────────────────────────────────────────
-function TabMembros({ user, users, loadingUsers, refetch }) {
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteSuccess, setInviteSuccess] = useState(false);
-  const [inviteLink, setInviteLink] = useState(null);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [togglingDisabled, setTogglingDisabled] = useState({});
-  const [deletingUser, setDeletingUser] = useState({});
-  const queryClient = useQueryClient();
-
-  const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
-    setInviteLoading(true);
-    const r = await api.users.inviteUser(inviteEmail.trim());
-    const token = r?.invite_token;
-    const link = token
-      ? `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`
-      : null;
-    setInviteLink(link);
-    setInviteSuccess(true);
-    setInviteEmail("");
-    setInviteLoading(false);
-    setTimeout(() => setInviteSuccess(false), 3000);
-    refetch();
-  };
-
-  const handleToggleDisabled = async (target) => {
-    if (!target?.id) return;
-    if (target.id === user?.id) return;
-    const nextDisabled = !(target.disabled === true);
-    setTogglingDisabled((r) => ({ ...r, [target.id]: true }));
-    await api.entities.User.update(target.id, { disabled: nextDisabled });
-    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-    setTogglingDisabled((r) => ({ ...r, [target.id]: false }));
-  };
-
-  const handleDeleteUser = async (target) => {
-    if (!target?.id) return;
-    if (target.id === user?.id) return;
-    const ok = window.confirm(
-      `Tem certeza que deseja remover o usuário "${target.email}"? Esta ação não pode ser desfeita.`,
-    );
-    if (!ok) return;
-    setDeletingUser((r) => ({ ...r, [target.id]: true }));
-    await api.entities.User.delete(target.id);
-    queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-    setDeletingUser((r) => ({ ...r, [target.id]: false }));
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Convidar membro */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <UserPlus className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Adicionar Membro
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Envie um convite por e-mail para um novo membro
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="email"
-              placeholder="email@exemplo.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-              className="pl-9"
-            />
-          </div>
-          <Button
-            onClick={handleInvite}
-            disabled={!inviteEmail.trim() || inviteLoading}
-            className="shrink-0 gap-2"
-          >
-            {inviteLoading ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <UserPlus className="w-4 h-4" />
-            )}
-            <span className="hidden sm:inline">Convidar</span>
-          </Button>
-        </div>
-        {inviteSuccess && (
-          <div className="mt-3 text-sm space-y-2">
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle className="w-4 h-4 shrink-0" />
-              {inviteLink
-                ? "Convite criado no servidor. Copie o link e envie ao novo membro para ele cadastrar a senha."
-                : "Convite enviado com sucesso!"}
-            </div>
-            {inviteLink ? (
-              <code className="block p-2 rounded-md bg-muted text-foreground break-all text-xs">
-                {inviteLink}
-              </code>
-            ) : null}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Lista de membros */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground text-lg">
-                Membros Cadastrados
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {users.length} usuário(s)
-              </p>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" onClick={() => refetch()}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {loadingUsers ? (
-          <div className="space-y-3">
-            {Array(4)
-              .fill(0)
-              .map((_, i) => (
-                <Skeleton key={i} className="h-14 rounded-xl" />
-              ))}
-          </div>
-        ) : users.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title="Nenhum usuário cadastrado"
-            description="Quando alguém se registar ou for convidado, aparece aqui."
-            compact
-          />
-        ) : (
-          <div className="space-y-2">
-            {users.map((u) => (
-              <div
-                key={u.id}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <UserAvatar user={u} className="h-9 w-9 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {u.full_name || "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {u.email}
-                    </p>
-                    {u.disabled === true ? (
-                      <p className="text-[11px] mt-0.5 text-destructive">
-                        Desativado
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="shrink-0 flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/15 text-primary flex items-center gap-1">
-                    <Shield className="w-3 h-3" />
-                    Admin
-                  </span>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={u.id === user?.id || togglingDisabled[u.id] === true}
-                    onClick={() => handleToggleDisabled(u)}
-                    className="h-8"
-                    title={u.disabled === true ? "Reativar" : "Desativar"}
-                  >
-                    {togglingDisabled[u.id] ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : u.disabled === true ? (
-                      "Reativar"
-                    ) : (
-                      "Desativar"
-                    )}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="w-8 h-8 text-destructive hover:text-destructive"
-                    disabled={u.id === user?.id || deletingUser[u.id] === true}
-                    onClick={() => handleDeleteUser(u)}
-                    title="Remover"
-                  >
-                    {deletingUser[u.id] ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    </div>
-  );
-}
-
-// ── Página principal ──────────────────────────────────────────
 export default function Admin() {
   const [user, setUser] = useState(undefined);
 
@@ -279,16 +40,6 @@ export default function Admin() {
       window.removeEventListener("storage", sync);
     };
   }, []);
-
-  const {
-    data: users = [],
-    isLoading: loadingUsers,
-    refetch,
-  } = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: () => api.entities.User.list(),
-    enabled: isAdminUser(user),
-  });
 
   if (user === undefined) {
     return (
@@ -314,12 +65,15 @@ export default function Admin() {
     );
   }
 
+  const serverControlsEnabled =
+    isAdminUser(user) && isServerAuthEnabled() && user?._authSource === "server";
+
   return (
     <div>
       <PageHeader
         tag="Administração"
         title="Painel administrativo"
-        description="Perfil, membros, site, Google, servidor, segurança e restantes opções."
+        description="Perfil, utilizadores, grupos de permissão, site, Google, servidor, segurança e restantes opções."
         pageKey="admin"
       />
 
@@ -336,12 +90,7 @@ export default function Admin() {
 
         <AdminSettingsShell
           tabMembrosSlot={
-            <TabMembros
-              user={user}
-              users={users}
-              loadingUsers={loadingUsers}
-              refetch={refetch}
-            />
+            <AdminMembrosPanel adminUser={user} serverControlsEnabled={serverControlsEnabled} />
           }
         />
       </div>

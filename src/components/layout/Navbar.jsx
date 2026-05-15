@@ -20,6 +20,8 @@ import {
   Trash2,
   Settings,
   Users,
+  Shield,
+  History,
   Globe,
   ShieldAlert,
   ScrollText,
@@ -99,7 +101,9 @@ export default function Navbar() {
   const adminMenuIcons = useMemo(
     () => ({
       profile: Settings,
-      members: Users,
+      "admin-users": Users,
+      "permission-groups": Shield,
+      "site-updates": History,
       site: Globe,
       google: Sparkles,
       server: Server,
@@ -406,46 +410,72 @@ export default function Navbar() {
                               </div>
                             </div>
                             {isAdmin ? (
-                              <div className="px-2 pb-2 min-w-0 flex flex-col gap-2">
-                                {adminContaGroup ? (
-                                  <details className="group rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
-                                    <summary className="list-none cursor-pointer select-none flex min-h-[44px] items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-foreground border-b border-border/60 [&::-webkit-details-marker]:hidden">
-                                      <span>Conta</span>
-                                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
-                                    </summary>
-                                    <div className="px-2 py-2 max-h-[40vh] overflow-y-auto overflow-x-hidden">
-                                      <AdminNavLinks
-                                        groups={[adminContaGroup]}
-                                        canUseAdminTabs={canUseAdminTabs}
-                                        icons={adminMenuIcons}
-                                        layout="sheet"
-                                        hideGroupTitles
-                                        getHref={adminTabHref}
-                                        onTabPick={() => setOpen(false)}
+                              <>
+                                <div className="px-2 pb-2 min-w-0 flex flex-col gap-2">
+                                  {adminContaGroup ? (
+                                    <details className="group rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
+                                      <summary className="list-none cursor-pointer select-none flex min-h-[44px] items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-foreground border-b border-border/60 [&::-webkit-details-marker]:hidden">
+                                        <span>Conta</span>
+                                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+                                      </summary>
+                                      <div className="px-2 py-2 max-h-[40vh] overflow-y-auto overflow-x-hidden">
+                                        <AdminNavLinks
+                                          groups={[adminContaGroup]}
+                                          canUseAdminTabs={canUseAdminTabs}
+                                          icons={adminMenuIcons}
+                                          layout="sheet"
+                                          hideGroupTitles
+                                          getHref={adminTabHref}
+                                          onTabPick={() => setOpen(false)}
+                                        />
+                                      </div>
+                                    </details>
+                                  ) : null}
+                                  {adminAdministracaoGroup ? (
+                                    <details className="group rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
+                                      <summary className="list-none cursor-pointer select-none flex min-h-[44px] items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-foreground border-b border-border/60 [&::-webkit-details-marker]:hidden">
+                                        <span>Administração</span>
+                                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+                                      </summary>
+                                      <div className="px-2 py-2 max-h-[40vh] overflow-y-auto overflow-x-hidden">
+                                        <AdminNavLinks
+                                          groups={[adminAdministracaoGroup]}
+                                          canUseAdminTabs={canUseAdminTabs}
+                                          icons={adminMenuIcons}
+                                          layout="sheet"
+                                          hideGroupTitles
+                                          getHref={adminTabHref}
+                                          onTabPick={() => setOpen(false)}
+                                        />
+                                      </div>
+                                    </details>
+                                  ) : null}
+                                </div>
+                                <div className="px-4 pb-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleEditMode()}
+                                    className="flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:bg-muted/40 min-w-0"
+                                  >
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <Pencil className="h-4 w-4 shrink-0" aria-hidden />
+                                      <span className="truncate">Modo de edição</span>
+                                    </span>
+                                    <span
+                                      aria-hidden
+                                      className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+                                        editMode ? "bg-accent dark:bg-accent" : "bg-muted dark:bg-white/15"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`inline-block h-3 w-3 transform rounded-full bg-background shadow transition-transform dark:bg-white dark:shadow-md ${
+                                          editMode ? "translate-x-3.5" : "translate-x-0.5"
+                                        }`}
                                       />
-                                    </div>
-                                  </details>
-                                ) : null}
-                                {adminAdministracaoGroup ? (
-                                  <details className="group rounded-xl border border-border/70 bg-muted/20 overflow-hidden">
-                                    <summary className="list-none cursor-pointer select-none flex min-h-[44px] items-center justify-between gap-2 px-4 py-2.5 text-[13px] font-semibold text-foreground border-b border-border/60 [&::-webkit-details-marker]:hidden">
-                                      <span>Administração</span>
-                                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
-                                    </summary>
-                                    <div className="px-2 py-2 max-h-[40vh] overflow-y-auto overflow-x-hidden">
-                                      <AdminNavLinks
-                                        groups={[adminAdministracaoGroup]}
-                                        canUseAdminTabs={canUseAdminTabs}
-                                        icons={adminMenuIcons}
-                                        layout="sheet"
-                                        hideGroupTitles
-                                        getHref={adminTabHref}
-                                        onTabPick={() => setOpen(false)}
-                                      />
-                                    </div>
-                                  </details>
-                                ) : null}
-                              </div>
+                                    </span>
+                                  </button>
+                                </div>
+                              </>
                             ) : (
                               <Link
                                 to={accountAreaPath}

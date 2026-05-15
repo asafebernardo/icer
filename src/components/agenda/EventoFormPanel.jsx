@@ -643,7 +643,11 @@ export default function EventoFormPanel({
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         id="evento-form-panel"
-        className="max-w-3xl w-[calc(100%-1.5rem)] max-h-[min(92vh,920px)] p-0 gap-0 flex flex-col overflow-hidden sm:max-w-3xl [&>button.absolute]:hidden"
+        className={cn(
+          "w-[calc(100%-1rem)] max-w-3xl p-0 gap-0 flex flex-col overflow-hidden sm:max-w-3xl [&>button.absolute]:hidden",
+          "max-h-[min(92vh,920px)] sm:max-h-[min(92vh,920px)]",
+          "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100",
+        )}
       >
         <DialogHeader className="px-6 pt-6 pb-3 border-b border-border bg-muted/40 shrink-0 text-left space-y-1.5">
           <DialogTitle>
@@ -659,7 +663,7 @@ export default function EventoFormPanel({
           aria-hidden
         />
 
-      <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[min(70vh,720px)]">
+      <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[min(70vh,720px)] max-sm:max-h-[min(calc(92dvh-10rem),calc(100dvh-10rem))]">
         {/* Destaque na home (discreto, no topo) */}
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-2">
           <p className="text-sm font-semibold text-foreground">

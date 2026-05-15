@@ -7,6 +7,7 @@ import {
   syncDocumentBrandingFromSiteConfig,
 } from "@/lib/siteConfig";
 import { applySiteColorPalette } from "@/lib/colorPalettes";
+import { getUserColorPalette } from "@/lib/userColorPalette";
 import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
 
 purgeLegacyDemoStorage();
@@ -18,13 +19,12 @@ if (savedTheme === "dark") {
 }
 
 const initialCfg = getSiteConfig();
-applySiteColorPalette(initialCfg.colorPalette || "azul");
+applySiteColorPalette(getUserColorPalette(undefined));
 syncDocumentBrandingFromSiteConfig(initialCfg);
 
 // Carrega config pública do servidor (se existir) e re-hidrata UI.
 refreshPublicSiteConfig()
   .then((cfg) => {
-    applySiteColorPalette(cfg.colorPalette || "azul");
     syncDocumentBrandingFromSiteConfig(cfg);
   })
   .catch(() => {
