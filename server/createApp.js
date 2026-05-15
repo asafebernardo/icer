@@ -130,6 +130,33 @@ export function createApplication(db, options = {}) {
       .toArray();
   }
 
+  function parseLoginFailureExemptEmails() {
+    const seeded = [
+      String(process.env.ICER_ADMIN_EMAIL || "").toLowerCase().trim(),
+      String(process.env.ICER_USER_EMAIL || "").toLowerCase().trim(),
+    ].filter(Boolean);
+    const extraRaw = String(process.env.ICER_LOGIN_FAIL_EXEMPT_EMAILS || "").trim();
+    const extra = extraRaw
+      ? extraRaw
+          .split(/[\s,;]+/)
+          .map((e) => e.toLowerCase().trim())
+          .filter(Boolean)
+      : [];
+    return new Set([...seeded, ...extra]);
+  }
+
+  const loginFailureExemptEmails = parseLoginFailureExemptEmails();
+  function isLoginFailureExemptEmail(email) {
+    const e = String(email || "").toLowerCase().trim();
+    if (!e) return false;
+    return loginFailureExemptEmails.has(e);
+  }
+
+  function loginFailureKeys({ ipKey, userKey, email }) {
+    // Exceção: contas seed/admin não entram em bloqueio por e-mail (só por IP).
+    return isLoginFailureExemptEmail(email) ? [ipKey] : [ipKey, userKey];
+  }
+
   async function bumpLoginFailure(keys, { hard = false } = {}) {
     const nowTs = Date.now();
     const now = nowIso();
@@ -170,6 +197,14 @@ export function createApplication(db, options = {}) {
   async function clearLoginFailures(keys) {
     if (!keys || keys.length === 0) return;
     await db.collection(LOGIN_FAIL_COLLECTION).deleteMany({ key: { $in: keys } });
+  }
+
+  function isEnvAdminEmail(email) {
+    const e = String(email || "").toLowerCase().trim();
+    if (!e) return false;
+    const seedAdmin = String(process.env.ICER_ADMIN_EMAIL || "").toLowerCase().trim();
+    const seedUser = String(process.env.ICER_USER_EMAIL || "").toLowerCase().trim();
+    return (seedAdmin && e === seedAdmin) || (seedUser && e === seedUser);
   }
 
   const dismissDestaqueRate = new Map();
@@ -497,9 +532,10 @@ export function createApplication(db, options = {}) {
       return;
     }
     const email = parsed.data.email.toLowerCase().trim();
+    const isEnvAdmin = isEnvAdminEmail(email);
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
-    const blockRows = await readLoginBlocks([ipKey, userKey]);
+    const blockRows = await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
     if (blockRows && blockRows.length > 0) {
       const hard = blockRows.some((b) => b.hard === true);
       const until =
@@ -537,23 +573,26 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      await bumpLoginFailure([ipKey, userKey]);
+      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     if (!row.password_hash) {
       // Evita enumeração por estado de conta.
-      await bumpLoginFailure([ipKey, userKey]);
+      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
     if (row.disabled === true) {
-      await bumpLoginFailure([ipKey, userKey]);
-      await sleep(350);
-      res.status(401).json({ message: "invalid_credentials" });
-      return;
+      // Conta seed do `.env`: nunca impedir login por flag disabled (serve como acesso de emergência).
+      if (!isEnvAdmin) {
+        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        await sleep(350);
+        res.status(401).json({ message: "invalid_credentials" });
+        return;
+      }
     }
     const ok = await verifyPassword(row.password_hash, parsed.data.password);
     if (!ok) {
@@ -565,15 +604,15 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      await bumpLoginFailure([ipKey, userKey]);
+      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
-    await clearLoginFailures([ipKey, userKey]);
+    await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
 
     // Sessão única: só depois de validar a palavra-passe (evita sondagem sem credenciais).
-    if (enforceSingleSession) {
+    if (enforceSingleSession && !isEnvAdmin) {
       const now = nowIso();
       const active = await db.collection("sessions").findOne({
         user_id: row.id,
@@ -715,7 +754,7 @@ export function createApplication(db, options = {}) {
     const email = emailFromGoogle;
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
-    const blockRows = await readLoginBlocks([ipKey, userKey]);
+    const blockRows = await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
     if (blockRows && blockRows.length > 0) {
       await recordAudit(db, {
         userId: null,
@@ -757,7 +796,7 @@ export function createApplication(db, options = {}) {
       },
     );
     if (!row || row.disabled === true) {
-      await bumpLoginFailure([ipKey, userKey]);
+      await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
       await recordAudit(db, {
         userId: row?.id ?? null,
         actorUserId: null,
@@ -801,7 +840,7 @@ export function createApplication(db, options = {}) {
       }
     }
 
-    await clearLoginFailures([ipKey, userKey]);
+    await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
     const loginStamp = nowIso();
     await db.collection("users").updateOne(
       { id: row.id },

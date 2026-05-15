@@ -347,20 +347,6 @@ export default function LoginModal() {
           <Button type="submit" className="mt-2 w-full font-semibold">
             Entrar
           </Button>
-          {import.meta.env.DEV &&
-            import.meta.env.VITE_ENABLE_DEMO_LOGIN !== "true" && (
-              <p className="text-center text-xs leading-snug text-muted-foreground">
-                Login local desativado. Configure{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-[10px] text-foreground/90">
-                  VITE_ENABLE_DEMO_LOGIN
-                </code>{" "}
-                em{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-[10px] text-foreground/90">
-                  .env.local
-                </code>
-                .
-              </p>
-            )}
         </form>
       </DialogContent>
     </Dialog>
