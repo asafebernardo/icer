@@ -25,10 +25,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/AuthContext";
-import { Users, RefreshCw, Shield, KeyRound, ScrollText, Trash2 } from "lucide-react";
+import {
+  Users,
+  RefreshCw,
+  Shield,
+  KeyRound,
+  ScrollText,
+  Trash2,
+  User as UserIcon,
+} from "lucide-react";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
 import {
   labelForAction,
   formatAuditDetails,
+  categoryForAction,
+  initialsFromIdentity,
 } from "@/lib/auditLogLabels";
 import { formatAdminUserDeleteError } from "@/lib/adminUserDeleteMessages";
 import UserAvatar from "@/components/shared/UserAvatar";
@@ -113,8 +128,9 @@ export default function ServerUsersPanel() {
     queryFn: fetchServerUsers,
   });
 
-  const emailById = Object.fromEntries(
-    (users || []).map((u) => [u.id, u.email]),
+  /** Mapa id → utilizador (com avatar) para apresentar a foto no diálogo de auditoria. */
+  const userById = new Map(
+    (users || []).map((u) => [u.id, u]),
   );
 
   const {
@@ -466,40 +482,79 @@ export default function ServerUsersPanel() {
                   {auditRows.map((row) => {
                     const actorId = row.actor_user_id;
                     const subjectId = row.user_id;
+                    const actor = actorId != null ? userById.get(actorId) : null;
+                    const subject =
+                      subjectId != null ? userById.get(subjectId) : null;
                     const actorOther =
                       actorId != null &&
                       subjectId != null &&
                       actorId !== subjectId;
-                    const actorLabel =
-                      actorOther && emailById[actorId]
-                        ? emailById[actorId]
-                        : actorOther
-                          ? `#${actorId}`
-                          : null;
+                    const actorIdentity =
+                      actor?.full_name || actor?.email || (actorId != null ? `#${actorId}` : null);
+                    const subjectIdentity =
+                      subject?.full_name || subject?.email || (subjectId != null ? `#${subjectId}` : "—");
+                    const principal = actor || subject;
+                    const principalIdentity = actorIdentity || subjectIdentity;
+                    const category = categoryForAction(row.action);
+                    const Icon = category.icon;
                     return (
                       <div
                         key={row.id}
-                        className="border border-border rounded-xl p-3 text-sm space-y-1.5 bg-muted/30"
+                        className={`rounded-xl bg-card border border-border ${category.accentClass} p-3 text-sm shadow-sm`}
                       >
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <span className="font-medium text-foreground">
-                            {labelForAction(row.action)}
-                          </span>
-                          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                            {formatTs(row.created_at)}
-                          </span>
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-9 w-9 shrink-0 border border-border bg-muted">
+                            {principal?.avatar_url ? (
+                              <AvatarImage
+                                src={principal.avatar_url}
+                                alt={principalIdentity || "Utilizador"}
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : null}
+                            <AvatarFallback className="text-[11px] font-semibold text-muted-foreground">
+                              {principal ? (
+                                initialsFromIdentity(principalIdentity)
+                              ) : (
+                                <UserIcon className="h-4 w-4" aria-hidden />
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${category.badgeClass}`}
+                              >
+                                <Icon className={`h-3 w-3 ${category.iconClass}`} aria-hidden />
+                                {category.label}
+                              </span>
+                              <span className="font-medium text-foreground">
+                                {labelForAction(row.action)}
+                              </span>
+                              <span className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                                {formatTs(row.created_at)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">
+                                {principalIdentity || "—"}
+                              </span>
+                              {actorOther ? (
+                                <>
+                                  {" "}
+                                  <span aria-hidden>→</span>{" "}
+                                  <span className="font-medium text-foreground">
+                                    {subjectIdentity}
+                                  </span>
+                                </>
+                              ) : null}
+                              <span className="mx-1.5 opacity-50">·</span>
+                              <span className="font-mono">{row.ip || "—"}</span>
+                            </p>
+                            <pre className="text-[11px] leading-snug text-muted-foreground whitespace-pre-wrap break-all font-mono bg-background/80 rounded-md p-2 border border-border/60">
+                              {formatAuditDetails(row.details)}
+                            </pre>
+                          </div>
                         </div>
-                        {actorLabel && (
-                          <p className="text-xs text-muted-foreground">
-                            Executado por: {actorLabel}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground break-all">
-                          IP: {row.ip || "—"}
-                        </p>
-                        <pre className="text-[11px] leading-snug text-muted-foreground whitespace-pre-wrap break-all font-mono bg-background/80 rounded-md p-2 border border-border/60">
-                          {formatAuditDetails(row.details)}
-                        </pre>
                       </div>
                     );
                   })}

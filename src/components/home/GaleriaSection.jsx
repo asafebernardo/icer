@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Images } from "lucide-react";
 import {
   CORRUPT_IMAGE_FALLBACK_BG,
   CORRUPT_IMAGE_FALLBACK_IMAGE,
 } from "@/lib/corruptImageFallback";
 import SafeImg from "@/components/shared/SafeImg";
+import EmptyState from "@/components/shared/EmptyState";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -56,10 +57,12 @@ export default function GaleriaSection() {
         {isLoading ? (
           <p className="text-center text-muted-foreground py-12">A carregar…</p>
         ) : lista.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12 max-w-md mx-auto">
-            Ainda não há fotografias na galeria. Quando forem adicionadas na
-            administração, aparecerão aqui.
-          </p>
+          <EmptyState
+            icon={Images}
+            title="Galeria vazia"
+            description="Ainda não há fotografias. Quando forem adicionadas na administração, aparecerão aqui."
+            compact
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             {lista.slice(0, 6).map((foto, i) => (

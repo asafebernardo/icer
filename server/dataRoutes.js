@@ -122,6 +122,15 @@ function mongoSort(table, sort) {
   return { created_at: -1 };
 }
 
+/** Visibilidades reconhecidas em postagens. */
+const POST_VISIBILITIES = new Set(["public", "unlisted", "private"]);
+
+/** Normaliza um valor arbitrário para uma visibilidade conhecida; default "public". */
+function normalizePostVisibility(v) {
+  const s = String(v ?? "").trim().toLowerCase();
+  return POST_VISIBILITIES.has(s) ? s : "public";
+}
+
 function rowToRecord(row) {
   if (!row) return null;
   let extra = {};
@@ -132,6 +141,10 @@ function rowToRecord(row) {
     extra = {};
   }
   const draft = row.is_draft === true;
+  const visibility =
+    typeof row.visibility === "string" && row.visibility
+      ? normalizePostVisibility(row.visibility)
+      : normalizePostVisibility(extra.visibility);
   return {
     ...extra,
     id: row.id,
@@ -139,6 +152,7 @@ function rowToRecord(row) {
     updated_date: row.updated_at,
     is_draft: draft,
     status: draft ? "draft" : "published",
+    visibility,
   };
 }
 
@@ -246,6 +260,31 @@ export function createDataRouter(db) {
     } else {
       filter = { is_draft: { $ne: true } };
     }
+    /**
+     * Visibilidade na listagem pública:
+     *  - "public" (ou ausente, para posts antigos): aparece para todos.
+     *  - "unlisted": só com link direto (oculta da listagem para todos).
+     *  - "private": só visível na listagem ao dono ou a um admin.
+     */
+    const isAdmin = req.user?.role === "admin";
+    if (!draftsOnly) {
+      const visibilityClauses = [
+        { visibility: "public" },
+        { visibility: { $exists: false } },
+        { visibility: null },
+        { visibility: "" },
+      ];
+      if (req.user?.id != null) {
+        visibilityClauses.push({
+          visibility: { $in: ["unlisted", "private"] },
+          owner_user_id: Number(req.user.id),
+        });
+      }
+      if (isAdmin) {
+        visibilityClauses.push({ visibility: { $in: ["unlisted", "private"] } });
+      }
+      filter = { $and: [filter, { $or: visibilityClauses }] };
+    }
     const [rows, total] = await Promise.all([
       db
         .collection("posts")
@@ -287,6 +326,22 @@ export function createDataRouter(db) {
         return;
       }
     }
+    /**
+     * "private" exige dono ou admin — devolve 404 em vez de 403 para não vazar a existência
+     * da postagem a quem não tem permissão. "unlisted" não restringe acesso direto pelo id.
+     */
+    if (normalizePostVisibility(row.visibility) === "private") {
+      const uid = req.user?.id;
+      const ownerOk =
+        uid != null &&
+        row.owner_user_id != null &&
+        Number(row.owner_user_id) === Number(uid);
+      const adminOk = req.user?.role === "admin";
+      if (!ownerOk && !adminOk) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
+    }
     res.json(rowToRecord(row));
   });
 
@@ -300,6 +355,8 @@ export function createDataRouter(db) {
       delete body.id;
       const is_draft =
         body.status === "draft" || body.is_draft === true;
+      const visibility = normalizePostVisibility(body.visibility);
+      body.visibility = visibility;
       const body_json = JSON.stringify(body);
       const pub_sort_at = pubSortAtFromBody(body, now);
       const id = await nextSeq(db, "posts");
@@ -308,6 +365,7 @@ export function createDataRouter(db) {
         owner_user_id: req.user.id,
         body_json,
         is_draft: Boolean(is_draft),
+        visibility,
         pub_sort_at,
         created_at: now,
         updated_at: now,
@@ -347,6 +405,8 @@ export function createDataRouter(db) {
       const incoming = req.body && typeof req.body === "object" ? { ...req.body } : {};
       delete incoming.id;
       const merged = { ...prev, ...incoming };
+      const visibility = normalizePostVisibility(merged.visibility);
+      merged.visibility = visibility;
       const body_json = JSON.stringify(merged);
       const is_draft =
         merged.status === "draft" || merged.is_draft === true;
@@ -358,6 +418,7 @@ export function createDataRouter(db) {
             body_json,
             updated_at: now,
             is_draft: Boolean(is_draft),
+            visibility,
             pub_sort_at,
           },
         },

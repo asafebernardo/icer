@@ -53,6 +53,29 @@ export async function putAdminPublicWorkspace(patch) {
   return r.json();
 }
 
+export async function putAgendaSimpleGridRemote(agenda_simple_grid) {
+  const r = await fetch("/api/public-workspace/agenda-simple-grid", {
+    method: "PUT",
+    credentials: "include",
+    headers: await withCsrfHeaderAsync({
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
+    body: JSON.stringify({ agenda_simple_grid }),
+  });
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try {
+      const j = await r.json();
+      if (j?.message) msg = String(j.message);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
 export async function putAgendaSugestoesRemote(agenda_sugestoes) {
   const r = await fetch("/api/public-workspace/agenda-sugestoes", {
     method: "PUT",

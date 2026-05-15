@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Link2, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import PageHeader from "@/components/shared/PageHeader";
@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PostMedia } from "@/components/posts/PostMedia";
 
-import { useAuth } from "@/lib/AuthContext";
-import { getUser, canMenuAction, MENU } from "@/lib/auth";
+import { MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
   dedupeTagsPreserveOrder,
@@ -23,9 +23,7 @@ export default function PostPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { user: authUser } = useAuth();
-  const sessionUser = authUser ?? getUser();
-  const canEditPosts = canMenuAction(sessionUser, MENU.POSTAGENS, "edit");
+  const canEditPosts = useCanEdit(MENU.POSTAGENS);
 
   const from = location.state?.from;
 
@@ -199,6 +197,26 @@ export default function PostPage() {
                 Rascunho
               </Badge>
             )}
+          {!isLoading && post && post.visibility === "unlisted" ? (
+            <Badge
+              variant="outline"
+              className="gap-1 text-xs uppercase tracking-wide"
+              title="Não-listado — só com link direto"
+            >
+              <Link2 className="w-3 h-3" />
+              Não-listado
+            </Badge>
+          ) : null}
+          {!isLoading && post && post.visibility === "private" ? (
+            <Badge
+              variant="outline"
+              className="gap-1 text-xs uppercase tracking-wide border-amber-500/50 text-amber-700 dark:text-amber-300"
+              title="Privada — só autor e admin"
+            >
+              <Lock className="w-3 h-3" />
+              Privada
+            </Badge>
+          ) : null}
         </div>
 
         {isLoading ? (

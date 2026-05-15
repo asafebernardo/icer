@@ -7,6 +7,53 @@ const MAX_SUGESTAO_ITEM_LEN = 160;
 const MAX_SUGESTAO_LIST = 80;
 const MAX_AVATAR_URL_LEN = 2048;
 const MAX_AVATAR_ENTRIES = 80;
+const MAX_AGENDA_SIMPLE_LABEL = 48;
+
+const DEFAULT_AGENDA_SIMPLE_GRID = {
+  dia_column_label: "DIA",
+  cultos_group_label: "CULTOS",
+  manha_label: "MANHÃ",
+  noite_label: "NOITE",
+  reuniao_oracao_line1: "REUNIÃO",
+  reuniao_oracao_line2: "ORAÇÃO",
+  outras_line1: "OUTRAS",
+  outras_line2: "REUNIÕES",
+  culto_weekdays: [],
+  oracao_weekdays: [],
+};
+
+function normWeekdayList(arr) {
+  if (!Array.isArray(arr)) return [];
+  const s = new Set();
+  for (const x of arr) {
+    const n = Number(x);
+    if (Number.isInteger(n) && n >= 0 && n <= 6) s.add(n);
+  }
+  return [...s].sort((a, b) => a - b);
+}
+
+function sanitizeAgendaSimpleGrid(raw) {
+  const base = { ...DEFAULT_AGENDA_SIMPLE_GRID };
+  if (!raw || typeof raw !== "object") return base;
+  const str = (v, fallback) => {
+    const t = String(v ?? "")
+      .trim()
+      .slice(0, MAX_AGENDA_SIMPLE_LABEL);
+    return t || fallback;
+  };
+  return {
+    dia_column_label: str(raw.dia_column_label, base.dia_column_label),
+    cultos_group_label: str(raw.cultos_group_label, base.cultos_group_label),
+    manha_label: str(raw.manha_label, base.manha_label),
+    noite_label: str(raw.noite_label, base.noite_label),
+    reuniao_oracao_line1: str(raw.reuniao_oracao_line1, base.reuniao_oracao_line1),
+    reuniao_oracao_line2: str(raw.reuniao_oracao_line2, base.reuniao_oracao_line2),
+    outras_line1: str(raw.outras_line1, base.outras_line1),
+    outras_line2: str(raw.outras_line2, base.outras_line2),
+    culto_weekdays: normWeekdayList(raw.culto_weekdays),
+    oracao_weekdays: normWeekdayList(raw.oracao_weekdays),
+  };
+}
 
 function isSafePublicAssetUrl(u) {
   const s = String(u || "").trim();
@@ -177,6 +224,7 @@ export async function getPublicWorkspace(db) {
   const v = row?.value && typeof row.value === "object" ? row.value : {};
   return {
     agenda_sugestoes: sanitizeAgendaSugestoes(v.agenda_sugestoes),
+    agenda_simple_grid: sanitizeAgendaSimpleGrid(v.agenda_simple_grid),
     dashboard_site_menus: sanitizeDashboardMenus(v.dashboard_site_menus),
     member_menu_palettes: sanitizeMemberMenuPalettes(v.member_menu_palettes),
     evento_destaque_dismissed_ids: sanitizeDismissedIds(v.evento_destaque_dismissed_ids),
@@ -195,6 +243,9 @@ export async function mergePublicWorkspaceAdmin(db, patch) {
   const next = { ...cur };
   if ("agenda_sugestoes" in patch) {
     next.agenda_sugestoes = sanitizeAgendaSugestoes(patch.agenda_sugestoes);
+  }
+  if ("agenda_simple_grid" in patch) {
+    next.agenda_simple_grid = sanitizeAgendaSimpleGrid(patch.agenda_simple_grid);
   }
   if ("dashboard_site_menus" in patch) {
     next.dashboard_site_menus = sanitizeDashboardMenus(patch.dashboard_site_menus);
@@ -227,6 +278,27 @@ export async function setAgendaSugestoesEditor(db, agendaSugestoes) {
   const next = {
     ...cur,
     agenda_sugestoes: sanitizeAgendaSugestoes(agendaSugestoes),
+  };
+  const now = nowIso();
+  await db.collection("app_kv").updateOne(
+    { key: KEY },
+    { $set: { key: KEY, value: next, updated_at: now } },
+    { upsert: true },
+  );
+  return getPublicWorkspace(db);
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @param {Record<string, unknown>} agendaSimpleGrid
+ */
+export async function setAgendaSimpleGridEditor(db, agendaSimpleGrid) {
+  const curRow = await db.collection("app_kv").findOne({ key: KEY });
+  const cur =
+    curRow?.value && typeof curRow.value === "object" ? { ...curRow.value } : {};
+  const next = {
+    ...cur,
+    agenda_simple_grid: sanitizeAgendaSimpleGrid(agendaSimpleGrid),
   };
   const now = nowIso();
   await db.collection("app_kv").updateOne(

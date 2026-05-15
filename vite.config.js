@@ -25,10 +25,24 @@ function readGitShortSha() {
   }
 }
 
+/** Nome da branch atual; vazio fora de um repo Git ou em detached HEAD sem nome. */
+function readGitBranch() {
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", {
+      encoding: "utf8",
+      cwd: __dirname,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const icerSemver = readPackageVersion();
   const icerGitSha = readGitShortSha();
+  const icerGitBranch = readGitBranch();
   const icerBuildId = icerGitSha ? `${icerSemver}+${icerGitSha}` : icerSemver;
   const proxyTarget = String(env.VITE_APP_BASE_URL || "").trim();
   /** Com `VITE_USE_SERVER_AUTH=true`, o browser usa sessão real no Node local. */
@@ -59,6 +73,7 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_ICER_SEMVER": JSON.stringify(icerSemver),
       "import.meta.env.VITE_ICER_GIT_SHA": JSON.stringify(icerGitSha || "unknown"),
+      "import.meta.env.VITE_ICER_GIT_BRANCH": JSON.stringify(icerGitBranch || ""),
       "import.meta.env.VITE_ICER_BUILD_ID": JSON.stringify(icerBuildId),
     },
     resolve: {

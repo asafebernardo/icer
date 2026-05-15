@@ -21,7 +21,8 @@ export function normalizeWhatsappUrl(raw) {
 
 /**
  * URLs públicas para ícones no cabeçalho/rodapé.
- * `social*` tem prioridade; `channelUrl` / `instagramUrl` servem de legado da secção removida.
+ * `social*` tem prioridade quando preenchidos; valores vazios caem para `channelUrl` /
+ * `instagramUrl` e depois para os defaults (comportamento da antiga secção da home).
  */
 export function resolveSocialLinksFromConfig(cfg) {
   const c = cfg && typeof cfg === "object" ? cfg : {};
@@ -30,20 +31,20 @@ export function resolveSocialLinksFromConfig(cfg) {
 
   let youtube = "";
   if (own("socialYoutubeUrl")) {
-    youtube = String(c.socialYoutubeUrl ?? "").trim()
-      ? normalizeHttpUrl(c.socialYoutubeUrl)
-      : "";
-  } else {
+    const v = String(c.socialYoutubeUrl ?? "").trim();
+    if (v) youtube = normalizeHttpUrl(c.socialYoutubeUrl);
+  }
+  if (!youtube) {
     const leg = String(c.channelUrl ?? "").trim();
     youtube = leg ? normalizeHttpUrl(leg) : normalizeHttpUrl(DEFAULT_CHANNEL_URL);
   }
 
   let instagram = "";
   if (own("socialInstagramUrl")) {
-    instagram = String(c.socialInstagramUrl ?? "").trim()
-      ? normalizeHttpUrl(c.socialInstagramUrl)
-      : "";
-  } else {
+    const v = String(c.socialInstagramUrl ?? "").trim();
+    if (v) instagram = normalizeHttpUrl(c.socialInstagramUrl);
+  }
+  if (!instagram) {
     const leg = String(c.instagramUrl ?? "").trim();
     instagram = leg ? normalizeHttpUrl(leg) : normalizeHttpUrl(DEFAULT_INSTAGRAM_URL);
   }

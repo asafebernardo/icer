@@ -120,7 +120,7 @@ export default function HomeSocialCardsSection() {
               href={cards.youtube.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative flex flex-col rounded-2xl p-6 sm:p-7 text-white shadow-lg ring-1 ring-black/10 overflow-hidden transition-transform duration-200 hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background bg-gradient-to-br from-[#FF0033] via-[#CC0000] to-[#7A0000]"
+              className="group relative flex flex-col rounded-2xl p-6 sm:p-7 text-white shadow-lg ring-1 ring-black/10 overflow-hidden card-hover focus-ring bg-gradient-to-br from-[#FF0033] via-[#CC0000] to-[#7A0000]"
             >
               <div
                 className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-white/10 blur-2xl"
@@ -152,7 +152,7 @@ export default function HomeSocialCardsSection() {
               href={cards.instagram.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group relative flex flex-col rounded-2xl p-6 sm:p-7 text-white shadow-lg ring-1 ring-black/10 overflow-hidden transition-transform duration-200 hover:scale-[1.01] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#F77737]"
+              className="group relative flex flex-col rounded-2xl p-6 sm:p-7 text-white shadow-lg ring-1 ring-black/10 overflow-hidden card-hover focus-ring bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#F77737]"
             >
               <div
                 className="pointer-events-none absolute -left-4 bottom-0 h-24 w-24 rounded-full bg-white/15 blur-2xl"

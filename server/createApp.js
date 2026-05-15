@@ -7,6 +7,25 @@ import cookieParser from "cookie-parser";
 import multer from "multer";
 import { z } from "zod";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { httpAccessLogger, log, color } from "./log.js";
+
+let _sharp = null;
+async function getSharp() {
+  if (_sharp === false) return null;
+  if (_sharp) return _sharp;
+  try {
+    const mod = await import("sharp");
+    _sharp = mod.default || mod;
+    return _sharp;
+  } catch (err) {
+    log.warn(
+      `${color.brightYellow("[files]")} sharp não disponível — variantes responsivas desativadas. ${color.dim(
+        String(err?.message || err),
+      )}`,
+    );
+    return null;
+  }
+}
 
 import {
   clearSessionCookie,
@@ -26,6 +45,7 @@ import {
   getPublicWorkspace,
   mergePublicWorkspaceAdmin,
   setAgendaSugestoesEditor,
+  setAgendaSimpleGridEditor,
   appendDismissedDestaque,
 } from "./publicWorkspace.js";
 import { createDataRouter } from "./dataRoutes.js";
@@ -39,12 +59,13 @@ import {
   setAuditLogRetentionPolicy,
   purgeAuditLogsByPolicy,
 } from "./auditLog.js";
+import { findFileReferences } from "./fileReferences.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
   buildGoogleLoginAuthorizeUrl,
   consumeGoogleLoginOauthState,
   createGoogleLoginOauthState,
-  exchangeGoogleLoginCodeForEmail,
+  exchangeGoogleLoginCodeForProfile,
   getGoogleLoginConfig,
   googleLoginPublicBase,
   googleLoginRedirectUri,
@@ -332,6 +353,19 @@ export function createApplication(db, options = {}) {
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
 
+  /**
+   * Log colorido por pedido — útil em desenvolvimento. Em produção pode ser
+   * desligado com `ICER_HTTP_LOG=0`.
+   */
+  const httpLogEnabled = (() => {
+    const v = String(process.env.ICER_HTTP_LOG ?? "").trim().toLowerCase();
+    if (v === "0" || v === "false" || v === "off" || v === "no") return false;
+    return true;
+  })();
+  if (httpLogEnabled) {
+    app.use(httpAccessLogger());
+  }
+
   app.use(cookieParser());
   const jsonParser = express.json({ limit: "2mb" });
   app.use((req, res, next) => {
@@ -572,6 +606,37 @@ export function createApplication(db, options = {}) {
     },
   );
 
+  app.put(
+    "/api/public-workspace/agenda-simple-grid",
+    requireAuth,
+    async (req, res, next) => {
+      if (!(await menuActionAllowed(db, req.user, "eventos", "edit"))) {
+        res.status(403).json({ message: "forbidden" });
+        return;
+      }
+      next();
+    },
+    async (req, res) => {
+      const body = req.body && typeof req.body === "object" ? req.body : null;
+      const raw = body?.agenda_simple_grid;
+      if (!raw || typeof raw !== "object") {
+        res.status(400).json({ message: "invalid_request" });
+        return;
+      }
+      const next = await setAgendaSimpleGridEditor(db, raw);
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "public_workspace.agenda_simple_grid",
+        details: {},
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.json(next);
+    },
+  );
+
   const loginMw =
     loginRateLimit && !skipLoginAttemptLock ? rateLimitLogin : (_req, _res, next) => next();
 
@@ -750,6 +815,16 @@ export function createApplication(db, options = {}) {
           timezone: z.string().trim().min(1).max(80).optional(),
         })
         .optional(),
+      calendar: z
+        .object({
+          enabled: z.boolean().optional(),
+          calendar_id: z.string().max(255).optional(),
+          account_email: z.string().email().or(z.literal("")).optional(),
+          sync_direction: z.enum(["push", "pull", "two_way"]).optional(),
+          auto_sync_on_save: z.boolean().optional(),
+          default_timezone: z.string().trim().min(1).max(80).optional(),
+        })
+        .optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -806,6 +881,11 @@ export function createApplication(db, options = {}) {
         google_backup_schedule_enabled: cfg.backup.schedule_enabled === true,
         google_backup_days: cfg.backup.days,
         google_backup_time: cfg.backup.time,
+        google_calendar_enabled: cfg.calendar.enabled === true,
+        google_calendar_id: cfg.calendar.calendar_id,
+        google_calendar_sync_direction: cfg.calendar.sync_direction,
+        google_calendar_auto_sync_on_save:
+          cfg.calendar.auto_sync_on_save !== false,
       },
       ip: clientIp(req),
       ...auditCtx(req),
@@ -871,13 +951,13 @@ export function createApplication(db, options = {}) {
       return;
     }
 
-    let emailFromGoogle;
+    let googleProfile;
     try {
-      ({ email: emailFromGoogle } = await exchangeGoogleLoginCodeForEmail({
+      googleProfile = await exchangeGoogleLoginCodeForProfile({
         code,
         redirectUri,
         config: googleConfig,
-      }));
+      });
     } catch {
       await recordAudit(db, {
         userId: null,
@@ -891,7 +971,7 @@ export function createApplication(db, options = {}) {
       return;
     }
 
-    const email = emailFromGoogle;
+    const email = googleProfile.email;
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
     const blockRows = skipLoginAttemptLock
@@ -934,6 +1014,7 @@ export function createApplication(db, options = {}) {
           role: 1,
           disabled: 1,
           password_hash: 1,
+          avatar_url: 1,
         },
       },
     );
@@ -975,10 +1056,28 @@ export function createApplication(db, options = {}) {
 
     await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
     const loginStamp = nowIso();
-    await db.collection("users").updateOne(
-      { id: row.id },
-      { $set: { last_login_at: loginStamp } },
-    );
+    /**
+     * Espelha o perfil Google na conta local em cada login: a foto da Google
+     * substitui o avatar atual e o nome completo é preenchido se estiver vazio.
+     * Assim, ao trocar a foto do Google, o próximo login reflete a alteração.
+     */
+    const set = { last_login_at: loginStamp };
+    const unset = {};
+    const googlePicture = String(googleProfile.picture || "").trim();
+    if (googlePicture) {
+      if (row.avatar_url !== googlePicture) {
+        set.avatar_url = googlePicture;
+      }
+    } else if (row.avatar_url) {
+      /* Sem foto vinda da Google: mantém a atual (se houver) — não apaga. */
+    }
+    const googleName = String(googleProfile.name || "").trim();
+    if (googleName && !String(row.full_name || "").trim()) {
+      set.full_name = googleName;
+    }
+    const update = { $set: set };
+    if (Object.keys(unset).length > 0) update.$unset = unset;
+    await db.collection("users").updateOne({ id: row.id }, update);
 
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
@@ -988,7 +1087,11 @@ export function createApplication(db, options = {}) {
       userId: row.id,
       actorUserId: row.id,
       action: "auth.login_google",
-      details: { email: row.email },
+      details: {
+        email: row.email,
+        avatar_synced: Boolean(googlePicture && set.avatar_url),
+        full_name_synced: Boolean(set.full_name),
+      },
       ip: clientIp(req),
       ...auditCtx(req),
     });
@@ -2240,6 +2343,114 @@ export function createApplication(db, options = {}) {
     res.json(logs);
   });
 
+  function escapeMongoRegex(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  app.get("/api/admin/files", requireAdmin, async (req, res) => {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const skip = Math.max(0, Math.min(50000, Number(req.query.skip) || 0));
+    const q = String(req.query.q || "").trim();
+    const filter =
+      q.length > 0
+        ? {
+            $or: [
+              { original_name: { $regex: escapeMongoRegex(q), $options: "i" } },
+              { mime: { $regex: escapeMongoRegex(q), $options: "i" } },
+            ],
+          }
+        : {};
+    const [items, total] = await Promise.all([
+      db
+        .collection("files")
+        .find(filter)
+        .project({ _id: 0, storage_path: 0 })
+        .sort({ id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      db.collection("files").countDocuments(filter),
+    ]);
+    res.json({ items, total, skip, limit });
+  });
+
+  app.get("/api/admin/files/:id", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = await db.collection("files").findOne({ id }, { projection: { _id: 0, storage_path: 0 } });
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    const references = await findFileReferences(db, id);
+    res.json({ file: row, references });
+  });
+
+  app.delete("/api/admin/files/:id", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const forceRaw = String(req.query.force || "").toLowerCase();
+    const force = forceRaw === "1" || forceRaw === "true" || forceRaw === "yes";
+    const row = await db.collection("files").findOne({ id });
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    const references = await findFileReferences(db, id);
+    if (references.length > 0 && !force) {
+      res.status(409).json({ message: "in_use", references });
+      return;
+    }
+    const diskPath = resolveUploadedDiskPath(row);
+    if (diskPath) {
+      try {
+        fs.unlinkSync(diskPath);
+      } catch (err) {
+        log.warn(
+          `${color.brightYellow("[files]")} falha ao apagar ficheiro em disco id=${color.bold(String(id))}: ${color.dim(String(err?.message || err))}`,
+        );
+      }
+    }
+    try {
+      const cacheDir = path.join(uploadDir, "_cache");
+      if (fs.existsSync(cacheDir)) {
+        const pref = `${id}-`;
+        for (const name of fs.readdirSync(cacheDir)) {
+          if (name.startsWith(pref)) {
+            try {
+              fs.unlinkSync(path.join(cacheDir, name));
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    await db.collection("files").deleteOne({ id });
+    await recordAudit(db, {
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: "admin.file.delete",
+      details: {
+        file_id: id,
+        original_name: row.original_name,
+        forced: force && references.length > 0,
+        reference_count: references.length,
+      },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+    res.json({ ok: true });
+  });
+
   const upload = multer({
     dest: uploadDir,
     limits: { fileSize: uploadMaxBytes },
@@ -2321,6 +2532,69 @@ export function createApplication(db, options = {}) {
       res.status(404).json({ message: "file_missing" });
       return;
     }
+
+    /**
+     * Variantes responsivas: aceita ?w=<largura> e/ou ?format=webp|jpeg.
+     * Só aplicável a imagens raster (não SVG, não vídeo, não outros).
+     */
+    const mime = String(row.mime || "");
+    const isRasterImage =
+      /^image\//.test(mime) && !/svg|gif/.test(mime);
+    const qW = Math.floor(Number(req.query.w));
+    const qFormatRaw = String(req.query.format || "").toLowerCase();
+    const wantedFormat =
+      qFormatRaw === "webp" || qFormatRaw === "jpeg" || qFormatRaw === "jpg"
+        ? qFormatRaw === "jpg"
+          ? "jpeg"
+          : qFormatRaw
+        : null;
+    const wantVariant =
+      isRasterImage && (Number.isFinite(qW) && qW > 0) || wantedFormat;
+
+    if (wantVariant) {
+      const sharp = await getSharp();
+      if (sharp) {
+        try {
+          const width = Number.isFinite(qW) && qW > 0
+            ? Math.min(2048, Math.max(64, qW))
+            : null;
+          const fmt = wantedFormat || (mime === "image/png" ? "png" : "webp");
+          const cacheDir = path.join(uploadDir, "_cache");
+          fs.mkdirSync(cacheDir, { recursive: true });
+          const cacheKey = `${id}-w${width || "orig"}-${fmt}.${fmt === "jpeg" ? "jpg" : fmt}`;
+          const cachePath = path.join(cacheDir, cacheKey);
+          let outBuffer = null;
+          if (fs.existsSync(cachePath)) {
+            outBuffer = fs.readFileSync(cachePath);
+          } else {
+            let pipeline = sharp(diskPath, { failOn: "none" });
+            if (width) pipeline = pipeline.resize({ width, withoutEnlargement: true });
+            if (fmt === "webp") pipeline = pipeline.webp({ quality: 82 });
+            else if (fmt === "jpeg") pipeline = pipeline.jpeg({ quality: 82, mozjpeg: true });
+            else if (fmt === "png") pipeline = pipeline.png({ compressionLevel: 9 });
+            outBuffer = await pipeline.toBuffer();
+            try {
+              fs.writeFileSync(cachePath, outBuffer);
+            } catch {
+              /* não-fatal: serve sem cache em disco */
+            }
+          }
+          res.setHeader("Content-Type", `image/${fmt}`);
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          res.setHeader("Vary", "Accept");
+          res.end(outBuffer);
+          return;
+        } catch (err) {
+          log.warn(
+            `${color.brightYellow("[files]")} falha ao gerar variante para id=${color.bold(
+              String(id),
+            )}: ${color.dim(String(err?.message || err))}`,
+          );
+          /* cai-para-trás para servir o original */
+        }
+      }
+    }
+
     res.setHeader("Content-Type", row.mime || "application/octet-stream");
     res.setHeader(
       "Content-Disposition",

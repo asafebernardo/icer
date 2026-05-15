@@ -5,6 +5,7 @@ import {
   CORRUPT_IMAGE_FALLBACK_BG,
   CORRUPT_IMAGE_FALLBACK_IMAGE,
 } from "@/lib/corruptImageFallback";
+import usePrefersReducedMotion from "@/lib/usePrefersReducedMotion";
 
 function imgClassForFit(fit) {
   const base = "absolute inset-0 h-full w-full object-center pointer-events-none";
@@ -30,6 +31,7 @@ export default function BackgroundSlideshow({
   const clean = (urls || []).filter(Boolean);
   const [index, setIndex] = useState(0);
   const [slideFailed, setSlideFailed] = useState(false);
+  const reduceMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     setIndex(0);
@@ -41,15 +43,16 @@ export default function BackgroundSlideshow({
 
   useEffect(() => {
     if (clean.length <= 1) return undefined;
+    if (reduceMotion) return undefined;
     const t = window.setInterval(() => {
       setIndex((i) => (i + 1) % clean.length);
     }, rotateIntervalMs);
     return () => window.clearInterval(t);
-  }, [clean.length, rotateIntervalMs]);
+  }, [clean.length, rotateIntervalMs, reduceMotion]);
 
   if (clean.length === 0) return null;
 
-  const durSec = transitionMs / 1000;
+  const durSec = reduceMotion ? 0 : transitionMs / 1000;
 
   const failClass = cn(imgClassForFit(fit), "!bg-black");
   const failStyle = {

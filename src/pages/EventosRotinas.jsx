@@ -70,9 +70,6 @@ export default function EventosRotinas() {
                   <TabsTrigger value="agendar" className="gap-1.5 px-2 sm:gap-2 sm:px-3">
                     <CalendarPlus2 className="h-4 w-4 shrink-0" aria-hidden />
                     <span className="truncate">Agendamentos</span>
-                    <span className="hidden sm:inline-flex shrink-0 items-center rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                      Beta
-                    </span>
                   </TabsTrigger>
                   <TabsTrigger value="historico" className="gap-2 px-2 sm:px-3">
                     <History className="h-4 w-4 shrink-0" aria-hidden />

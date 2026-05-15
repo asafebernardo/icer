@@ -37,6 +37,7 @@ import {
   mergeRemoteAgendaSugestoes,
   putAgendaSugestoesRemote,
 } from "@/lib/publicWorkspace";
+import AdminAgendaSimpleGridSection from "@/components/dashboard/AdminAgendaSimpleGridSection";
 import {
   AGENDA_SUGESTOES_KEYS,
   AGENDA_SUGESTOES_FIELD_META,
@@ -880,6 +881,8 @@ export default function AdminCadastrosOpcoesPanel() {
         );
       })}
       </div>
+
+      <AdminAgendaSimpleGridSection />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <Button

@@ -39,6 +39,22 @@ function normalizeBackupDays(value, fallback = ["mon", "tue", "wed", "thu", "fri
   );
 }
 
+/** Direções suportadas para a sincronização com o Google Agenda. */
+const CALENDAR_SYNC_DIRECTIONS = new Set(["push", "pull", "two_way"]);
+
+function normalizeCalendarSyncDirection(value, fallback = "push") {
+  const s = String(value || "").trim().toLowerCase();
+  return CALENDAR_SYNC_DIRECTIONS.has(s) ? s : fallback;
+}
+
+/** ID da agenda (calendar_id) — aceita "primary" ou um e-mail de calendário. */
+function normalizeCalendarId(value, fallback = "primary") {
+  const s = String(value || "").trim();
+  if (!s) return fallback || "primary";
+  /* Limita o tamanho (defensivo). Google Calendar IDs reais ≤ ~255 chars. */
+  return s.slice(0, 255);
+}
+
 function envGoogleLoginConfig() {
   return {
     enabled: true,
@@ -55,6 +71,14 @@ function envGoogleLoginConfig() {
       days: ["mon", "tue", "wed", "thu", "fri"],
       timezone: "America/Sao_Paulo",
     },
+    calendar: {
+      enabled: false,
+      calendar_id: "primary",
+      account_email: "",
+      sync_direction: "push",
+      auto_sync_on_save: true,
+      default_timezone: "America/Sao_Paulo",
+    },
   };
 }
 
@@ -65,6 +89,11 @@ function normalizeGoogleLoginConfig(value, fallback = envGoogleLoginConfig()) {
     fallback.backup && typeof fallback.backup === "object"
       ? fallback.backup
       : {};
+  const calendar = v.calendar && typeof v.calendar === "object" ? v.calendar : {};
+  const fallbackCalendar =
+    fallback.calendar && typeof fallback.calendar === "object"
+      ? fallback.calendar
+      : { enabled: false, calendar_id: "primary", account_email: "", sync_direction: "push", auto_sync_on_save: true, default_timezone: "America/Sao_Paulo" };
   return {
     enabled:
       typeof v.enabled === "boolean"
@@ -115,6 +144,35 @@ function normalizeGoogleLoginConfig(value, fallback = envGoogleLoginConfig()) {
         "timezone" in backup
           ? String(backup.timezone || "America/Sao_Paulo").trim().slice(0, 80)
           : String(fallbackBackup.timezone || "America/Sao_Paulo").trim().slice(0, 80),
+    },
+    calendar: {
+      enabled:
+        typeof calendar.enabled === "boolean"
+          ? calendar.enabled
+          : fallbackCalendar.enabled === true,
+      calendar_id:
+        "calendar_id" in calendar
+          ? normalizeCalendarId(calendar.calendar_id, fallbackCalendar.calendar_id)
+          : normalizeCalendarId(fallbackCalendar.calendar_id),
+      account_email:
+        "account_email" in calendar
+          ? String(calendar.account_email || "").toLowerCase().trim()
+          : String(fallbackCalendar.account_email || "").toLowerCase().trim(),
+      sync_direction:
+        "sync_direction" in calendar
+          ? normalizeCalendarSyncDirection(
+              calendar.sync_direction,
+              fallbackCalendar.sync_direction,
+            )
+          : normalizeCalendarSyncDirection(fallbackCalendar.sync_direction),
+      auto_sync_on_save:
+        typeof calendar.auto_sync_on_save === "boolean"
+          ? calendar.auto_sync_on_save
+          : fallbackCalendar.auto_sync_on_save !== false,
+      default_timezone:
+        "default_timezone" in calendar
+          ? String(calendar.default_timezone || "America/Sao_Paulo").trim().slice(0, 80)
+          : String(fallbackCalendar.default_timezone || "America/Sao_Paulo").trim().slice(0, 80),
     },
   };
 }
@@ -180,6 +238,14 @@ export function publicGoogleLoginConfig(config) {
       days: cfg.backup.days,
       timezone: cfg.backup.timezone,
     },
+    calendar: {
+      enabled: cfg.calendar.enabled === true,
+      calendar_id: cfg.calendar.calendar_id,
+      account_email: cfg.calendar.account_email,
+      sync_direction: cfg.calendar.sync_direction,
+      auto_sync_on_save: cfg.calendar.auto_sync_on_save !== false,
+      default_timezone: cfg.calendar.default_timezone,
+    },
   };
 }
 
@@ -200,6 +266,14 @@ export function publicGoogleLoginConfig(config) {
  *     time?: string;
  *     days?: string[];
  *     timezone?: string;
+ *   };
+ *   calendar?: {
+ *     enabled?: boolean;
+ *     calendar_id?: string;
+ *     account_email?: string;
+ *     sync_direction?: "push" | "pull" | "two_way";
+ *     auto_sync_on_save?: boolean;
+ *     default_timezone?: string;
  *   };
  * }} input
  */
@@ -253,6 +327,40 @@ export async function saveGoogleLoginConfig(db, input) {
         raw.backup && "timezone" in raw.backup
           ? String(raw.backup.timezone || "America/Sao_Paulo").trim().slice(0, 80)
           : current.backup.timezone,
+    },
+    calendar: {
+      enabled:
+        raw.calendar && typeof raw.calendar.enabled === "boolean"
+          ? raw.calendar.enabled
+          : current.calendar.enabled === true,
+      calendar_id:
+        raw.calendar && "calendar_id" in raw.calendar
+          ? normalizeCalendarId(
+              raw.calendar.calendar_id,
+              current.calendar.calendar_id,
+            )
+          : current.calendar.calendar_id,
+      account_email:
+        raw.calendar && "account_email" in raw.calendar
+          ? String(raw.calendar.account_email || "").toLowerCase().trim()
+          : current.calendar.account_email,
+      sync_direction:
+        raw.calendar && "sync_direction" in raw.calendar
+          ? normalizeCalendarSyncDirection(
+              raw.calendar.sync_direction,
+              current.calendar.sync_direction,
+            )
+          : current.calendar.sync_direction,
+      auto_sync_on_save:
+        raw.calendar && typeof raw.calendar.auto_sync_on_save === "boolean"
+          ? raw.calendar.auto_sync_on_save
+          : current.calendar.auto_sync_on_save !== false,
+      default_timezone:
+        raw.calendar && "default_timezone" in raw.calendar
+          ? String(raw.calendar.default_timezone || "America/Sao_Paulo")
+              .trim()
+              .slice(0, 80)
+          : current.calendar.default_timezone,
     },
   };
   if (raw.clear_client_secret === true) {
@@ -328,10 +436,15 @@ export async function consumeGoogleLoginOauthState(db, stateRaw) {
 }
 
 /**
+ * Troca o código OAuth pelo perfil do utilizador (e-mail, nome e foto).
+ *
+ * Inclui retrocompatibilidade com chamadas antigas que só usavam `email`,
+ * via `exchangeGoogleLoginCodeForEmail` (alias).
+ *
  * @param {{ code: string; redirectUri: string; config?: unknown }} p
- * @returns {Promise<{ email: string }>}
+ * @returns {Promise<{ email: string; name: string; picture: string }>}
  */
-export async function exchangeGoogleLoginCodeForEmail(p) {
+export async function exchangeGoogleLoginCodeForProfile(p) {
   const cfg = normalizeGoogleLoginConfig(p.config);
   const client_id = String(cfg.client_id || "").trim();
   const client_secret = String(cfg.client_secret || "").trim();
@@ -362,5 +475,31 @@ export async function exchangeGoogleLoginCodeForEmail(p) {
   const emailVerified = info.email_verified === true || info.email_verified === "true";
   if (!email) throw new Error("google_no_email");
   if (!emailVerified) throw new Error("google_email_unverified");
+  const name = String(info.name || "").trim();
+  /**
+   * `picture` é uma URL HTTPS do Google (lh3.googleusercontent.com); só aceitamos
+   * essa origem para reduzir risco caso o IdP devolvesse algo inesperado.
+   */
+  const pictureRaw = String(info.picture || "").trim();
+  let picture = "";
+  if (/^https:\/\/[^\s]+$/i.test(pictureRaw)) {
+    try {
+      const u = new URL(pictureRaw);
+      if (
+        u.hostname.endsWith(".googleusercontent.com") ||
+        u.hostname === "googleusercontent.com"
+      ) {
+        picture = pictureRaw;
+      }
+    } catch {
+      picture = "";
+    }
+  }
+  return { email, name, picture };
+}
+
+/** Alias retrocompatível — devolve apenas `{ email }`. */
+export async function exchangeGoogleLoginCodeForEmail(p) {
+  const { email } = await exchangeGoogleLoginCodeForProfile(p);
   return { email };
 }

@@ -7,6 +7,7 @@ import { nowIso } from "./security.js";
 import { createApplication } from "./createApp.js";
 import { nextSeq } from "./sequences.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
+import { log, color } from "./log.js";
 
 const root = process.cwd();
 dotenv.config({ path: path.join(root, ".env") });
@@ -20,16 +21,12 @@ const UPLOAD_DIR = process.env.ICER_UPLOAD_DIR
 
 let db;
 try {
-  // eslint-disable-next-line no-console
-  console.log("[ICER] Connecting to MongoDB…");
+  log.info(color.cyan("A ligar ao MongoDB…"));
   db = await openDb();
-  // eslint-disable-next-line no-console
-  console.log("[ICER] MongoDB connected");
+  log.success(color.brightGreen("MongoDB ligado"));
 } catch (err) {
-  // eslint-disable-next-line no-console
-  console.error("[ICER] MongoDB connection failed");
-  // eslint-disable-next-line no-console
-  console.error(err);
+  log.error(color.brightRed("Falha ao ligar ao MongoDB"));
+  log.error(err);
   process.exit(1);
 }
 
@@ -41,8 +38,11 @@ async function migrateAllUsersToAdminRole() {
     { $set: { role: "admin", updated_at: now } },
   );
   if (r.modifiedCount > 0) {
-    // eslint-disable-next-line no-console
-    console.log(`[ICER] Migração: ${r.modifiedCount} conta(s) passaram a role "admin".`);
+    log.info(
+      `Migração: ${color.brightYellow(String(r.modifiedCount))} conta(s) passaram a role ${color.bold(
+        "admin",
+      )}.`,
+    );
   }
 }
 
@@ -66,9 +66,10 @@ async function ensureUserSeed(p) {
   if (!isEnvSeed) {
     const policy = validateAccountPassword(password);
     if (!policy.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[ICER] Seed ignorado (${p.label}): palavra-passe não cumpre a política (${policy.code}).`,
+      log.warn(
+        `Seed ignorado (${color.bold(p.label)}): palavra-passe não cumpre a política (${color.brightRed(
+          policy.code,
+        )}).`,
       );
       return;
     }
@@ -92,8 +93,9 @@ async function ensureUserSeed(p) {
         },
       },
     );
-    // eslint-disable-next-line no-console
-    console.log(`[ICER] Conta seed atualizada (${p.label}): ${email}`);
+    log.success(
+      `Conta seed atualizada (${color.bold(p.label)}): ${color.brightCyan(email)}`,
+    );
   } else {
     const id = await nextSeq(db, "users");
     await db.collection("users").insertOne({
@@ -107,8 +109,9 @@ async function ensureUserSeed(p) {
       created_at: now,
       updated_at: now,
     });
-    // eslint-disable-next-line no-console
-    console.log(`[ICER] Conta seed (${p.label}): ${email}`);
+    log.success(
+      `Conta seed criada (${color.bold(p.label)}): ${color.brightCyan(email)}`,
+    );
   }
 }
 
@@ -187,35 +190,55 @@ const server = app.listen(PORT, HOST, () => {
     String(
       process.env.MONGODB_DB_NAME || process.env.MONGODB_SRV_DATABASE || "icer",
     ).trim() || "icer";
-  // eslint-disable-next-line no-console
-  console.log(`[ICER] API server on http://${HOST}:${PORT}`);
-  // eslint-disable-next-line no-console
-  console.log(
-    [
-      "",
-      "============================================================",
-      " ICER — Startup checklist",
-      "============================================================",
-      ` ENV: ${env}`,
-      ` MongoDB: connected (db=${dbName})`,
-      ` Upload dir: ${UPLOAD_DIR}`,
-      "",
-      " API endpoints (should return 200):",
-      `  - ${baseUrl}/health        -> ok`,
-      `  - ${baseUrl}/api/health    -> { ok: true }`,
-      "",
-      " Next steps:",
-      "  - Open the site (Front) and login",
-      "  - Go to /Dashboard -> admin tabs (if admin on server)",
-      "============================================================",
-      "",
-    ].join("\n"),
+
+  log.success(
+    `API server pronto em ${color.brightCyan(`http://${HOST}:${PORT}`)}`,
   );
+
+  const envColored =
+    env === "production"
+      ? color.brightRed(env)
+      : env === "development"
+        ? color.brightGreen(env)
+        : color.brightYellow(env);
+
+  const rule = color.magenta("━".repeat(62));
+  const bullet = color.brightMagenta("•");
+  const arrow = color.dim("→");
+
+  log.raw("");
+  log.raw(rule);
+  log.raw(
+    `  ${color.bold(color.brightMagenta("✦ ICER"))} ${color.dim("—")} ${color.bold("Startup checklist")}`,
+  );
+  log.raw(rule);
+  log.raw(`  ${bullet} ${color.bold("ENV")}        ${envColored}`);
+  log.raw(
+    `  ${bullet} ${color.bold("MongoDB")}    ${color.brightGreen("connected")} ${color.dim(`(db=${dbName})`)}`,
+  );
+  log.raw(`  ${bullet} ${color.bold("Upload dir")} ${color.cyan(UPLOAD_DIR)}`);
+  log.raw("");
+  log.raw(`  ${color.bold("API endpoints")} ${color.dim("(devem responder 200)")}`);
+  log.raw(
+    `    ${arrow} ${color.cyan(`${baseUrl}/health`)}        ${color.brightGreen("ok")}`,
+  );
+  log.raw(
+    `    ${arrow} ${color.cyan(`${baseUrl}/api/health`)}    ${color.brightGreen("{ ok: true }")}`,
+  );
+  log.raw("");
+  log.raw(`  ${color.bold("Próximos passos")}`);
+  log.raw(`    ${arrow} Abrir o site (Front) e fazer login`);
+  log.raw(
+    `    ${arrow} Ir a ${color.bold("/Dashboard")} ${color.dim("→")} separadores de administração`,
+  );
+  log.raw(rule);
+  log.raw("");
 });
 
 function shutdown(signal) {
-  // eslint-disable-next-line no-console
-  console.log(`[ICER] ${signal} received — shutting down`);
+  log.warn(
+    `${color.brightYellow(signal)} recebido — a encerrar o servidor`,
+  );
   server.close(() => process.exit(0));
 }
 

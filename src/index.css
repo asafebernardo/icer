@@ -75,43 +75,44 @@
   }
 
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 40% 9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222 40% 9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 96%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 14%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 217 33% 14%;
+    /* Tema escuro: grafite quase preto (neutro, minimalista). Acentos ciano mantidos. */
+    --background: 0 0% 5%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 0 0% 94%;
+    --primary-foreground: 0 0% 11%;
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 13%;
     /* Contraste confortável em texto secundário sobre fundo escuro */
-    --muted-foreground: 215 18% 82%;
+    --muted-foreground: 0 0% 78%;
     --accent: 199 89% 48%;
-    --accent-foreground: 222 47% 8%;
+    --accent-foreground: 0 0% 8%;
     --destructive: 0 65% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
     --ring: 199 89% 48%;
     --chart-1: 199 89% 48%;
-    --chart-2: 210 40% 88%;
-    --chart-3: 215 20% 55%;
-    --chart-4: 217 33% 40%;
+    --chart-2: 0 0% 88%;
+    --chart-3: 0 0% 55%;
+    --chart-4: 0 0% 40%;
     --chart-5: 199 70% 58%;
-    --sidebar-background: 222 47% 7%;
-    --sidebar-foreground: 210 40% 96%;
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 96%;
     --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 222 47% 8%;
-    --sidebar-accent: 217 33% 14%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 217 33% 18%;
+    --sidebar-primary-foreground: 0 0% 8%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 18%;
     --sidebar-ring: 199 89% 48%;
 
-    --brand-surface: 224 38% 22%;
-    --brand-surface-dark: 222 48% 8%;
-    --on-brand: 210 40% 98%;
+    --brand-surface: 0 0% 20%;
+    --brand-surface-dark: 0 0% 6%;
+    --on-brand: 0 0% 96%;
 
     --category-culto: 224 45% 58%;
     --category-estudo: 199 50% 52%;
@@ -261,6 +262,30 @@
 
   .prose-width {
     @apply max-w-prose;
+  }
+
+  /* Parágrafo "lead" — primeiro parágrafo destacado em posts / introduções. */
+  .prose-lead {
+    @apply text-base sm:text-lg leading-[1.7] text-muted-foreground;
+  }
+
+  /* Microinterações padronizadas. */
+  .card-hover {
+    @apply transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg;
+  }
+
+  .link-soft {
+    @apply underline-offset-4 hover:underline decoration-accent/60;
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card-hover {
+      @apply transition-none hover:translate-y-0;
+    }
   }
 
   .animate-fade-up {

@@ -1574,9 +1574,6 @@ export default function BulkEventScheduler({
         <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
           <CalendarPlus2 className="w-5 h-5 shrink-0 text-accent" />
           Agendar em massa
-          <span className="inline-flex items-center rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-            Beta
-          </span>
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Gere várias datas de uma vez e confira antes de criar na agenda.
