@@ -38,7 +38,8 @@ export async function setMenuPermissionsBlob(db, map) {
  * @param {"create"|"edit"|"delete"} action
  * @param {import("mongodb").Db} db
  */
-export async function menuActionAllowed(db, user, menuKey, action) {
+/** Verifica uma única chave de menu (sem legado). */
+async function menuActionAllowedSingle(db, user, menuKey, action) {
   if (!user || typeof user !== "object") return false;
   if (user.role === "admin") return true;
   if (action !== "create" && action !== "edit" && action !== "delete") {
@@ -62,6 +63,18 @@ export async function menuActionAllowed(db, user, menuKey, action) {
   return !!DEFAULT_BLOCK[action];
 }
 
+/**
+ * Permissão por menu; para `recursos` aceita também blocos antigos só em `materiais_tab`.
+ */
+export async function menuActionAllowed(db, user, menuKey, action) {
+  const ok = await menuActionAllowedSingle(db, user, menuKey, action);
+  if (ok) return true;
+  if (menuKey === "recursos") {
+    return menuActionAllowedSingle(db, user, "materiais_tab", action);
+  }
+  return false;
+}
+
 /** Mapa menu → { create, edit, delete } para a sessão atual (UI). */
 export async function effectiveMenuPermissions(db, user) {
   const keys = [
@@ -72,7 +85,6 @@ export async function effectiveMenuPermissions(db, user) {
     "eventos",
     "dashboard",
     "galeria",
-    "materiais_tab",
   ];
   const out = {};
   for (const k of keys) {

@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { cn } from "@/lib/utils";
 import {
   CORRUPT_IMAGE_FALLBACK_BG,
   CORRUPT_IMAGE_FALLBACK_IMAGE,

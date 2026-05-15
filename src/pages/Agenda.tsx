@@ -19,7 +19,6 @@ import {
   ChevronRight,
   CalendarDays,
   LayoutList,
-  ListChecks,
   Plus,
   Check,
   Eye,
@@ -33,6 +32,7 @@ import AgendaMensalMobile from "@/components/agenda/mobile-monthly/AgendaMensalM
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { listEventosMerged } from "@/lib/eventosQuery";
+import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
 
 /* 🔹 Tipo básico do Evento (ajuste depois conforme API) */
 type Evento = {
@@ -60,6 +60,8 @@ export default function Agenda() {
     queryKey: ["eventos"],
     queryFn: () => listEventosMerged() as Promise<Evento[]>,
   });
+
+  const tituloCorBarraMap = useTituloCorBarraMap();
 
   useEffect(() => {
     const sync = () =>
@@ -133,23 +135,6 @@ export default function Agenda() {
 
           {/* Desktop / tablet: interface existente */}
           <div className="hidden sm:block">
-          <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-            <div className="flex bg-muted rounded-xl p-1 gap-1 w-fit">
-              <span className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-background shadow text-foreground">
-                <CalendarDays className="w-4 h-4" /> Agenda
-              </span>
-
-              <Link to="/Eventos">
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ListChecks className="w-4 h-4" /> Eventos
-                </button>
-              </Link>
-            </div>
-          </div>
-
           {canCreateEvento ? (
             <p className="text-sm text-muted-foreground mb-6 max-w-2xl">
               A agenda só usa a{" "}
@@ -241,6 +226,7 @@ export default function Agenda() {
               showPreletorCards={showPreletorCards}
               onEventClick={handleEventClick}
               onDayClick={(day: Date) => {}}
+              tituloCorBarraMap={tituloCorBarraMap}
             />
           ) : (
             <WeeklyCalendar
@@ -248,6 +234,7 @@ export default function Agenda() {
               eventos={eventos}
               showPreletorCards={showPreletorCards}
               onEventClick={handleEventClick}
+              tituloCorBarraMap={tituloCorBarraMap}
             />
           )}
           </div>

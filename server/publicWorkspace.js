@@ -5,6 +5,93 @@ const KEY = "public_workspace_v1";
 const MAX_DISMISSED = 400;
 const MAX_SUGESTAO_ITEM_LEN = 160;
 const MAX_SUGESTAO_LIST = 80;
+const MAX_AVATAR_URL_LEN = 2048;
+const MAX_AVATAR_ENTRIES = 80;
+
+function isSafePublicAssetUrl(u) {
+  const s = String(u || "").trim();
+  if (!s) return false;
+  if (s.startsWith("/")) return true;
+  if (s.startsWith("data:image/")) return true;
+  try {
+    const x = new URL(s);
+    return x.protocol === "http:" || x.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/** Presets alinhados a `EVENT_CARD_COLOR_OPTIONS` no cliente. */
+const TITULO_COR_BARRA_ALLOWED = new Set([
+  "auto",
+  "blue",
+  "green",
+  "purple",
+  "pink",
+  "orange",
+  "yellow",
+  "red",
+  "indigo",
+  "teal",
+  "cyan",
+  "slate",
+]);
+
+const MAX_BG_IMAGES_PER_TITLE = 8;
+
+function sanitizeTituloImagensFundoMap(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  /** @type {Record<string, string[]>} */
+  const out = {};
+  for (const [tituloKey, val] of Object.entries(raw)) {
+    const k = String(tituloKey ?? "").trim().slice(0, MAX_SUGESTAO_ITEM_LEN);
+    if (!k) continue;
+    /** @type {string[]} */
+    const urls = [];
+    if (Array.isArray(val)) {
+      for (const u of val) {
+        const s = String(u ?? "").trim().slice(0, MAX_AVATAR_URL_LEN);
+        if (s && isSafePublicAssetUrl(s)) urls.push(s);
+        if (urls.length >= MAX_BG_IMAGES_PER_TITLE) break;
+      }
+    } else if (typeof val === "string") {
+      const s = val.trim().slice(0, MAX_AVATAR_URL_LEN);
+      if (s && isSafePublicAssetUrl(s)) urls.push(s);
+    }
+    if (urls.length) out[k] = urls;
+    if (Object.keys(out).length >= MAX_AVATAR_ENTRIES) break;
+  }
+  return out;
+}
+
+function sanitizeTituloCorBarraMap(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const [tituloKey, val] of Object.entries(raw)) {
+    const k = String(tituloKey ?? "").trim().slice(0, MAX_SUGESTAO_ITEM_LEN);
+    if (!k) continue;
+    const preset = String(val ?? "").trim().toLowerCase();
+    if (!TITULO_COR_BARRA_ALLOWED.has(preset)) continue;
+    out[k] = preset;
+    if (Object.keys(out).length >= MAX_SUGESTAO_LIST) break;
+  }
+  return out;
+}
+
+function sanitizeAvatarUrlMap(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const [name, url] of Object.entries(raw)) {
+    const nk = String(name ?? "").trim().slice(0, MAX_SUGESTAO_ITEM_LEN);
+    const u = String(url ?? "").trim().slice(0, MAX_AVATAR_URL_LEN);
+    if (!nk || !u || !isSafePublicAssetUrl(u)) continue;
+    out[nk] = u;
+    if (Object.keys(out).length >= MAX_AVATAR_ENTRIES) break;
+  }
+  return out;
+}
 
 function sanitizeDismissedIds(arr) {
   if (!Array.isArray(arr)) return [];
@@ -23,11 +110,26 @@ function sanitizeDismissedIds(arr) {
 
 function sanitizeAgendaSugestoes(raw) {
   if (!raw || typeof raw !== "object") return null;
-  /** @type {Record<string, string[]>} */
+  /** @type {Record<string, unknown>} */
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
     const key = String(k || "").slice(0, 40);
     if (!key) continue;
+    if (key === "preletor_avatars" || key === "pastor_avatars") {
+      const av = sanitizeAvatarUrlMap(v);
+      if (Object.keys(av).length) out[key] = av;
+      continue;
+    }
+    if (key === "titulo_cor_barra") {
+      const tc = sanitizeTituloCorBarraMap(v);
+      if (Object.keys(tc).length) out[key] = tc;
+      continue;
+    }
+    if (key === "titulo_imagens_fundo") {
+      const ti = sanitizeTituloImagensFundoMap(v);
+      if (Object.keys(ti).length) out[key] = ti;
+      continue;
+    }
     if (!Array.isArray(v)) continue;
     const list = [];
     for (const item of v) {

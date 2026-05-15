@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -13,16 +13,12 @@ import {
   Mail,
   RefreshCw,
   CheckCircle,
-  FileText,
   Trash2,
-  Search,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
 import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
 import { isAdminUser, getUser } from "@/lib/auth";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import UserAvatar from "@/components/shared/UserAvatar";
 
 function GateAdmin() {
@@ -265,138 +261,6 @@ function TabMembros({ user, users, loadingUsers, refetch }) {
   );
 }
 
-// ── Aba Conteúdo ──────────────────────────────────────────────
-function TabConteudo() {
-  const queryClient = useQueryClient();
-  const [searchPosts, setSearchPosts] = useState("");
-
-  const { data, isLoading: loadingPosts } = useQuery({
-    queryKey: ["admin-posts"],
-    queryFn: () => api.entities.Post.list("-created_date", 100),
-  });
-
-  const posts = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.items)
-      ? data.items
-      : [];
-
-  const deletePost = useMutation({
-    mutationFn: (id) => api.entities.Post.delete(id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin-posts"] }),
-  });
-
-  const filteredPosts = posts.filter(
-    (p) =>
-      p.titulo?.toLowerCase().includes(searchPosts.toLowerCase()) ||
-      p.autor?.toLowerCase().includes(searchPosts.toLowerCase()),
-  );
-
-  const categoriaColors = {
-    devocional:
-      "border border-accent/30 bg-accent/10 text-accent dark:border-accent/35 dark:bg-accent/15",
-    aviso: "border border-primary/25 bg-primary/10 text-primary dark:border-primary/35 dark:bg-primary/15",
-    testemunho:
-      "border border-category-estudo/30 bg-category-estudo/10 text-category-estudo dark:border-category-estudo/35 dark:bg-category-estudo/12",
-    reflexao:
-      "border border-category-jovens/30 bg-category-jovens/10 text-category-jovens dark:border-category-jovens/35 dark:bg-category-jovens/12",
-    noticias:
-      "border border-category-mulheres/30 bg-category-mulheres/10 text-category-mulheres dark:border-category-mulheres/35 dark:bg-category-mulheres/12",
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Posts */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground text-lg">
-                Posts Publicados
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {posts.length} post(s)
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar posts..."
-            value={searchPosts}
-            onChange={(e) => setSearchPosts(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        {loadingPosts ? (
-          <div className="space-y-2">
-            {Array(3)
-              .fill(0)
-              .map((_, i) => (
-                <Skeleton key={i} className="h-14 rounded-xl" />
-              ))}
-          </div>
-        ) : filteredPosts.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-6">
-            Nenhum post encontrado.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {filteredPosts.map((post) => (
-              <div
-                key={post.id}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {post.titulo}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {post.categoria && (
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded border ${categoriaColors[post.categoria] || ""}`}
-                      >
-                        {post.categoria}
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(post.created_date), "d MMM yyyy", {
-                        locale: ptBR,
-                      })}
-                    </span>
-                    {!post.publicado && (
-                      <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                        Rascunho
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-destructive hover:text-destructive w-8 h-8"
-                  onClick={() => deletePost.mutate(post.id)}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </motion.div>
-    </div>
-  );
-}
-
 // ── Página principal ──────────────────────────────────────────
 export default function Admin() {
   const [user, setUser] = useState(undefined);
@@ -451,7 +315,7 @@ export default function Admin() {
       <PageHeader
         tag="Administração"
         title="Painel administrativo"
-        description="Perfil, membros, conteúdo, site, segurança e restantes opções."
+        description="Perfil, membros, site, Google, servidor, segurança e restantes opções."
         pageKey="admin"
       />
 
@@ -475,7 +339,6 @@ export default function Admin() {
               refetch={refetch}
             />
           }
-          tabConteudoSlot={<TabConteudo />}
         />
       </div>
     </div>

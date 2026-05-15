@@ -12,13 +12,17 @@ import { getSiteConfig } from "@/lib/siteConfig";
 import {
   PUBLIC_WORKSPACE_QUERY_KEY,
   fetchPublicWorkspaceJson,
+  mergeRemoteAgendaSugestoes,
   postDismissDestaqueEvento,
   shouldUseRemotePublicWorkspace,
 } from "@/lib/publicWorkspace";
+import { DEFAULT_AGENDA_SUGESTOES } from "@/lib/agendaSugestoesDefaults";
 import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
+import { tituloImagensFundoUrls } from "@/lib/eventTitleCardBackgrounds";
 import SafeImg from "@/components/shared/SafeImg";
+import CadastroTitleBackground from "@/components/shared/CadastroTitleBackground";
 
 const categoriaBg = CATEGORY_BAR_CLASS;
 
@@ -89,6 +93,24 @@ export default function DestaqueEventoGlobal() {
     [eventos, destaqueId],
   );
 
+  const tituloCorBarraMap = useMemo(() => {
+    if (!useRemoteWs || !publicWs?.agenda_sugestoes) return {};
+    const m = mergeRemoteAgendaSugestoes(
+      DEFAULT_AGENDA_SUGESTOES,
+      publicWs.agenda_sugestoes,
+    ).titulo_cor_barra;
+    return m && typeof m === "object" ? m : {};
+  }, [useRemoteWs, publicWs?.agenda_sugestoes]);
+
+  const tituloImagensFundoMap = useMemo(() => {
+    if (!useRemoteWs || !publicWs?.agenda_sugestoes) return {};
+    const m = mergeRemoteAgendaSugestoes(
+      DEFAULT_AGENDA_SUGESTOES,
+      publicWs.agenda_sugestoes,
+    ).titulo_imagens_fundo;
+    return m && typeof m === "object" ? m : {};
+  }, [useRemoteWs, publicWs?.agenda_sugestoes]);
+
   useEffect(() => {
     if (isAdminArea) {
       setOpen(false);
@@ -157,14 +179,23 @@ export default function DestaqueEventoGlobal() {
 
         {(() => {
           const date = destaqueEvento.data ? parseISO(destaqueEvento.data) : null;
-          const bar = eventCardBarClass(destaqueEvento, categoriaBg);
+          const bar = eventCardBarClass(destaqueEvento, categoriaBg, tituloCorBarraMap);
+          const cadastroBgUrls = tituloImagensFundoUrls(
+            destaqueEvento,
+            tituloImagensFundoMap,
+          );
+          const showCadastroBg = cadastroBgUrls.length > 0;
           return (
             <div className="space-y-4">
               <Link to={`/Evento/${destaqueEvento.id}`} onClick={closeForSession}>
                 <motion.div
                   whileHover={{ y: -1 }}
-                  className="group rounded-2xl overflow-hidden border border-accent/50 bg-card shadow-sm hover:shadow-md transition-shadow"
+                  className="group relative rounded-2xl overflow-hidden border border-accent/50 bg-card shadow-sm hover:shadow-md transition-shadow"
                 >
+                  {showCadastroBg ? (
+                    <CadastroTitleBackground urls={cadastroBgUrls} />
+                  ) : null}
+                  <div className="relative z-10">
                   <div className={`h-2 ${bar}`} />
                   <div className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
                     {date ? (
@@ -214,6 +245,7 @@ export default function DestaqueEventoGlobal() {
                         Ver detalhes
                       </span>
                     </div>
+                  </div>
                   </div>
                 </motion.div>
               </Link>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { motion } from "framer-motion";
@@ -29,27 +29,14 @@ import {
 } from "./materiaisConfig";
 import { MaterialForm } from "./MaterialForm";
 import SafeImg from "@/components/shared/SafeImg";
+import LinksUteisSection from "@/components/useful-links/LinksUteisSection";
 
-export default function MateriaisTab({
-  perm,
-  hideCreateButton = false,
-  openCreateSignal = 0,
-}) {
+export default function MateriaisTab({ perm }) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [cfgTick, setCfgTick] = useState(0);
-  const prevOpenCreateSig = useRef(0);
-
-  useEffect(() => {
-    if (!hideCreateButton) return;
-    if (openCreateSignal > prevOpenCreateSig.current) {
-      setShowForm(true);
-      setEditingMaterial(null);
-    }
-    prevOpenCreateSig.current = openCreateSignal;
-  }, [hideCreateButton, openCreateSignal]);
 
   useEffect(() => {
     const fn = () => setCfgTick((n) => n + 1);
@@ -102,10 +89,13 @@ export default function MateriaisTab({
 
   return (
     <div>
-      {perm.create && !hideCreateButton ? (
-        <div className="flex flex-wrap justify-end gap-2 mb-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <h2 className="text-lg font-semibold text-foreground tracking-tight">
+          Materiais
+        </h2>
+        {perm.create ? (
           <Button
-            className="w-fit gap-2"
+            className="w-fit shrink-0 gap-2 sm:self-center"
             onClick={() => {
               setShowForm(true);
               setEditingMaterial(null);
@@ -115,8 +105,8 @@ export default function MateriaisTab({
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Novo Material</span>
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       {(perm.create || perm.edit) && (
         <Dialog
           open={Boolean(showForm || editingMaterial)}
@@ -286,6 +276,13 @@ export default function MateriaisTab({
           })}
         </div>
       )}
+
+      <div className="mt-14 border-t border-border pt-12 lg:mt-16 lg:pt-14">
+        <h2 className="text-lg font-semibold text-foreground tracking-tight mb-6">
+          Links úteis
+        </h2>
+        <LinksUteisSection perm={perm} />
+      </div>
     </div>
   );
 }

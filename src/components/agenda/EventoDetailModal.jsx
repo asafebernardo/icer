@@ -125,9 +125,18 @@ export default function EventoDetailModal({
               )}
               {evento.pastor && (
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
-                    <UserRound className="w-4 h-4 text-primary" />
-                  </div>
+                  {evento.pastor_avatar_url ? (
+                    <SafeImg
+                      src={evento.pastor_avatar_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-border bg-muted shrink-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                      <UserRound className="w-4 h-4 text-primary" />
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Presbítero</p>
                     <p className="text-sm font-semibold text-foreground">
