@@ -2,13 +2,7 @@ import express from "express";
 import { z } from "zod";
 import { requireAuth, requireAdmin } from "./auth.js";
 import { nowIso } from "./security.js";
-import {
-  menuActionAllowed,
-  getMenuPermissionsBlob,
-  setMenuPermissionsBlob,
-} from "./menuPermissions.js";
-import { nextSeq } from "./sequences.js";
-import { clientIp, recordAudit } from "./auditLog.js";
+import { menuActionAllowed, getMenuPermissionsBlob, setMenuPermissionsBlob } from "./menuPermissions.js";
 
 const CONTATO_WINDOW_MS = 15 * 60 * 1000;
 const CONTATO_MAX = 30;
@@ -36,99 +30,16 @@ function parseLimit(raw, def, max) {
   return Math.min(Math.floor(n), max);
 }
 
-/**
- * Data usada para ordenar posts na lista: `data_publicacao` do corpo, ou criação do registo.
- * @param {Record<string, unknown>} body
- * @param {string | Date} fallbackIso data de criação do registo (ISO ou Date)
- */
-function pubSortAtFromBody(body, fallbackIso) {
-  const iso = body?.data_publicacao;
-  if (typeof iso === "string" && iso.trim()) {
-    const t = Date.parse(iso.trim());
-    if (!Number.isNaN(t)) return new Date(t);
-  }
-  const d =
-    fallbackIso instanceof Date ? fallbackIso : new Date(String(fallbackIso));
-  return Number.isNaN(d.getTime()) ? new Date(0) : d;
-}
-
-/**
- * @param {{ body_json?: string, created_at?: unknown }} row
- */
-function pubSortAtFromRow(row) {
-  let extra = {};
-  try {
-    extra = JSON.parse(row.body_json || "{}");
-  } catch {
-    extra = {};
-  }
-  const iso = extra?.data_publicacao;
-  if (typeof iso === "string" && iso.trim()) {
-    const t = Date.parse(iso.trim());
-    if (!Number.isNaN(t)) return new Date(t);
-  }
-  const ca = row.created_at;
-  if (ca instanceof Date) return ca;
-  if (typeof ca === "string") {
-    const t = Date.parse(ca);
-    if (!Number.isNaN(t)) return new Date(t);
-  }
-  return new Date(0);
-}
-
-/**
- * Preenche `pub_sort_at` em posts antigos sem o campo (uma vez por arranque até ficar vazio).
- * @param {import("mongodb").Db} db
- */
-export async function backfillPostsPubSortAt(db) {
-  const coll = db.collection("posts");
-  const cursor = coll.find({
-    $or: [{ pub_sort_at: { $exists: false } }, { pub_sort_at: null }],
-  });
-  const ops = [];
-  for await (const row of cursor) {
-    ops.push({
-      updateOne: {
-        filter: { id: row.id },
-        update: { $set: { pub_sort_at: pubSortAtFromRow(row) } },
-      },
-    });
-    if (ops.length >= 500) {
-      await coll.bulkWrite(ops);
-      ops.length = 0;
-    }
-  }
-  if (ops.length) await coll.bulkWrite(ops);
-}
-
-/** @param {"posts"|"eventos"|"materiais"|"fotos_galeria"} table */
-function mongoSort(table, sort) {
+function listOrderClause(table, sort) {
   const s = String(sort || "").trim();
-  if (!/^[-\w]+$/.test(s)) {
-    return table === "posts"
-      ? { pub_sort_at: -1, created_at: -1 }
-      : { created_at: -1 };
-  }
+  if (!/^[-\w]+$/.test(s)) return "ORDER BY created_at DESC";
   if (table === "eventos") {
-    if (s === "data" || s === "event_date") return { event_date: 1, created_at: 1 };
-    if (s === "-data") return { event_date: -1, created_at: -1 };
+    if (s === "data" || s === "event_date") return "ORDER BY event_date ASC, created_at ASC";
+    if (s === "-data") return "ORDER BY event_date DESC, created_at DESC";
   }
-  if (table === "posts") {
-    if (s === "created_date" || s === "data") return { pub_sort_at: 1, created_at: 1 };
-    if (s === "-created_date" || s === "-data") return { pub_sort_at: -1, created_at: -1 };
-  }
-  if (s === "created_date" || s === "data") return { created_at: 1 };
-  if (s === "-created_date" || s === "-data") return { created_at: -1 };
-  return { created_at: -1 };
-}
-
-/** Visibilidades reconhecidas em postagens. */
-const POST_VISIBILITIES = new Set(["public", "unlisted", "private"]);
-
-/** Normaliza um valor arbitrário para uma visibilidade conhecida; default "public". */
-function normalizePostVisibility(v) {
-  const s = String(v ?? "").trim().toLowerCase();
-  return POST_VISIBILITIES.has(s) ? s : "public";
+  if (s === "created_date" || s === "data") return "ORDER BY created_at ASC";
+  if (s === "-created_date" || s === "-data") return "ORDER BY created_at DESC";
+  return "ORDER BY created_at DESC";
 }
 
 function rowToRecord(row) {
@@ -140,19 +51,11 @@ function rowToRecord(row) {
   } catch {
     extra = {};
   }
-  const draft = row.is_draft === true;
-  const visibility =
-    typeof row.visibility === "string" && row.visibility
-      ? normalizePostVisibility(row.visibility)
-      : normalizePostVisibility(extra.visibility);
   return {
     ...extra,
     id: row.id,
     created_date: row.created_at,
     updated_date: row.updated_at,
-    is_draft: draft,
-    status: draft ? "draft" : "published",
-    visibility,
   };
 }
 
@@ -163,16 +66,13 @@ function eventDateFromBody(body) {
   return s ? s[1] : String(d).slice(0, 10);
 }
 
-/**
- * @param {import("mongodb").Db} db
- */
 function requireMenu(db, menuKey, action) {
-  return async (req, res, next) => {
+  return (req, res, next) => {
     if (!req.user) {
       res.status(401).json({ message: "auth_required" });
       return;
     }
-    if (!(await menuActionAllowed(db, req.user, menuKey, action))) {
+    if (!menuActionAllowed(db, req.user, menuKey, action)) {
       res.status(403).json({ message: "forbidden" });
       return;
     }
@@ -194,31 +94,25 @@ function assertOwnerOrAdmin(req, res, row) {
 }
 
 /**
- * @param {import("mongodb").Db} db
+ * @param {import("better-sqlite3").Database} db
  */
 export function createDataRouter(db) {
   const r = express.Router();
 
-  r.get("/menu-permissions", requireAuth, requireAdmin, async (_req, res) => {
-    res.json(await getMenuPermissionsBlob(db));
+  r.get("/menu-permissions", requireAuth, requireAdmin, (_req, res) => {
+    res.json(getMenuPermissionsBlob(db));
   });
 
-  r.put("/menu-permissions", requireAuth, requireAdmin, async (req, res) => {
+  r.put("/menu-permissions", requireAuth, requireAdmin, (req, res) => {
     if (!req.body || typeof req.body !== "object") {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
-    await setMenuPermissionsBlob(db, req.body);
-    await recordAudit(db, {
-      userId: req.user.id,
-      actorUserId: req.user.id,
-      action: "data.menu_permissions.update",
-      details: {},
-      ip: clientIp(req),
-    });
+    setMenuPermissionsBlob(db, req.body);
     res.json({ ok: true });
   });
 
+  // --- Contato (público: criar) ---
   const contatoSchema = z.object({
     nome: z.string().min(1),
     email: z.string().email(),
@@ -227,7 +121,7 @@ export function createDataRouter(db) {
     mensagem: z.string().min(1),
   });
 
-  r.post("/contatos", rateLimitContato, async (req, res) => {
+  r.post("/contatos", rateLimitContato, (req, res) => {
     const parsed = contatoSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "invalid_request" });
@@ -235,552 +129,293 @@ export function createDataRouter(db) {
     }
     const now = nowIso();
     const body_json = JSON.stringify(parsed.data);
-    const id = await nextSeq(db, "contatos");
-    await db.collection("contatos").insertOne({
-      id,
-      body_json,
-      created_at: now,
-    });
-    res.status(201).json({ id });
+    const info = db
+      .prepare(
+        `INSERT INTO contatos (body_json, created_at) VALUES (?, ?)`,
+      )
+      .run(body_json, now);
+    res.status(201).json({ id: info.lastInsertRowid });
   });
 
-  r.get("/posts", async (req, res) => {
+  // --- Posts ---
+  r.get("/posts", (req, res) => {
     const limit = parseLimit(req.query.limit, 100, 500);
     const skip = parseLimit(req.query.skip, 0, 10000);
-    const sort = mongoSort("posts", req.query.sort);
-    const draftsOnly = String(req.query.drafts || "").trim() === "1";
-    /** Rascunhos só na lista para admins com `?drafts=1`. Caso contrário, não listar rascunhos. */
-    let filter = {};
-    if (draftsOnly) {
-      if (!req.user || req.user.role !== "admin") {
-        res.status(403).json({ message: "forbidden" });
-        return;
-      }
-      filter = { is_draft: true };
-    } else {
-      filter = { is_draft: { $ne: true } };
-    }
-    /**
-     * Visibilidade na listagem pública:
-     *  - "public" (ou ausente, para posts antigos): aparece para todos.
-     *  - "unlisted": só com link direto (oculta da listagem para todos).
-     *  - "private": só visível na listagem ao dono ou a um admin.
-     */
-    const isAdmin = req.user?.role === "admin";
-    if (!draftsOnly) {
-      const visibilityClauses = [
-        { visibility: "public" },
-        { visibility: { $exists: false } },
-        { visibility: null },
-        { visibility: "" },
-      ];
-      if (req.user?.id != null) {
-        visibilityClauses.push({
-          visibility: { $in: ["unlisted", "private"] },
-          owner_user_id: Number(req.user.id),
-        });
-      }
-      if (isAdmin) {
-        visibilityClauses.push({ visibility: { $in: ["unlisted", "private"] } });
-      }
-      filter = { $and: [filter, { $or: visibilityClauses }] };
-    }
-    const [rows, total] = await Promise.all([
-      db
-        .collection("posts")
-        .find(filter, { projection: { _id: 0 } })
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .toArray(),
-      db.collection("posts").countDocuments(filter),
-    ]);
-    res.json({
-      items: rows.map(rowToRecord),
-      total,
-      skip,
-      limit,
-    });
+    const order = listOrderClause("posts", req.query.sort);
+    const rows = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at
+         FROM posts ${order} LIMIT ? OFFSET ?`,
+      )
+      .all(limit, skip);
+    res.json(rows.map(rowToRecord));
   });
 
-  r.get("/posts/:id", async (req, res) => {
+  r.post("/posts", requireAuth, requireMenu(db, "postagens", "create"), (req, res) => {
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const body_json = JSON.stringify(body);
+    const info = db
+      .prepare(
+        `INSERT INTO posts (owner_user_id, body_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(req.user.id, body_json, now, now);
+    const row = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at FROM posts WHERE id = ?`,
+      )
+      .get(info.lastInsertRowid);
+    res.status(201).json(rowToRecord(row));
+  });
+
+  r.put("/posts/:id", requireAuth, requireMenu(db, "postagens", "edit"), (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
       res.status(400).json({ message: "invalid_id" });
       return;
     }
-    const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
-    if (!row) {
-      res.status(404).json({ message: "not_found" });
+    const row = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const body_json = JSON.stringify(body);
+    db.prepare(`UPDATE posts SET body_json = ?, updated_at = ? WHERE id = ?`).run(
+      body_json,
+      now,
+      id,
+    );
+    const next = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at FROM posts WHERE id = ?`,
+      )
+      .get(id);
+    res.json(rowToRecord(next));
+  });
+
+  r.delete("/posts/:id", requireAuth, requireMenu(db, "postagens", "delete"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
       return;
     }
-    if (row.is_draft === true) {
-      const uid = req.user?.id;
-      const ownerOk =
-        uid != null &&
-        row.owner_user_id != null &&
-        Number(row.owner_user_id) === Number(uid);
-      const adminOk = req.user?.role === "admin";
-      if (!ownerOk && !adminOk) {
-        res.status(404).json({ message: "not_found" });
-        return;
-      }
-    }
-    /**
-     * "private" exige dono ou admin — devolve 404 em vez de 403 para não vazar a existência
-     * da postagem a quem não tem permissão. "unlisted" não restringe acesso direto pelo id.
-     */
-    if (normalizePostVisibility(row.visibility) === "private") {
-      const uid = req.user?.id;
-      const ownerOk =
-        uid != null &&
-        row.owner_user_id != null &&
-        Number(row.owner_user_id) === Number(uid);
-      const adminOk = req.user?.role === "admin";
-      if (!ownerOk && !adminOk) {
-        res.status(404).json({ message: "not_found" });
-        return;
-      }
-    }
-    res.json(rowToRecord(row));
+    const row = db.prepare(`SELECT * FROM posts WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    db.prepare(`DELETE FROM posts WHERE id = ?`).run(id);
+    res.status(204).end();
   });
 
-  r.post(
-    "/posts",
-    requireAuth,
-    requireMenu(db, "postagens", "create"),
-    async (req, res) => {
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      const is_draft =
-        body.status === "draft" || body.is_draft === true;
-      const visibility = normalizePostVisibility(body.visibility);
-      body.visibility = visibility;
-      const body_json = JSON.stringify(body);
-      const pub_sort_at = pubSortAtFromBody(body, now);
-      const id = await nextSeq(db, "posts");
-      await db.collection("posts").insertOne({
-        id,
-        owner_user_id: req.user.id,
-        body_json,
-        is_draft: Boolean(is_draft),
-        visibility,
-        pub_sort_at,
-        created_at: now,
-        updated_at: now,
-      });
-      const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "data.posts.create",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.status(201).json(rowToRecord(row));
-    },
-  );
-
-  r.put(
-    "/posts/:id",
-    requireAuth,
-    requireMenu(db, "postagens", "edit"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      const now = nowIso();
-      let prev = {};
-      try {
-        prev = JSON.parse(row.body_json || "{}");
-        if (!prev || typeof prev !== "object") prev = {};
-      } catch {
-        prev = {};
-      }
-      const incoming = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete incoming.id;
-      const merged = { ...prev, ...incoming };
-      const visibility = normalizePostVisibility(merged.visibility);
-      merged.visibility = visibility;
-      const body_json = JSON.stringify(merged);
-      const is_draft =
-        merged.status === "draft" || merged.is_draft === true;
-      const pub_sort_at = pubSortAtFromBody(merged, row.created_at || now);
-      await db.collection("posts").updateOne(
-        { id },
-        {
-          $set: {
-            body_json,
-            updated_at: now,
-            is_draft: Boolean(is_draft),
-            visibility,
-            pub_sort_at,
-          },
-        },
-      );
-      const next = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.posts.update",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.json(rowToRecord(next));
-    },
-  );
-
-  r.delete(
-    "/posts/:id",
-    requireAuth,
-    requireMenu(db, "postagens", "delete"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.posts.delete",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      await db.collection("posts").deleteOne({ id });
-      res.status(204).end();
-    },
-  );
-
-  r.get("/eventos", async (req, res) => {
+  // --- Eventos ---
+  r.get("/eventos", (req, res) => {
     const limit = parseLimit(req.query.limit, 500, 2000);
     const skip = parseLimit(req.query.skip, 0, 10000);
-    const sort = mongoSort("eventos", req.query.sort);
-    const rows = await db
-      .collection("eventos")
-      .find({}, { projection: { _id: 0 } })
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .toArray();
+    const order = listOrderClause("eventos", req.query.sort);
+    const rows = db
+      .prepare(
+        `SELECT id, owner_user_id, event_date, body_json, created_at AS created_at, updated_at AS updated_at
+         FROM eventos ${order} LIMIT ? OFFSET ?`,
+      )
+      .all(limit, skip);
     res.json(rows.map(rowToRecord));
   });
 
-  r.post(
-    "/eventos",
-    requireAuth,
-    requireMenu(db, "eventos", "create"),
-    async (req, res) => {
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      const bulk_batch_id_raw = body.bulk_batch_id;
-      const bulk_batch_id =
-        typeof bulk_batch_id_raw === "string" && bulk_batch_id_raw.trim()
-          ? bulk_batch_id_raw.trim().slice(0, 96)
-          : null;
-      const event_date = eventDateFromBody(body);
-      const body_json = JSON.stringify(body);
-      const id = await nextSeq(db, "eventos");
-      await db.collection("eventos").insertOne({
-        id,
-        owner_user_id: req.user.id,
-        event_date,
-        body_json,
-        bulk_batch_id,
-        created_at: now,
-        updated_at: now,
-      });
-      const row = await db
-        .collection("eventos")
-        .findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "data.eventos.create",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.status(201).json(rowToRecord(row));
-    },
-  );
+  r.post("/eventos", requireAuth, requireMenu(db, "eventos", "create"), (req, res) => {
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const event_date = eventDateFromBody(body);
+    const body_json = JSON.stringify(body);
+    const info = db
+      .prepare(
+        `INSERT INTO eventos (owner_user_id, event_date, body_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(req.user.id, event_date, body_json, now, now);
+    const row = db
+      .prepare(
+        `SELECT id, owner_user_id, event_date, body_json, created_at AS created_at, updated_at AS updated_at FROM eventos WHERE id = ?`,
+      )
+      .get(info.lastInsertRowid);
+    res.status(201).json(rowToRecord(row));
+  });
 
-  r.put(
-    "/eventos/:id",
-    requireAuth,
-    requireMenu(db, "eventos", "edit"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db.collection("eventos").findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      delete body.bulk_batch_id;
-      const event_date = eventDateFromBody(body);
-      const body_json = JSON.stringify(body);
-      await db.collection("eventos").updateOne(
-        { id },
-        { $set: { event_date, body_json, updated_at: now } },
-      );
-      const next = await db
-        .collection("eventos")
-        .findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.eventos.update",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.json(rowToRecord(next));
-    },
-  );
+  r.put("/eventos/:id", requireAuth, requireMenu(db, "eventos", "edit"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = db.prepare(`SELECT * FROM eventos WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const event_date = eventDateFromBody(body);
+    const body_json = JSON.stringify(body);
+    db.prepare(
+      `UPDATE eventos SET event_date = ?, body_json = ?, updated_at = ? WHERE id = ?`,
+    ).run(event_date, body_json, now, id);
+    const next = db
+      .prepare(
+        `SELECT id, owner_user_id, event_date, body_json, created_at AS created_at, updated_at AS updated_at FROM eventos WHERE id = ?`,
+      )
+      .get(id);
+    res.json(rowToRecord(next));
+  });
 
-  r.delete(
-    "/eventos/:id",
-    requireAuth,
-    requireMenu(db, "eventos", "delete"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db.collection("eventos").findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.eventos.delete",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      await db.collection("eventos").deleteOne({ id });
-      res.status(204).end();
-    },
-  );
+  r.delete("/eventos/:id", requireAuth, requireMenu(db, "eventos", "delete"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = db.prepare(`SELECT * FROM eventos WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    db.prepare(`DELETE FROM eventos WHERE id = ?`).run(id);
+    res.status(204).end();
+  });
 
-  r.get("/materiais", async (req, res) => {
+  // --- Materiais ---
+  r.get("/materiais", (req, res) => {
     const limit = parseLimit(req.query.limit, 50, 500);
     const skip = parseLimit(req.query.skip, 0, 10000);
-    const sort = mongoSort("materiais", req.query.sort);
-    const rows = await db
-      .collection("materiais")
-      .find({}, { projection: { _id: 0 } })
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .toArray();
+    const order = listOrderClause("materiais", req.query.sort);
+    const rows = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at
+         FROM materiais ${order} LIMIT ? OFFSET ?`,
+      )
+      .all(limit, skip);
     res.json(rows.map(rowToRecord));
   });
 
-  r.post(
-    "/materiais",
-    requireAuth,
-    requireMenu(db, "recursos", "create"),
-    async (req, res) => {
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      const body_json = JSON.stringify(body);
-      const id = await nextSeq(db, "materiais");
-      await db.collection("materiais").insertOne({
-        id,
-        owner_user_id: req.user.id,
-        body_json,
-        created_at: now,
-        updated_at: now,
-      });
-      const row = await db
-        .collection("materiais")
-        .findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "data.materiais.create",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.status(201).json(rowToRecord(row));
-    },
-  );
+  r.post("/materiais", requireAuth, requireMenu(db, "materiais_tab", "create"), (req, res) => {
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const body_json = JSON.stringify(body);
+    const info = db
+      .prepare(
+        `INSERT INTO materiais (owner_user_id, body_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(req.user.id, body_json, now, now);
+    const row = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at FROM materiais WHERE id = ?`,
+      )
+      .get(info.lastInsertRowid);
+    res.status(201).json(rowToRecord(row));
+  });
 
-  r.put(
-    "/materiais/:id",
-    requireAuth,
-    requireMenu(db, "recursos", "edit"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db.collection("materiais").findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      const body_json = JSON.stringify(body);
-      await db.collection("materiais").updateOne(
-        { id },
-        { $set: { body_json, updated_at: now } },
-      );
-      const next = await db
-        .collection("materiais")
-        .findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.materiais.update",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.json(rowToRecord(next));
-    },
-  );
+  r.put("/materiais/:id", requireAuth, requireMenu(db, "materiais_tab", "edit"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = db.prepare(`SELECT * FROM materiais WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const body_json = JSON.stringify(body);
+    db.prepare(`UPDATE materiais SET body_json = ?, updated_at = ? WHERE id = ?`).run(
+      body_json,
+      now,
+      id,
+    );
+    const next = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at FROM materiais WHERE id = ?`,
+      )
+      .get(id);
+    res.json(rowToRecord(next));
+  });
 
-  r.delete(
-    "/materiais/:id",
-    requireAuth,
-    requireMenu(db, "recursos", "delete"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db.collection("materiais").findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.materiais.delete",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      await db.collection("materiais").deleteOne({ id });
-      res.status(204).end();
-    },
-  );
+  r.delete("/materiais/:id", requireAuth, requireMenu(db, "materiais_tab", "delete"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = db.prepare(`SELECT * FROM materiais WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    db.prepare(`DELETE FROM materiais WHERE id = ?`).run(id);
+    res.status(204).end();
+  });
 
-  r.get("/fotos-galeria", async (req, res) => {
+  // --- Galeria ---
+  r.get("/fotos-galeria", (req, res) => {
     const limit = parseLimit(req.query.limit, 100, 500);
     const skip = parseLimit(req.query.skip, 0, 10000);
-    const sort = mongoSort("fotos_galeria", req.query.sort);
-    const rows = await db
-      .collection("fotos_galeria")
-      .find({}, { projection: { _id: 0 } })
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .toArray();
+    const order = listOrderClause("fotos_galeria", req.query.sort);
+    const rows = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at
+         FROM fotos_galeria ${order} LIMIT ? OFFSET ?`,
+      )
+      .all(limit, skip);
     res.json(rows.map(rowToRecord));
   });
 
-  r.post(
-    "/fotos-galeria",
-    requireAuth,
-    requireMenu(db, "galeria", "create"),
-    async (req, res) => {
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      const body_json = JSON.stringify(body);
-      const id = await nextSeq(db, "fotos_galeria");
-      await db.collection("fotos_galeria").insertOne({
-        id,
-        owner_user_id: req.user.id,
-        body_json,
-        created_at: now,
-        updated_at: now,
-      });
-      const row = await db
-        .collection("fotos_galeria")
-        .findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: req.user.id,
-        actorUserId: req.user.id,
-        action: "data.fotos_galeria.create",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.status(201).json(rowToRecord(row));
-    },
-  );
+  r.post("/fotos-galeria", requireAuth, requireMenu(db, "galeria", "create"), (req, res) => {
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const body_json = JSON.stringify(body);
+    const info = db
+      .prepare(
+        `INSERT INTO fotos_galeria (owner_user_id, body_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(req.user.id, body_json, now, now);
+    const row = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at FROM fotos_galeria WHERE id = ?`,
+      )
+      .get(info.lastInsertRowid);
+    res.status(201).json(rowToRecord(row));
+  });
 
-  r.put(
-    "/fotos-galeria/:id",
-    requireAuth,
-    requireMenu(db, "galeria", "edit"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db
-        .collection("fotos_galeria")
-        .findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
-      delete body.id;
-      const body_json = JSON.stringify(body);
-      await db.collection("fotos_galeria").updateOne(
-        { id },
-        { $set: { body_json, updated_at: now } },
-      );
-      const next = await db
-        .collection("fotos_galeria")
-        .findOne({ id }, { projection: { _id: 0 } });
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.fotos_galeria.update",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      res.json(rowToRecord(next));
-    },
-  );
+  r.put("/fotos-galeria/:id", requireAuth, requireMenu(db, "galeria", "edit"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = db.prepare(`SELECT * FROM fotos_galeria WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    const now = nowIso();
+    const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+    delete body.id;
+    const body_json = JSON.stringify(body);
+    db.prepare(`UPDATE fotos_galeria SET body_json = ?, updated_at = ? WHERE id = ?`).run(
+      body_json,
+      now,
+      id,
+    );
+    const next = db
+      .prepare(
+        `SELECT id, owner_user_id, body_json, created_at AS created_at, updated_at AS updated_at FROM fotos_galeria WHERE id = ?`,
+      )
+      .get(id);
+    res.json(rowToRecord(next));
+  });
 
-  r.delete(
-    "/fotos-galeria/:id",
-    requireAuth,
-    requireMenu(db, "galeria", "delete"),
-    async (req, res) => {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ message: "invalid_id" });
-        return;
-      }
-      const row = await db
-        .collection("fotos_galeria")
-        .findOne({ id }, { projection: { _id: 0 } });
-      if (!assertOwnerOrAdmin(req, res, row)) return;
-      await recordAudit(db, {
-        userId: row.owner_user_id ?? req.user.id,
-        actorUserId: req.user.id,
-        action: "data.fotos_galeria.delete",
-        details: { resource_id: id },
-        ip: clientIp(req),
-      });
-      await db.collection("fotos_galeria").deleteOne({ id });
-      res.status(204).end();
-    },
-  );
+  r.delete("/fotos-galeria/:id", requireAuth, requireMenu(db, "galeria", "delete"), (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = db.prepare(`SELECT * FROM fotos_galeria WHERE id = ?`).get(id);
+    if (!assertOwnerOrAdmin(req, res, row)) return;
+    db.prepare(`DELETE FROM fotos_galeria WHERE id = ?`).run(id);
+    res.status(204).end();
+  });
 
   return r;
 }

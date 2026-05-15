@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { uploadIntegrationFile } from "@/lib/uploadImage";
+import { uploadImageFile, uploadIntegrationFile } from "@/lib/uploadImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,6 +50,15 @@ export function MaterialForm({ material, onSave, onCancel, inDialog }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    const { file_url } = await uploadIntegrationFile(file);
+    setForm((f) => ({ ...f, arquivo_url: file_url }));
+    setUploading(false);
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImg(true);
     try {
       const { file_url } = await uploadIntegrationFile(file);
       setForm((f) => ({ ...f, arquivo_url: file_url }));
