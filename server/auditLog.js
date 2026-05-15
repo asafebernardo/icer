@@ -19,6 +19,9 @@ export function clientIp(req) {
  *   action: string;
  *   details?: Record<string, unknown>;
  *   ip?: string | null;
+ *   originUrl?: string | null;
+ *   route?: string | null;
+ *   userAgent?: string | null;
  * }} opts
  */
 export async function recordAudit(db, opts) {
@@ -28,6 +31,9 @@ export async function recordAudit(db, opts) {
     action,
     details = {},
     ip = null,
+    originUrl = null,
+    route = null,
+    userAgent = null,
   } = opts;
   const id = await nextSeq(db, "audit_logs");
   await db.collection("audit_logs").insertOne({
@@ -37,6 +43,9 @@ export async function recordAudit(db, opts) {
     action,
     details: details && typeof details === "object" ? details : {},
     ip: ip || null,
+    origin_url: originUrl || null,
+    route: route || null,
+    user_agent: userAgent || null,
     created_at: nowIso(),
   });
 }
