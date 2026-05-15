@@ -448,46 +448,6 @@ export default function AdminSitePanel() {
     }
   };
 
-  const {
-    data: activeSessions = [],
-    isLoading: loadingSessions,
-    refetch: refetchSessions,
-  } = useQuery({
-    queryKey: ["admin-active-sessions"],
-    queryFn: async () => {
-      const r = await fetch("/api/admin/sessions/active", {
-        credentials: "include",
-      });
-      if (!r.ok) throw new Error("Erro ao carregar sessões.");
-      return r.json();
-    },
-  });
-
-  const [kickingUser, setKickingUser] = useState({});
-  const kickUser = async (userId) => {
-    setKickingUser((m) => ({ ...m, [userId]: true }));
-    try {
-      const r = await fetch(`/api/admin/sessions/active/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const text = await r.text();
-      let parsed = null;
-      try {
-        parsed = text ? JSON.parse(text) : null;
-      } catch {
-        parsed = null;
-      }
-      if (!r.ok) throw new Error(parsed?.message || "Não foi possível derrubar.");
-      toast.success("Sessão derrubada.");
-      refetchSessions();
-    } catch (e) {
-      toast.error(e?.message || "Erro ao derrubar sessão.");
-    } finally {
-      setKickingUser((m) => ({ ...m, [userId]: false }));
-    }
-  };
-
   return (
     <div className="space-y-8">
       <motion.div
@@ -926,16 +886,19 @@ export default function AdminSitePanel() {
       >
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <ImagePlus className="w-5 h-5 text-accent" />
+            <LayoutGrid className="w-5 h-5 text-accent" />
           </div>
           <div>
-            <h2 className="font-semibold text-foreground text-lg">Página de login</h2>
+            <h2 className="font-semibold text-foreground text-lg">
+              Página de login e visibilidade de menus
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Fundo do cabeçalho (hero) e fundo da zona do formulário — guardado
-              neste navegador
+              Imagens do modal de início de sessão e quais secções extras os membros
+              vêem na navegação (guardado no servidor quando a auth MongoDB está ativa).
             </p>
           </div>
         </div>
+        <p className="text-sm font-medium text-foreground mb-3">Fundos do login</p>
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="space-y-3">
             <p className="text-sm font-medium text-foreground">1. Cabeçalho (hero)</p>
@@ -1014,27 +977,9 @@ export default function AdminSitePanel() {
             </div>
           </div>
         </div>
-      </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Eye className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Visibilidade de Menus
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Controle quais seções membros podem acessar
-            </p>
-          </div>
-        </div>
+        <div className="border-t border-border mt-8 pt-8">
+          <p className="text-sm font-medium text-foreground mb-4">Menus para membros</p>
         <div className="space-y-3">
           {MEMBER_MENUS.map((menu) => {
             const enabled = menuConfig[menu.key] !== false;
@@ -1071,8 +1016,9 @@ export default function AdminSitePanel() {
           })}
         </div>
         <p className="text-xs text-muted-foreground mt-4">
-          * As configurações são salvas localmente e aplicadas ao menu de navegação.
+          * Com sessão no servidor, as opções aplicam-se ao site para todos os membros.
         </p>
+        </div>
       </motion.div>
 
       <motion.div
@@ -1127,87 +1073,6 @@ export default function AdminSitePanel() {
           A paleta é guardada neste navegador (localStorage) com as permissões de
           menus.
         </p>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.09 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <Users className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground text-lg">
-                Usuários logados agora
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {Array.isArray(activeSessions) ? activeSessions.length : 0} sessão(ões)
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => refetchSessions()}
-            disabled={loadingSessions}
-            title="Atualizar"
-          >
-            <RefreshCw className={`w-4 h-4 ${loadingSessions ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
-
-        {loadingSessions ? (
-          <div className="space-y-3">
-            {Array(3)
-              .fill(0)
-              .map((_, i) => (
-                <Skeleton key={i} className="h-14 rounded-xl" />
-              ))}
-          </div>
-        ) : !Array.isArray(activeSessions) || activeSessions.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-6">
-            Nenhuma sessão ativa.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {activeSessions.map((s) => (
-              <div
-                key={s.token_hash}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-xl gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {s.user_full_name || "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {s.user_email || `user_id=${s.user_id}`}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    expira: {String(s.expires_at).replace("T", " ").replace("Z", "")}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  disabled={kickingUser[s.user_id] === true || s.user_id === user?.id}
-                  onClick={() => kickUser(s.user_id)}
-                >
-                  {kickingUser[s.user_id] ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "Derrubar"
-                  )}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
       </motion.div>
 
       <motion.div

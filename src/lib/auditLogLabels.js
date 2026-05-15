@@ -21,6 +21,12 @@ export const ACTION_LABELS = {
   "data.fotos_galeria.create": "Foto da galeria criada",
   "data.fotos_galeria.update": "Foto da galeria atualizada",
   "data.fotos_galeria.delete": "Foto da galeria eliminada",
+  "admin.backup_export": "Backup ZIP (exportação)",
+  "admin.backup_upload_google": "Backup enviado ao Google Drive",
+  "admin.backup_schedule_update": "Agendamento de backup atualizado",
+  "admin.backup_schedule_run": "Backup agendado executado",
+  "admin.backup_schedule_failed": "Falha no backup agendado",
+  "admin.backup_schedule_google": "Backup agendado enviado ao Drive",
 };
 
 export function labelForAction(action) {

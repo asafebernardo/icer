@@ -310,7 +310,7 @@ export default function ServerUsersPanel() {
                 className="border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
                 <div className="min-w-0 flex gap-3">
-                  <UserAvatar user={u} className="h-10 w-10 shrink-0" />
+                  <UserAvatar user={u} className="h-10 w-10 shrink-0" showTwoFactorBadge={false} />
                   <div className="min-w-0 space-y-1 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-foreground truncate">

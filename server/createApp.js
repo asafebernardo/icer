@@ -37,6 +37,7 @@ import {
 } from "./auditLog.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import { getBackupSummary, pipeSiteBackupZip, writeSiteBackupZipToFile } from "./siteBackup.js";
+import { getBackupSchedule, saveBackupSchedule } from "./backupSchedule.js";
 import {
   getGoogleIntegrationSafe,
   mergeGoogleIntegration,
@@ -1008,7 +1009,19 @@ export function createApplication(db, options = {}) {
     });
     const u = await db.collection("users").findOne(
       { id: row.id },
-      { projection: { _id: 0, id: 1, email: 1, full_name: 1, role: 1, funcao: 1, avatar_url: 1 } },
+      {
+        projection: {
+          _id: 0,
+          id: 1,
+          email: 1,
+          full_name: 1,
+          role: 1,
+          funcao: 1,
+          avatar_url: 1,
+          totp_enabled: 1,
+          totp_grace_started_at: 1,
+        },
+      },
     );
     res.json(u);
   });
@@ -1186,6 +1199,54 @@ export function createApplication(db, options = {}) {
     }
   });
 
+  app.get("/api/admin/backup/schedule", requireAuth, requireAdmin, async (_req, res) => {
+    try {
+      const schedule = await getBackupSchedule(db);
+      res.setHeader("Cache-Control", "no-store");
+      res.json(schedule);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ICER] backup/schedule get", e);
+      res.status(500).json({ message: "backup_schedule_read_failed" });
+    }
+  });
+
+  app.put("/api/admin/backup/schedule", requireAuth, requireAdmin, async (req, res) => {
+    const schema = z.object({
+      enabled: z.boolean().optional(),
+      weekday: z.number().int().min(0).max(6).optional(),
+      hour: z.number().int().min(0).max(23).optional(),
+      minute: z.number().int().min(0).max(59).optional(),
+    });
+    const parsed = schema.safeParse(req.body && typeof req.body === "object" ? req.body : {});
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
+      return;
+    }
+    try {
+      const next = await saveBackupSchedule(db, parsed.data);
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "admin.backup_schedule_update",
+        details: {
+          enabled: next.enabled,
+          weekday: next.weekday,
+          hour: next.hour,
+          minute: next.minute,
+        },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.json(next);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[ICER] backup/schedule put", e);
+      res.status(500).json({ message: "backup_schedule_save_failed" });
+    }
+  });
+
   app.get("/api/admin/backup/export", requireAuth, requireAdmin, async (req, res) => {
     const stamp = new Date().toISOString().replaceAll(":", "-").replace(/\.\d{3}Z$/, "Z");
     const filename = `icer-site-backup-${stamp}.zip`;
@@ -1272,6 +1333,10 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/auth/google/start", requireAuth, requireAdmin, async (req, res) => {
+    if (!callbackRedirectBase(req)) {
+      res.status(400).json({ message: "google_public_base_missing" });
+      return;
+    }
     const cfg = await getGoogleIntegrationSafe(db);
     if (!cfg.enabled || !cfg.client_id || !cfg.client_secret_set) {
       res.status(400).json({ message: "google_not_configured" });

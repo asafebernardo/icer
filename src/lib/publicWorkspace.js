@@ -1,4 +1,5 @@
 import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { withCsrfHeaderAsync } from "@/lib/csrf";
 
 export const PUBLIC_WORKSPACE_QUERY_KEY = ["public-workspace"];
 
@@ -33,7 +34,10 @@ export async function putAdminPublicWorkspace(patch) {
   const r = await fetch("/api/admin/public-workspace", {
     method: "PUT",
     credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: await withCsrfHeaderAsync({
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
     body: JSON.stringify(patch && typeof patch === "object" ? patch : {}),
   });
   if (!r.ok) {
@@ -53,7 +57,10 @@ export async function putAgendaSugestoesRemote(agenda_sugestoes) {
   const r = await fetch("/api/public-workspace/agenda-sugestoes", {
     method: "PUT",
     credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers: await withCsrfHeaderAsync({
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    }),
     body: JSON.stringify({ agenda_sugestoes }),
   });
   if (!r.ok) {

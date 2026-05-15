@@ -102,9 +102,18 @@ export default function EventoDetailModal({
             <div className="flex flex-col gap-2 border border-border rounded-xl p-3">
               {evento.preletor && (
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center">
-                    <Mic2 className="w-4 h-4 text-accent" />
-                  </div>
+                  {evento.preletor_avatar_url ? (
+                    <img
+                      src={evento.preletor_avatar_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-border bg-muted shrink-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+                      <Mic2 className="w-4 h-4 text-accent" />
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Preletor</p>
                     <p className="text-sm font-semibold text-foreground">

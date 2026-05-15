@@ -106,6 +106,14 @@ export default function EventoDestaquePopup() {
                     style={{ backgroundImage: `url(${destaque.imagem_url})` }}
                   />
                 )}
+                {destaque.preletor_avatar_url && (
+                  <img
+                    src={destaque.preletor_avatar_url}
+                    alt=""
+                    className="absolute right-4 bottom-4 h-14 w-14 rounded-full object-cover border border-primary-foreground/25 bg-muted shadow-lg"
+                    loading="lazy"
+                  />
+                )}
                 <button
                   onClick={dismiss}
                   className="absolute right-4 top-4 rounded-full p-1.5 text-primary-foreground transition-colors hover:bg-primary-foreground/15"
