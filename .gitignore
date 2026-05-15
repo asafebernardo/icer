@@ -13,7 +13,6 @@ coverage/
 !env.example
 
 # --- Runtime data (should not be committed) ---
-server/uploads/
 server/private_uploads/
 server/data/
 
