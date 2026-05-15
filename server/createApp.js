@@ -893,9 +893,17 @@ export function createApplication(db, options = {}) {
   const distPath = path.resolve(process.cwd(), "dist");
   if (fs.existsSync(path.join(distPath, "index.html"))) {
     app.use(express.static(distPath, { index: false }));
-    // Express 5 + path-to-regexp v6: `"*"` não é um path válido.
-    // Regex abaixo serve o SPA para tudo exceto rotas `/api/*`.
-    app.get(/^(?!\/api(?:\/|$)).*/, (req, res) => {
+    // Express 5 + path-to-regexp v6: não usar `app.get('*')` nem `*` em paths.
+    // Fallback: middleware sem wildcard; só GET/HEAD e fora de `/api`.
+    app.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        next();
+        return;
+      }
+      if (req.path.startsWith("/api")) {
+        next();
+        return;
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
