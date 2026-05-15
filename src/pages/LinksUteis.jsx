@@ -10,7 +10,12 @@ import {
 } from "@/components/ui/dialog";
 
 import PageHeader from "../components/shared/PageHeader";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { LinkCardIcon } from "@/components/useful-links/LinkCardIcon";
 import { UsefulLinkForm } from "@/components/useful-links/UsefulLinkForm";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
@@ -65,7 +70,13 @@ export default function LinksUteis() {
 
   const saveLinks = (newLinks) => {
     setLinks(newLinks);
-    setSiteConfig({ linksUteis: newLinks });
+    if (perm.create || perm.edit || perm.delete) {
+      savePublicSiteConfigAdmin({ linksUteis: newLinks })
+        .then(() => refreshPublicSiteConfig())
+        .catch(() => setSiteConfig({ linksUteis: newLinks }));
+    } else {
+      setSiteConfig({ linksUteis: newLinks });
+    }
   };
 
   const handleAdd = (data) => {

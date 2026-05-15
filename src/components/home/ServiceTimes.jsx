@@ -17,7 +17,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 
 import HomeSectionBackdrop from "@/components/home/HomeSectionBackdrop";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { useHeroBackground } from "@/lib/useHeroBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
@@ -147,10 +152,22 @@ export default function ServiceTimes() {
   const [isNewCard, setIsNewCard] = useState(false);
   const fileInputRef = useRef(null);
 
-  const persist = useCallback((nextCards) => {
-    setSiteConfig({ [CONFIG_KEY]: { cards: nextCards } });
-    setCards(nextCards);
-  }, []);
+  const persist = useCallback(
+    (nextCards) => {
+      const patch = { [CONFIG_KEY]: { cards: nextCards } };
+      if (canEditHome) {
+        savePublicSiteConfigAdmin(patch)
+          .then(() => refreshPublicSiteConfig())
+          .catch(() => {
+            setSiteConfig(patch);
+          });
+      } else {
+        setSiteConfig(patch);
+      }
+      setCards(nextCards);
+    },
+    [canEditHome],
+  );
 
   useEffect(() => {
     const sync = () => {
