@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -54,6 +55,54 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const validateServerSessionRef = useRef(null);
+  const validateServerSession = useCallback(async () => {
+    if (!isServerAuthEnabled()) {
+      checkUserAuth();
+      return;
+    }
+    if (validateServerSessionRef.current) {
+      await validateServerSessionRef.current;
+      return;
+    }
+    const run = (async () => {
+      try {
+        const r = await fetch("/api/auth/me", { credentials: "include" });
+        if (r.ok) {
+          const u = await r.json();
+          persistSessionUser({
+            id: u.id,
+            email: u.email,
+            full_name: u.full_name,
+            role: u.role,
+            funcao: u.funcao ?? "",
+            avatar_url: u.avatar_url ? String(u.avatar_url) : "",
+            _authSource: "server",
+          });
+          setServerMenuEffective(null);
+          const { ensureCsrfCookieClient } = await import("@/lib/csrf");
+          await ensureCsrfCookieClient();
+        } else if (r.status === 401) {
+          const cur = getUser();
+          if (cur?._authSource === "server") {
+            clearSessionUser();
+            setServerMenuEffective(null);
+          }
+        }
+      } catch {
+        /* rede / servidor offline — não limpar sessão local */
+      } finally {
+        checkUserAuth();
+      }
+    })();
+    validateServerSessionRef.current = run;
+    try {
+      await run;
+    } finally {
+      validateServerSessionRef.current = null;
+    }
+  }, [checkUserAuth]);
+
   useEffect(() => {
     if (!shouldUseRemotePublicWorkspace()) return;
     void queryClientInstance
@@ -67,41 +116,34 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      if (isServerAuthEnabled()) {
-        try {
-          const r = await fetch("/api/auth/me", { credentials: "include" });
-          if (r.ok) {
-            const u = await r.json();
-            persistSessionUser({
-              id: u.id,
-              email: u.email,
-              full_name: u.full_name,
-              role: u.role,
-              funcao: u.funcao ?? "",
-              avatar_url: u.avatar_url ? String(u.avatar_url) : "",
-              _authSource: "server",
-            });
-            setServerMenuEffective(null);
-            const { ensureCsrfCookieClient } = await import("@/lib/csrf");
-            await ensureCsrfCookieClient();
-          } else {
-            const cur = getUser();
-            if (cur?._authSource === "server") {
-              clearSessionUser();
-              setServerMenuEffective(null);
-            }
-          }
-        } catch {
-          /* rede / servidor offline */
-        }
-      }
-      if (!cancelled) checkUserAuth();
+    void (async () => {
+      if (!cancelled) await validateServerSession();
     })();
     return () => {
       cancelled = true;
     };
-  }, [checkUserAuth]);
+  }, [validateServerSession]);
+
+  useEffect(() => {
+    if (!isServerAuthEnabled()) return undefined;
+    let debounceTimer = 0;
+    const schedule = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => {
+        void validateServerSession();
+      }, 250);
+    };
+    window.addEventListener("focus", schedule);
+    document.addEventListener("visibilitychange", schedule);
+    return () => {
+      window.clearTimeout(debounceTimer);
+      window.removeEventListener("focus", schedule);
+      document.removeEventListener("visibilitychange", schedule);
+    };
+  }, [validateServerSession]);
 
   const login = useCallback(async (email, senha) => {
     const result = await authLogin(email, senha);
