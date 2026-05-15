@@ -2,6 +2,7 @@ export const ACTION_LABELS = {
   "auth.login": "Início de sessão",
   "auth.login_failed": "Falha de início de sessão",
   "auth.logout": "Fim de sessão",
+  "auth.sessions_revoked_by_login": "Sessões anteriores encerradas (novo login)",
   "user.profile_update": "Alteração de perfil",
   "admin.user.create": "Conta criada (admin)",
   "admin.user.update": "Conta atualizada (admin)",
