@@ -121,6 +121,9 @@ function mapServerLoginError(e) {
   if (code === "password_not_set") {
     return "A sua conta ainda não tem palavra-passe. Use o link do convite para criar a sua palavra-passe.";
   }
+  if (code === "session_already_active") {
+    return "Esta conta já está com uma sessão ativa. Saia (logout) na outra sessão ou aguarde expirar para entrar novamente.";
+  }
   if (code === "invalid_request") {
     return "Dados inválidos.";
   }

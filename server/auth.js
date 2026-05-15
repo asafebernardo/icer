@@ -1,5 +1,5 @@
 import argon2 from "argon2";
-import { randomToken, sha256Hex, nowIso, addDaysIso } from "./security.js";
+import { randomToken, sha256Hex, nowIso, addDaysIso, addMinutesIso } from "./security.js";
 
 const COOKIE_NAME = process.env.ICER_SESSION_COOKIE_NAME || "icer_session";
 
@@ -40,11 +40,14 @@ export function clearSessionCookie(res) {
 /**
  * @param {import("mongodb").Db} db
  */
-export async function createSession(db, userId, { days = 14 } = {}) {
+export async function createSession(db, userId, { days = 14, minutes } = {}) {
   const token = randomToken();
   const token_hash = sha256Hex(token);
   const created_at = nowIso();
-  const expires_at = addDaysIso(days);
+  const expires_at =
+    minutes != null && Number.isFinite(Number(minutes)) && Number(minutes) > 0
+      ? addMinutesIso(Number(minutes))
+      : addDaysIso(days);
   await db.collection("sessions").insertOne({
     user_id: userId,
     token_hash,
