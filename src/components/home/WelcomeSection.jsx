@@ -21,7 +21,7 @@ import {
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
-import { imageFileToStorableUrl } from "@/lib/uploadImage";
+import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
 import { toast } from "sonner";
@@ -208,7 +208,7 @@ export default function WelcomeSection() {
                 className="gap-2"
               >
                 <FileText className="w-4 h-4" />
-                Editar textos
+                Editar — Textos (Bem-vindo)
               </Button>
             </div>
           )}
@@ -445,6 +445,7 @@ export default function WelcomeSection() {
                       type="file"
                       accept="image/png,image/jpeg,image/webp,image/*"
                       className="hidden"
+                      title={IMAGE_UPLOAD_RECOMMENDATION}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (!f) return;
@@ -469,6 +470,7 @@ export default function WelcomeSection() {
                         variant="outline"
                         size="sm"
                         onClick={() => verseImgInputRef.current?.click()}
+                        title={`Editar — Imagem do versículo. ${IMAGE_UPLOAD_RECOMMENDATION}`}
                       >
                         <ImageIcon className="mr-2 h-4 w-4" />
                         Escolher imagem

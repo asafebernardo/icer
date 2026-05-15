@@ -28,6 +28,7 @@ import {
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
+import { IMAGE_UPLOAD_RECOMMENDATION } from "@/lib/uploadImage";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canMenuAction, MENU } from "@/lib/auth";
 import {
@@ -62,6 +63,38 @@ export default function HeroSection() {
   const [heroTextOpen, setHeroTextOpen] = useState(false);
   const [draftEyebrow, setDraftEyebrow] = useState("");
   const [draftHeroTitle, setDraftHeroTitle] = useState("");
+
+  // Ajusta altura do hero para acompanhar o aspect ratio da imagem.
+  const [heroAspect, setHeroAspect] = useState(16 / 9);
+
+  useEffect(() => {
+    const first = slides?.[0];
+    if (!first) {
+      setHeroAspect(16 / 9);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      if (cancelled) return;
+      const w = Number(img.naturalWidth) || 0;
+      const h = Number(img.naturalHeight) || 0;
+      if (w > 0 && h > 0) {
+        const r = w / h;
+        // Clamp para evitar layouts extremos.
+        const clamped = Math.min(21 / 9, Math.max(4 / 3, r));
+        setHeroAspect(clamped);
+      }
+    };
+    img.onerror = () => {
+      if (!cancelled) setHeroAspect(16 / 9);
+    };
+    img.src = first;
+    return () => {
+      cancelled = true;
+    };
+  }, [slides]);
 
   useEffect(() => {
     const c = getSiteConfig();
@@ -105,39 +138,42 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative min-h-[70vh] sm:min-h-[80vh] lg:min-h-[85vh] flex flex-col overflow-hidden">
+    <section className="relative overflow-hidden">
+      {/* Fundo base (full-bleed) */}
       <div className="absolute inset-0 z-[1] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
 
-      <div className="absolute inset-0 z-[2] overflow-hidden">
-        {slides.length > 0 ? (
-          <BackgroundSlideshow
-            urls={slides}
-            rotateIntervalMs={rotateIntervalMs}
-            transitionMs={transitionMs}
-            transitionMode={transitionMode}
-          />
-        ) : (
-          <div
-            className="pointer-events-none absolute inset-0 opacity-10"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 20% 50%, #181818 0%, transparent 50%), radial-gradient(circle at 80% 20%, #a1a1aa 0%, transparent 40%)",
-            }}
-          />
-        )}
-      </div>
-
-      {/* Degradé pequeno na base, sobre as imagens — transição suave para a secção seguinte */}
+      {/* Wrapper com altura responsiva */}
       <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[3] h-[22%] min-h-[90px] max-h-[180px] bg-gradient-to-t from-black/35 via-black/[0.08] to-transparent dark:from-zinc-950/55 dark:via-zinc-950/10"
-        aria-hidden
-      />
+        className="relative z-[2] w-full max-h-[85vh] min-h-[260px] sm:min-h-[360px]"
+        style={{ aspectRatio: heroAspect }}
+      >
+        {/* Imagem full-bleed (sem bordas laterais) */}
+        <div className="absolute inset-0 z-[2] overflow-hidden">
+          {slides.length > 0 ? (
+            <BackgroundSlideshow
+              urls={slides}
+              rotateIntervalMs={rotateIntervalMs}
+              transitionMs={transitionMs}
+              transitionMode={transitionMode}
+              fit="fill"
+            />
+          ) : (
+            <div
+              className="pointer-events-none absolute inset-0 opacity-10"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle at 20% 50%, #181818 0%, transparent 50%), radial-gradient(circle at 80% 20%, #a1a1aa 0%, transparent 40%)",
+              }}
+            />
+          )}
+        </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0 flex flex-col flex-1 min-h-0 justify-end pb-10 sm:pb-14 lg:pb-16 pt-28 sm:pt-32">
-        {canEditHome && (
-          <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
-            <Button
-              type="button"
+        {/* Conteúdo alinhado ao layout */}
+        <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0 flex flex-col pb-6 sm:pb-8 lg:pb-10 pt-20 sm:pt-24">
+          {canEditHome && (
+            <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
+              <Button
+                type="button"
               size="sm"
               variant="outline"
               className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
@@ -146,6 +182,7 @@ export default function HeroSection() {
                 setDraftHeroTitle(heroTitle);
                 setHeroTextOpen(true);
               }}
+                title="Editar — Títulos do hero"
             >
               <Pencil className="w-4 h-4" />
               Títulos
@@ -156,18 +193,19 @@ export default function HeroSection() {
               variant="outline"
               className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
               onClick={() => setPanelOpen(true)}
+                title={`Editar — Fundo do hero. ${IMAGE_UPLOAD_RECOMMENDATION}`}
             >
               <ImagePlus className="w-4 h-4 mr-2" />
               Fundo do hero
             </Button>
-          </div>
-        )}
+            </div>
+          )}
 
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75 }}
-          className="max-w-3xl min-w-0 w-full"
+          className="mt-auto max-w-3xl min-w-0 w-full"
         >
           <p className="text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]">
             {heroEyebrow}
@@ -176,6 +214,7 @@ export default function HeroSection() {
             {heroTitle}
           </h1>
         </motion.div>
+      </div>
       </div>
 
       <Dialog open={heroTextOpen} onOpenChange={setHeroTextOpen}>

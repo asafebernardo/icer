@@ -7,6 +7,7 @@ const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
+    // Tema é sempre por navegador/usuário.
     return localStorage.getItem("church-theme") || "light";
   });
 

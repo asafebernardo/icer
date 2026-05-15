@@ -160,14 +160,37 @@ export function createDataRouter(db) {
     const limit = parseLimit(req.query.limit, 100, 500);
     const skip = parseLimit(req.query.skip, 0, 10000);
     const sort = mongoSort("posts", req.query.sort);
-    const rows = await db
-      .collection("posts")
-      .find({}, { projection: { _id: 0 } })
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-    res.json(rows.map(rowToRecord));
+    const filter = {};
+    const [rows, total] = await Promise.all([
+      db
+        .collection("posts")
+        .find(filter, { projection: { _id: 0 } })
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      db.collection("posts").countDocuments(filter),
+    ]);
+    res.json({
+      items: rows.map(rowToRecord),
+      total,
+      skip,
+      limit,
+    });
+  });
+
+  r.get("/posts/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    res.json(rowToRecord(row));
   });
 
   r.post(

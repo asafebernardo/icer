@@ -26,6 +26,11 @@ export const DEFAULT_CHANNEL_SECTION_SUBTITLE =
   "Acompanhe cultos, mensagens e estudos em vídeo.";
 export const DEFAULT_CHANNEL_URL = "https://www.youtube.com";
 
+export const DEFAULT_INSTAGRAM_SECTION_TITLE = "Instagram";
+export const DEFAULT_INSTAGRAM_SECTION_SUBTITLE =
+  "Acompanhe novidades e avisos rápidos no nosso perfil.";
+export const DEFAULT_INSTAGRAM_URL = "https://www.instagram.com";
+
 /** Chaves em `siteConfig` para fundos legados / canal (não expostos na UI) */
 export const SECTION_BG_KEYS = {
   welcome: "sectionBgWelcome",

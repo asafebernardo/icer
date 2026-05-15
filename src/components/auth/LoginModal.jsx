@@ -21,7 +21,7 @@ import {
 } from "@/lib/imageScrimClasses";
 
 /**
- * Modal de login (substitui a página /login). Controlado por AuthContext.
+ * Modal de login. Controlado por AuthContext (openLoginModal / closeLoginModal).
  */
 export default function LoginModal() {
   const { login, loginModalOpen, closeLoginModal } = useAuth();
