@@ -35,6 +35,7 @@ import {
  *   uploadDir?: string;
  *   enableUpstreamProxy?: boolean;
  *   loginRateLimit?: boolean;
+ *   enforceSingleSession?: boolean;
  * }} [options]
  */
 export function createApplication(db, options = {}) {
@@ -47,6 +48,7 @@ export function createApplication(db, options = {}) {
       : 80 * 1024 * 1024;
   const enableUpstreamProxy = options.enableUpstreamProxy === true;
   const loginRateLimit = options.loginRateLimit !== false;
+  const enforceSingleSession = options.enforceSingleSession !== false;
 
   fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -102,6 +104,14 @@ export function createApplication(db, options = {}) {
     return jsonParser(req, res, next);
   });
 
+  /** Antes do middleware de sessão (evita Mongo em cada probe do Docker/EasyPanel). */
+  app.get("/health", (_req, res) => {
+    res.status(200).type("text/plain").send("ok");
+  });
+  app.get("/api/health", (_req, res) => {
+    res.json({ ok: true, time: nowIso() });
+  });
+
   app.use(async (req, _res, next) => {
     try {
       const token = req.cookies?.[getCookieName()];
@@ -111,10 +121,6 @@ export function createApplication(db, options = {}) {
     } catch (e) {
       next(e);
     }
-  });
-
-  app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, time: nowIso() });
   });
 
   const loginMw = loginRateLimit ? rateLimitLogin : (_req, _res, next) => next();
@@ -166,14 +172,16 @@ export function createApplication(db, options = {}) {
     }
     // Sessão única: bloqueia novo login se já existir sessão ativa.
     // (Só libera quando expirar ou o utilizador fizer logout.)
-    const now = nowIso();
-    const active = await db.collection("sessions").findOne({
-      user_id: row.id,
-      expires_at: { $gt: now },
-    });
-    if (active) {
-      res.status(409).json({ message: "session_already_active" });
-      return;
+    if (enforceSingleSession) {
+      const now = nowIso();
+      const active = await db.collection("sessions").findOne({
+        user_id: row.id,
+        expires_at: { $gt: now },
+      });
+      if (active) {
+        res.status(409).json({ message: "session_already_active" });
+        return;
+      }
     }
     const ok = await verifyPassword(row.password_hash, parsed.data.password);
     if (!ok) {

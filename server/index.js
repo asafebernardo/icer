@@ -112,7 +112,16 @@ function resolveListenHost() {
 
 const HOST = resolveListenHost();
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   // eslint-disable-next-line no-console
   console.log(`[ICER] API server on http://${HOST}:${PORT}`);
 });
+
+function shutdown(signal) {
+  // eslint-disable-next-line no-console
+  console.log(`[ICER] ${signal} received — shutting down`);
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
