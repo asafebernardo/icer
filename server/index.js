@@ -57,33 +57,59 @@ async function ensureUserSeed(p) {
   if (!email || !full_name || !password) {
     return;
   }
-  const policy = validateAccountPassword(password);
-  if (!policy.ok) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[ICER] Seed ignorado (${p.label}): palavra-passe não cumpre a política (${policy.code}).`,
-    );
-    return;
-  }
   const existing = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
-  if (existing) {
-    return;
+  const isEnvSeed =
+    email === String(process.env.ICER_ADMIN_EMAIL || "").toLowerCase().trim() ||
+    email === String(process.env.ICER_USER_EMAIL || "").toLowerCase().trim();
+  // Para as contas seed do `.env`, manter a palavra-passe sempre sincronizada
+  // (facilita recuperação/acesso mesmo se o utilizador já existir).
+  if (!isEnvSeed) {
+    const policy = validateAccountPassword(password);
+    if (!policy.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[ICER] Seed ignorado (${p.label}): palavra-passe não cumpre a política (${policy.code}).`,
+      );
+      return;
+    }
+    if (existing) {
+      return;
+    }
   }
   const password_hash = await hashPassword(password);
   const now = nowIso();
-  const id = await nextSeq(db, "users");
-  await db.collection("users").insertOne({
-    id,
-    email,
-    full_name,
-    role: p.role,
-    funcao: "",
-    password_hash,
-    created_at: now,
-    updated_at: now,
-  });
-  // eslint-disable-next-line no-console
-  console.log(`[ICER] Conta seed (${p.label}): ${email}`);
+  if (existing?.id) {
+    await db.collection("users").updateOne(
+      { email },
+      {
+        $set: {
+          full_name,
+          role: p.role,
+          funcao: "",
+          password_hash,
+          disabled: false,
+          updated_at: now,
+        },
+      },
+    );
+    // eslint-disable-next-line no-console
+    console.log(`[ICER] Conta seed atualizada (${p.label}): ${email}`);
+  } else {
+    const id = await nextSeq(db, "users");
+    await db.collection("users").insertOne({
+      id,
+      email,
+      full_name,
+      role: p.role,
+      funcao: "",
+      password_hash,
+      disabled: false,
+      created_at: now,
+      updated_at: now,
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[ICER] Conta seed (${p.label}): ${email}`);
+  }
 }
 
 async function ensureSeedUsers() {
