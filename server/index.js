@@ -81,8 +81,7 @@ await ensureSeedUsers();
 
 const enableUpstreamProxy = Boolean(
   process.env.ICER_UPSTREAM_API ||
-    process.env.VITE_APP_BASE_URL ||
-    process.env.VITE_BASE44_APP_BASE_URL,
+    process.env.VITE_APP_BASE_URL,
 );
 
 const app = createApplication(db, {

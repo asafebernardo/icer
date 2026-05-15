@@ -1,5 +1,5 @@
 /**
- * IDs numéricos monotónicos por coleção (compatível com a API SQLite anterior).
+ * IDs numéricos monotónicos por coleção.
  * @param {import("mongodb").Db} db
  * @param {string} name — ex.: "users", "posts"
  */

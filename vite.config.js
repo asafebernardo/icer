@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
   const icerSemver = readPackageVersion();
   const icerGitSha = readGitShortSha();
   const icerBuildId = icerGitSha ? `${icerSemver}+${icerGitSha}` : icerSemver;
-  const proxyTarget = env.VITE_APP_BASE_URL || env.VITE_BASE44_APP_BASE_URL;
+  const proxyTarget = env.VITE_APP_BASE_URL;
   /** Com `VITE_USE_SERVER_AUTH=true`, o Vite encaminha `/api` para o Node local (dev). */
   const serverAuth =
     env.VITE_USE_SERVER_AUTH === "true" || env.VITE_USE_SERVER_AUTH === "1";
