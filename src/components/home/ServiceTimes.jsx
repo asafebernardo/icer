@@ -25,8 +25,8 @@ import {
 } from "@/lib/siteConfig";
 import { useHeroBackground } from "@/lib/useHeroBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
-import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, MENU } from "@/lib/auth";
+import { MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
@@ -143,8 +143,7 @@ function sortCardsDisplay(list) {
 export default function ServiceTimes() {
   const { rotateIntervalMs, transitionMs, transitionMode } =
     useHeroBackground();
-  const user = useSyncedAuthUser();
-  const canEditHome = canMenuAction(user, MENU.HOME, "edit");
+  const canEditHome = useCanEdit(MENU.HOME);
   const [sectionBgUrl, setSectionBgUrl] = useState("");
   const [cards, setCards] = useState(loadCards);
   const [editOpen, setEditOpen] = useState(false);

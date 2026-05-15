@@ -19,6 +19,8 @@ import { motion } from "framer-motion";
 import ResponsivePageBgImage from "@/components/shared/ResponsivePageBgImage";
 import SafeImg from "@/components/shared/SafeImg";
 import AdminPageBgButton from "@/components/shared/AdminPageBgButton";
+import PageSkeleton from "@/components/shared/PageSkeleton";
+import EventActionsBar from "@/components/shared/EventActionsBar";
 import { usePageBackground } from "@/lib/usePageBackground";
 import EventoFormPanel from "@/components/agenda/EventoFormPanel";
 import { ProgramIcon } from "@/components/agenda/programIcons";
@@ -28,7 +30,9 @@ import {
 } from "@/lib/eventPeriod";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { useAuth } from "@/lib/AuthContext";
-import { canEditPageBackground, canMenuAction, MENU } from "@/lib/auth";
+import { canEditPageBackground, MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
+import { useEditMode } from "@/lib/EditModeContext";
 import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
@@ -55,8 +59,10 @@ export default function EventoPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const tituloCorBarraMap = useTituloCorBarraMap();
-  const canEditEvento = canMenuAction(user, MENU.EVENTOS, "edit");
-  const canEditBanner = canEditPageBackground(user, "evento");
+  const { enabled: editModeEnabled } = useEditMode();
+  const canEditEvento = useCanEdit(MENU.EVENTOS);
+  const canEditBanner =
+    canEditPageBackground(user, "evento") && editModeEnabled;
   const { url: bannerBgUrl, handleFile, applyUrl } = usePageBackground("evento");
   const [diaAtivo, setDiaAtivo] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -90,11 +96,7 @@ export default function EventoPage() {
   const date = evento?.data ? parseISO(evento.data) : null;
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSkeleton cards={2} />;
   }
 
   if (!evento) {
@@ -202,8 +204,9 @@ export default function EventoPage() {
 
         {!editing && (
         <div className="space-y-8 max-w-3xl">
-            {canEditOnPage ? (
-              <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <EventActionsBar evento={evento} />
+              {canEditOnPage ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -215,8 +218,8 @@ export default function EventoPage() {
                   <Pencil className="w-4 h-4" />
                   <span className="hidden sm:inline">Editar evento</span>
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
             {/* Detalhes */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}

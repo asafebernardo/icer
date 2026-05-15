@@ -23,14 +23,15 @@ import {
   setSiteConfig,
 } from "@/lib/siteConfig";
 import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
-import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, MENU } from "@/lib/auth";
+import { MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
 import { toast } from "sonner";
 import {
   imageScrimFlat,
   imageScrimBottom,
 } from "@/lib/imageScrimClasses";
 import { homeSectionSolidContent } from "@/lib/homeSectionSolidClasses";
+import usePrefersReducedMotion from "@/lib/usePrefersReducedMotion";
 
 import {
   DEFAULT_WELCOME_TAG,
@@ -65,8 +66,8 @@ function loadHomeCopyFromConfig() {
 export default function WelcomeSection() {
   const [sectionBgUrl, setSectionBgUrl] = useState("");
   const [bgImage, setBgImage] = useState("");
-  const user = useSyncedAuthUser();
-  const canEditHome = canMenuAction(user, MENU.HOME, "edit");
+  const canEditHome = useCanEdit(MENU.HOME);
+  const reduceMotion = usePrefersReducedMotion();
   const [welcomeTag, setWelcomeTag] = useState(DEFAULT_WELCOME_TAG);
   const [welcomeTitle, setWelcomeTitle] = useState(DEFAULT_WELCOME_TITLE);
   const [welcomeSubtitle, setWelcomeSubtitle] = useState(
@@ -184,48 +185,46 @@ export default function WelcomeSection() {
         className="py-16 sm:py-20 lg:py-28"
       >
         <div className="container-page">
-        <div
-          className={cn(
-            "flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-12",
-            solidHeader && homeSectionSolidContent,
-          )}
-        >
-          <div className="max-w-2xl">
-            <span className="text-accent font-semibold text-sm tracking-[0.12em] uppercase">
-              {welcomeTag}
-            </span>
-            <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground mt-3 leading-tight tracking-tight">
-              {welcomeTitle}
-            </h2>
-            <p className="mt-3 text-sm text-muted-foreground sm:text-base">
-              {welcomeSubtitle}
-            </p>
-          </div>
-          {canEditHome && (
-            <div className="flex flex-wrap gap-2 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={openHomeEditor}
-                className="gap-2"
-                aria-label="Editar — Textos (Bem-vindo)"
-              >
-                <Pencil className="w-4 h-4" />
-                <span className="hidden sm:inline">Editar — Textos (Bem-vindo)</span>
-              </Button>
+        <div className="grid min-w-0 grid-cols-1 gap-10 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:items-stretch lg:gap-x-12 lg:gap-y-8 xl:gap-x-16">
+          <div
+            className={cn(
+              "flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 min-w-0 lg:col-start-1 lg:row-start-1",
+              solidHeader && homeSectionSolidContent,
+            )}
+          >
+            <div className="max-w-2xl">
+              <span className="text-accent font-semibold text-sm tracking-[0.12em] uppercase">
+                {welcomeTag}
+              </span>
+              <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground mt-3 leading-tight tracking-tight">
+                {welcomeTitle}
+              </h2>
+              <p className="prose-lead mt-3">{welcomeSubtitle}</p>
             </div>
-          )}
-        </div>
+            {canEditHome && (
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={openHomeEditor}
+                  className="gap-2"
+                  aria-label="Editar — Textos (Bem-vindo)"
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span className="hidden sm:inline">Editar — Textos (Bem-vindo)</span>
+                </Button>
+              </div>
+            )}
+          </div>
 
-        <div className="grid min-w-0 grid-cols-1 gap-10 lg:grid-cols-2 lg:items-stretch lg:gap-12 xl:gap-16">
           <motion.div
-            initial={{ opacity: 0, x: -30 }}
+            initial={reduceMotion ? { opacity: 1, x: 0 } : { opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: reduceMotion ? 0 : 0.6 }}
             className={cn(
-              "min-w-0 flex flex-col lg:h-full lg:justify-start",
+              "min-w-0 flex flex-col lg:col-start-1 lg:row-start-2 lg:h-full lg:justify-start",
               solidHeader && homeSectionSolidContent,
             )}
           >
@@ -240,13 +239,13 @@ export default function WelcomeSection() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
+            initial={reduceMotion ? { opacity: 1, x: 0 } : { opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="relative flex min-h-0 w-full min-w-0 flex-col lg:h-full"
+            transition={{ duration: reduceMotion ? 0 : 0.6 }}
+            className="relative flex min-h-0 w-full min-w-0 flex-col lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:h-full"
           >
-            <div className="relative z-0 flex min-h-[min(360px,58vh)] w-full flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-muted/10 shadow-card lg:min-h-[min(26rem,100%)]">
+            <div className="relative z-0 flex min-h-[min(360px,58vh)] w-full flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-muted/10 shadow-card lg:min-h-0">
               {verseImageUrl ? (
                 <>
                   <SafeImg

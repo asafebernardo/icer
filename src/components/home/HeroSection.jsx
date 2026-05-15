@@ -22,6 +22,7 @@ import {
 import { ImagePlus, Pencil, Trash2 } from "lucide-react";
 
 import { useHeroBackground } from "@/lib/useHeroBackground";
+import usePrefersReducedMotion from "@/lib/usePrefersReducedMotion";
 import {
   getSiteConfig,
   refreshPublicSiteConfig,
@@ -29,8 +30,8 @@ import {
   setSiteConfig,
 } from "@/lib/siteConfig";
 import { IMAGE_UPLOAD_RECOMMENDATION } from "@/lib/uploadImage";
-import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, MENU } from "@/lib/auth";
+import { MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
 import {
   DEFAULT_HERO_EYEBROW,
   DEFAULT_HERO_TITLE,
@@ -57,8 +58,8 @@ export default function HeroSection() {
   const multiRef = useRef(null);
   const [intervalDraft, setIntervalDraft] = useState("");
   const [transitionDraft, setTransitionDraft] = useState("");
-  const user = useSyncedAuthUser();
-  const canEditHome = canMenuAction(user, MENU.HOME, "edit");
+  const canEditHome = useCanEdit(MENU.HOME);
+  const reduceMotion = usePrefersReducedMotion();
   const [heroEyebrow, setHeroEyebrow] = useState(DEFAULT_HERO_EYEBROW);
   const [heroTitle, setHeroTitle] = useState(DEFAULT_HERO_TITLE);
   const [heroTextOpen, setHeroTextOpen] = useState(false);
@@ -155,84 +156,117 @@ export default function HeroSection() {
     }
   };
 
+  const hasSlides = slides.length > 0;
+
   return (
     <section className="relative overflow-hidden">
-      {/* Fundo base (full-bleed) */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
+      {/* Wrapper alinhado ao conteúdo (mesma largura/padding do restante do site) */}
+      <div className="relative z-[2] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        {/* Caixa do hero com altura responsiva — usa fundo neutro do tema */}
+        <div
+          className="relative w-full max-h-[85vh] min-h-[260px] sm:min-h-[360px] overflow-hidden bg-muted/40"
+          style={{ aspectRatio: heroAspect }}
+        >
+          {/* Imagem alinhada ao conteúdo */}
+          <div className="absolute inset-0 z-[2] overflow-hidden">
+            {hasSlides ? (
+              <BackgroundSlideshow
+                urls={slides}
+                rotateIntervalMs={rotateIntervalMs}
+                transitionMs={transitionMs}
+                transitionMode={transitionMode}
+                fit="cover"
+              />
+            ) : (
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(ellipse 120% 80% at 20% 30%, hsl(var(--primary) / 0.18) 0%, transparent 55%), radial-gradient(ellipse 90% 50% at 90% 80%, hsl(var(--accent) / 0.14) 0%, transparent 50%)",
+                }}
+                aria-hidden
+              />
+            )}
+          </div>
 
-      {/* Wrapper com altura responsiva */}
-      <div
-        className="relative z-[2] w-full max-h-[85vh] min-h-[260px] sm:min-h-[360px]"
-        style={{ aspectRatio: heroAspect }}
-      >
-        {/* Imagem full-bleed (sem bordas laterais) */}
-        <div className="absolute inset-0 z-[2] overflow-hidden">
-          {slides.length > 0 ? (
-            <BackgroundSlideshow
-              urls={slides}
-              rotateIntervalMs={rotateIntervalMs}
-              transitionMs={transitionMs}
-              transitionMode={transitionMode}
-              fit="fill"
-            />
-          ) : (
-            <div
-              className="pointer-events-none absolute inset-0 opacity-10"
-              style={{
-                backgroundImage:
-                  "radial-gradient(circle at 20% 50%, #181818 0%, transparent 50%), radial-gradient(circle at 80% 20%, #a1a1aa 0%, transparent 40%)",
-              }}
-            />
-          )}
-        </div>
+          {/* Scrim para legibilidade — só sobre imagens (mais escuro) ou sutil sobre fallback */}
+          <div
+            className={
+              hasSlides
+                ? "pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/55 via-black/15 to-transparent"
+                : "pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-background/40 via-transparent to-transparent"
+            }
+            aria-hidden
+          />
 
-        {/* Conteúdo alinhado ao layout */}
-        <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full min-w-0 flex flex-col pb-6 sm:pb-8 lg:pb-10 pt-20 sm:pt-24">
+          {/* Conteúdo sobre a imagem */}
+          <div className="relative z-10 h-full w-full min-w-0 flex flex-col pb-6 sm:pb-8 lg:pb-10 pt-10 sm:pt-12 px-4 sm:px-6 lg:px-8">
           {canEditHome && (
             <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
               <Button
                 type="button"
-              size="sm"
-              variant="outline"
-              className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
-              onClick={() => {
-                setDraftEyebrow(heroEyebrow);
-                setDraftHeroTitle(heroTitle);
-                setHeroTextOpen(true);
-              }}
+                size="sm"
+                variant="outline"
+                className={
+                  hasSlides
+                    ? "border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
+                    : "gap-2 backdrop-blur-sm"
+                }
+                onClick={() => {
+                  setDraftEyebrow(heroEyebrow);
+                  setDraftHeroTitle(heroTitle);
+                  setHeroTextOpen(true);
+                }}
                 title="Editar — Títulos do hero"
-            >
-              <Pencil className="w-4 h-4" />
-              Títulos
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
-              onClick={() => setPanelOpen(true)}
+              >
+                <Pencil className="w-4 h-4" />
+                Títulos
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={
+                  hasSlides
+                    ? "border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
+                    : "backdrop-blur-sm"
+                }
+                onClick={() => setPanelOpen(true)}
                 title={`Editar — Fundo do hero. ${IMAGE_UPLOAD_RECOMMENDATION}`}
-            >
-              <ImagePlus className="w-4 h-4 mr-2" />
-              Fundo do hero
-            </Button>
+              >
+                <ImagePlus className="w-4 h-4 mr-2" />
+                Fundo do hero
+              </Button>
             </div>
           )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.75 }}
-          className="mt-auto max-w-3xl min-w-0 w-full"
-        >
-          <p className="text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]">
-            {heroEyebrow}
-          </p>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight break-words [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]">
-            {heroTitle}
-          </h1>
-        </motion.div>
-      </div>
+          <motion.div
+            initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.75 }}
+            className="mt-auto max-w-3xl min-w-0 w-full"
+          >
+            <p
+              className={
+                hasSlides
+                  ? "text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]"
+                  : "text-accent text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3"
+              }
+            >
+              {heroEyebrow}
+            </p>
+            <h1
+              className={
+                hasSlides
+                  ? "font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight break-words [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]"
+                  : "font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-[1.1] tracking-tight break-words"
+              }
+            >
+              {heroTitle}
+            </h1>
+          </motion.div>
+          </div>
+        </div>
       </div>
 
       <Dialog open={heroTextOpen} onOpenChange={setHeroTextOpen}>

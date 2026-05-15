@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Video,
   FileText,
+  Link2,
+  Lock,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ import SafeImg from "../components/shared/SafeImg";
 import MediaKindCornerBadge from "../components/shared/MediaKindCornerBadge";
 
 import { getUser, canMenuAction, MENU, isAdminUser } from "@/lib/auth";
+import { useEditMode } from "@/lib/EditModeContext";
 import { useAuth } from "@/lib/AuthContext";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
@@ -114,9 +117,13 @@ export default function Postagens() {
   }, [location.pathname, checkUserAuth]);
 
   const sessionUser = authUser ?? getUser();
-  const canCreate = canMenuAction(sessionUser, MENU.POSTAGENS, "create");
-  const canEdit = canMenuAction(sessionUser, MENU.POSTAGENS, "edit");
-  const canDelete = canMenuAction(sessionUser, MENU.POSTAGENS, "delete");
+  const { enabled: editMode } = useEditMode();
+  const canCreate =
+    canMenuAction(sessionUser, MENU.POSTAGENS, "create") && editMode;
+  const canEdit =
+    canMenuAction(sessionUser, MENU.POSTAGENS, "edit") && editMode;
+  const canDelete =
+    canMenuAction(sessionUser, MENU.POSTAGENS, "delete") && editMode;
 
   const PAGE_SIZE = 12;
   const sortParam = sortOrder === "asc" ? "data" : "-data";
@@ -230,9 +237,6 @@ export default function Postagens() {
                 <Link to="/Postagens/nova">
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Novo post</span>
-                  <span className="hidden sm:inline-flex items-center rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
-                    Beta
-                  </span>
                 </Link>
               </Button>
             ) : null}
@@ -343,7 +347,7 @@ export default function Postagens() {
               return (
                 <li
                   key={post.id}
-                  className="flex flex-col sm:flex-row rounded-2xl border border-border bg-card hover:border-accent/40 hover:shadow-md transition-all overflow-hidden group"
+                  className="flex flex-col sm:flex-row rounded-2xl border border-border bg-card hover:border-accent/40 card-hover overflow-hidden group"
                 >
                   <Link
                     to={`/Post/${post.id}`}
@@ -363,6 +367,26 @@ export default function Postagens() {
                             Rascunho
                           </Badge>
                         )}
+                        {p.visibility === "unlisted" ? (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 gap-1 text-[10px] uppercase tracking-wide"
+                            title="Não-listado — só com link direto"
+                          >
+                            <Link2 className="w-3 h-3" />
+                            Não-listado
+                          </Badge>
+                        ) : null}
+                        {p.visibility === "private" ? (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 gap-1 text-[10px] uppercase tracking-wide border-amber-500/50 text-amber-700 dark:text-amber-300"
+                            title="Privada — só autor e admin"
+                          >
+                            <Lock className="w-3 h-3" />
+                            Privada
+                          </Badge>
+                        ) : null}
                         <h3 className="font-semibold text-foreground text-lg leading-snug group-hover:text-accent transition-colors">
                           {p.titulo}
                         </h3>

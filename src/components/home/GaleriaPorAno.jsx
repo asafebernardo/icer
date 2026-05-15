@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Images } from "lucide-react";
 import SafeImg from "@/components/shared/SafeImg";
+import EmptyState from "@/components/shared/EmptyState";
 import {
   CORRUPT_IMAGE_FALLBACK_BG,
   CORRUPT_IMAGE_FALLBACK_IMAGE,
@@ -78,10 +79,11 @@ export default function GaleriaPorAno() {
         {isLoading ? (
           <p className="text-center text-muted-foreground py-16">A carregar…</p>
         ) : years.length === 0 ? (
-          <p className="text-center text-muted-foreground py-16 max-w-md mx-auto">
-            Ainda não há fotografias na galeria ou não têm data associada para
-            agrupar por ano.
-          </p>
+          <EmptyState
+            icon={Images}
+            title="Galeria vazia"
+            description="Ainda não há fotografias com data associada para agrupar por ano."
+          />
         ) : (
           years.map((year) => (
             <div key={year} className="mb-10">

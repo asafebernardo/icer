@@ -27,16 +27,20 @@ import {
   BookMarked,
   Server,
   Sparkles,
+  FileStack,
+  Pencil,
+  Search,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
-
+import { useEditMode } from "@/lib/EditModeContext";
+import useCanEdit from "@/lib/useCanEdit";
 import {
   refreshPublicSiteConfig,
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
+import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { useAuth } from "@/lib/AuthContext";
 import SiteLogoMark, {
@@ -48,6 +52,7 @@ import {
   DEFAULT_EXTRA_ADMIN_NAV_ITEMS,
   getAdminNavGroups,
 } from "@/lib/adminNavConfig";
+import { cn } from "@/lib/utils";
 
 // Menus base (sempre visíveis)
 const BASE_LINKS = [
@@ -62,6 +67,7 @@ export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
+  const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
   const { navigateToLogin } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const setThemeMode = (next) => {
@@ -72,7 +78,7 @@ export default function Navbar() {
 
   const isLoggedIn = !!sessionUser;
   const user = sessionUser;
-  const canEditLogo = canMenuAction(sessionUser, MENU.HOME, "edit");
+  const canEditLogo = useCanEdit(MENU.HOME);
   const logoUrl = useSiteLogoUrl();
   const isAdmin = isAdminUser(sessionUser);
   const accountAreaPath = isAdmin ? "/Admin" : "/Dashboard";
@@ -97,6 +103,7 @@ export default function Navbar() {
       site: Globe,
       google: Sparkles,
       server: Server,
+      uploads: FileStack,
       "login-blocks": ShieldAlert,
       "audit-log": ScrollText,
       "cadastros-opcoes": BookMarked,
@@ -112,7 +119,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 border-b border-border/60 bg-background/92 backdrop-blur-xl backdrop-saturate-150 shadow-nav transition-colors duration-300 supports-[backdrop-filter]:bg-background/82"
+      className="fixed top-0 left-0 right-0 z-50 border-b border-border/60 bg-background shadow-nav transition-colors duration-300"
       aria-label="Navegação principal"
     >
       <div className="container-page">
@@ -181,9 +188,26 @@ export default function Navbar() {
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("icer-open-cmdk"))}
+              className={cn(
+                "shrink-0 rounded-lg text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                "inline-flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center p-0",
+                "lg:h-9 lg:min-h-[40px] lg:w-auto lg:min-w-0 lg:justify-start lg:gap-2 lg:px-2.5 lg:py-2",
+                "lg:border lg:border-border/60 lg:bg-muted/40 lg:text-xs lg:font-medium",
+              )}
+              aria-label="Procurar páginas, postagens e eventos"
+              title="Procurar"
+            >
+              <Search className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="hidden max-w-[8rem] truncate lg:inline">Procurar…</span>
+            </Button>
+
+            <Button
+              variant="ghost"
               size="icon"
               onClick={toggle}
-              className="rounded-lg text-muted-foreground hover:text-foreground min-h-[44px] min-w-[44px]"
+              className="rounded-lg text-muted-foreground hover:bg-muted/30 hover:text-foreground min-h-[44px] min-w-[44px]"
               aria-label={
                 theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"
               }
@@ -203,7 +227,7 @@ export default function Navbar() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground min-h-[40px] px-3"
+                      className="flex items-center gap-2 rounded-lg text-muted-foreground hover:bg-muted/30 hover:text-foreground min-h-[40px] px-3"
                     >
                       <UserAvatar user={user} className="h-8 w-8" />
                       <span className="text-sm font-medium max-w-[120px] truncate">
@@ -225,6 +249,32 @@ export default function Navbar() {
                           layout="dropdown"
                           getHref={adminTabHref}
                         />
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleEditMode();
+                          }}
+                          onSelect={(e) => e.preventDefault()}
+                          className="flex cursor-pointer items-center justify-between gap-2 dark:data-[highlighted]:bg-white/18 dark:data-[highlighted]:text-foreground dark:focus:bg-white/18 dark:focus:text-foreground"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Pencil className="w-4 h-4" />
+                            Modo de edição
+                          </span>
+                          <span
+                            aria-hidden
+                            className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+                              editMode ? "bg-accent dark:bg-accent" : "bg-muted dark:bg-white/15"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3 w-3 transform rounded-full bg-background shadow transition-transform dark:bg-white dark:shadow-md ${
+                                editMode ? "translate-x-3.5" : "translate-x-0.5"
+                              }`}
+                            />
+                          </span>
+                        </DropdownMenuItem>
                       </>
                     ) : (
                       <DropdownMenuItem asChild>
@@ -264,7 +314,7 @@ export default function Navbar() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="min-h-[44px] min-w-[44px]"
+                    className="min-h-[44px] min-w-[44px] hover:bg-muted/30"
                     aria-label="Abrir menu"
                   >
                     {open ? (
@@ -276,24 +326,25 @@ export default function Navbar() {
                 </SheetTrigger>
                 <SheetContent
                   side="right"
-                  className="w-[min(100vw-2rem,20rem)] border-l border-border/70 bg-background/100 supports-[backdrop-filter]:bg-background/95 backdrop-blur-md p-0 overflow-y-auto overflow-x-hidden"
+                  className="w-[min(100vw-2rem,20rem)] border-l border-border/70 bg-background p-0 overflow-y-auto overflow-x-hidden"
                 >
                   <div className="pt-12 sm:pt-14">
                     <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
                       Navegação
                     </p>
                     <div className="px-4 pb-2">
-                      <div className="rounded-xl border border-border/70 bg-card/70 supports-[backdrop-filter]:bg-card/55 backdrop-blur-md p-1 flex items-center gap-1">
+                      <div className="rounded-xl border border-border/70 bg-muted p-1 flex items-center gap-1">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => setThemeMode("light")}
-                          className={`h-10 flex-1 rounded-lg justify-center gap-2 ${
+                          className={cn(
+                            "h-10 flex-1 rounded-lg justify-center gap-2 transition-colors",
                             theme !== "dark"
-                              ? "bg-background shadow-soft text-foreground"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
+                              ? "bg-background text-foreground shadow-soft hover:bg-muted/20"
+                              : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+                          )}
                           aria-pressed={theme !== "dark"}
                           aria-label="Ativar tema claro"
                         >
@@ -305,11 +356,12 @@ export default function Navbar() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setThemeMode("dark")}
-                          className={`h-10 flex-1 rounded-lg justify-center gap-2 ${
+                          className={cn(
+                            "h-10 flex-1 rounded-lg justify-center gap-2 transition-colors",
                             theme === "dark"
-                              ? "bg-background shadow-soft text-foreground"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
+                              ? "bg-background text-foreground shadow-soft hover:bg-muted/20"
+                              : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+                          )}
                           aria-pressed={theme === "dark"}
                           aria-label="Ativar tema escuro"
                         >
@@ -398,7 +450,7 @@ export default function Navbar() {
                               <Link
                                 to={accountAreaPath}
                                 onClick={() => setOpen(false)}
-                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-muted-foreground hover:bg-muted/80 hover:text-foreground min-w-0"
+                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-muted-foreground hover:bg-muted/30 hover:text-foreground min-w-0"
                               >
                                 <UserAvatar user={user} className="h-8 w-8 shrink-0" />
                                 <span className="truncate">{accountAreaLabel}</span>

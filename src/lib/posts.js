@@ -175,6 +175,11 @@ export function normalizePost(post) {
     post?.is_draft === true ||
     post?.status === "draft";
 
+  const visibility =
+    post?.visibility === "private" || post?.visibility === "unlisted"
+      ? post.visibility
+      : "public";
+
   return {
     ...(post && typeof post === "object" ? post : {}),
     titulo: post?.titulo || "",
@@ -201,6 +206,7 @@ export function normalizePost(post) {
         : "todas_secoes",
     is_draft: Boolean(isDraft),
     status: isDraft ? "draft" : "published",
+    visibility,
   };
 }
 

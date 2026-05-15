@@ -14,10 +14,12 @@ import {
 } from "react-router-dom";
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
+import { EditModeProvider } from "@/lib/EditModeContext";
 import UserNotRegisteredError from "@/components/UserNotRegisteredError";
 import AppErrorBoundary from "@/components/shared/AppErrorBoundary";
 
 import Layout from "./components/layout/Layout";
+import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import { ThemeProvider } from "./lib/ThemeContext";
 import Recursos from "./pages/Recursos";
@@ -50,19 +52,11 @@ const PrivateRoute = ({ children }) => {
   ]);
 
   if (isLoadingAuth || isLoadingPublicSettings) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
-      </div>
-    );
+    return <RouteSkeleton />;
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
-      </div>
-    );
+    return <RouteSkeleton />;
   }
 
   return children;
@@ -87,11 +81,7 @@ function LoginPathRedirect() {
     openLoginModal();
     navigate("/Home", { replace: true });
   }, [openLoginModal, navigate]);
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
-    </div>
-  );
+  return <RouteSkeleton />;
 }
 
 const AppRoutes = () => {
@@ -104,11 +94,7 @@ const AppRoutes = () => {
   }, [authError, navigateToLogin]);
 
   if (isLoadingPublicSettings) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
-      </div>
-    );
+    return <RouteSkeleton />;
   }
 
   if (authError?.type === "user_not_registered") {
@@ -116,11 +102,7 @@ const AppRoutes = () => {
   }
 
   if (authError?.type === "auth_required") {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
-      </div>
-    );
+    return <RouteSkeleton />;
   }
 
   return (
@@ -192,14 +174,16 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <Router>
           <AuthProvider>
-            <TooltipProvider delayDuration={300}>
-              <NativeTitleLifetime />
-              <TrackLastVisitedPath />
-              <AppErrorBoundary>
-                <AppRoutes />
-              </AppErrorBoundary>
-            </TooltipProvider>
-            <Toaster />
+            <EditModeProvider>
+              <TooltipProvider delayDuration={300}>
+                <NativeTitleLifetime />
+                <TrackLastVisitedPath />
+                <AppErrorBoundary>
+                  <AppRoutes />
+                </AppErrorBoundary>
+              </TooltipProvider>
+              <Toaster />
+            </EditModeProvider>
           </AuthProvider>
         </Router>
       </QueryClientProvider>
