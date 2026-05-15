@@ -1,13 +1,13 @@
 import { appParams } from "@/lib/app-params";
+import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { withCsrfHeader } from "@/lib/csrf";
 
 const ACCESS_STORAGE = "icer_access_token";
-const LEGACY_ACCESS_STORAGE = "base44_access_token";
 
 function getAppId() {
   return (
     appParams.appId ||
     import.meta.env.VITE_APP_ID ||
-    import.meta.env.VITE_BASE44_APP_ID ||
     ""
   );
 }
@@ -17,7 +17,6 @@ function getToken() {
   if (typeof window === "undefined") return null;
   return (
     localStorage.getItem(ACCESS_STORAGE) ||
-    localStorage.getItem(LEGACY_ACCESS_STORAGE) ||
     localStorage.getItem("token")
   );
 }
@@ -36,12 +35,11 @@ function buildBaseHeaders(extra = {}) {
     headers["X-Origin-URL"] = window.location.href;
   }
   const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const fv =
-    appParams.functionsVersion ||
-    import.meta.env.VITE_APP_FUNCTIONS_VERSION ||
-    import.meta.env.VITE_BASE44_FUNCTIONS_VERSION;
-  if (fv) headers["Base44-Functions-Version"] = String(fv);
+  if (token && !useServerEntities()) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const fv = appParams.functionsVersion || import.meta.env.VITE_APP_FUNCTIONS_VERSION;
+  if (fv) headers["X-Functions-Version"] = String(fv);
   return headers;
 }
 
@@ -60,6 +58,9 @@ async function request(method, path, { body, headers: headerOverrides } = {}) {
   const isForm = body instanceof FormData;
   const headers = buildBaseHeaders(headerOverrides);
   if (!isForm) headers["Content-Type"] = "application/json";
+  if (!/^GET$/i.test(String(method))) {
+    Object.assign(headers, withCsrfHeader(headers));
+  }
 
   const res = await fetch(`/api${path}`, {
     method,
@@ -332,14 +333,9 @@ function randomInvitePassword() {
 
 function createUsersModule(appId) {
   return {
-    inviteUser(user_email, role) {
-      if (role !== "user" && role !== "admin") {
-        throw new Error(
-          `Invalid role: "${role}". Role must be either "user" or "admin".`,
-        );
-      }
+    inviteUser(user_email) {
       return request("POST", `/apps/${appId}/runtime/users/invite-user`, {
-        body: { user_email, role },
+        body: { user_email, role: "admin" },
       });
     },
   };
@@ -391,6 +387,11 @@ export const api = new Proxy(
       if (prop === "setToken") {
         return (newToken) => {
           if (typeof window === "undefined") return;
+          if (useServerEntities()) {
+            localStorage.removeItem(ACCESS_STORAGE);
+            localStorage.removeItem("token");
+            return;
+          }
           if (newToken) localStorage.setItem(ACCESS_STORAGE, newToken);
           else localStorage.removeItem(ACCESS_STORAGE);
         };

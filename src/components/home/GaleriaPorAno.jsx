@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Images } from "lucide-react";
+import SafeImg from "@/components/shared/SafeImg";
+import EmptyState from "@/components/shared/EmptyState";
+import {
+  CORRUPT_IMAGE_FALLBACK_BG,
+  CORRUPT_IMAGE_FALLBACK_IMAGE,
+} from "@/lib/corruptImageFallback";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -21,7 +27,12 @@ function getYear(dateStr) {
 
 export default function GaleriaPorAno() {
   const [selected, setSelected] = useState(null);
+  const [lightboxFailed, setLightboxFailed] = useState(false);
   const [expandedYears, setExpandedYears] = useState({});
+
+  useEffect(() => {
+    setLightboxFailed(false);
+  }, [selected?.id]);
 
   const { data: fotos = [], isLoading } = useQuery({
     queryKey: ["galeria"],
@@ -68,10 +79,11 @@ export default function GaleriaPorAno() {
         {isLoading ? (
           <p className="text-center text-muted-foreground py-16">A carregar…</p>
         ) : years.length === 0 ? (
-          <p className="text-center text-muted-foreground py-16 max-w-md mx-auto">
-            Ainda não há fotografias na galeria ou não têm data associada para
-            agrupar por ano.
-          </p>
+          <EmptyState
+            icon={Images}
+            title="Galeria vazia"
+            description="Ainda não há fotografias com data associada para agrupar por ano."
+          />
         ) : (
           years.map((year) => (
             <div key={year} className="mb-10">
@@ -116,7 +128,7 @@ export default function GaleriaPorAno() {
                           style={i === 0 ? { aspectRatio: "1/1" } : {}}
                           onClick={() => setSelected(foto)}
                         >
-                          <img
+                          <SafeImg
                             src={foto.imagem_url}
                             alt={foto.titulo || ""}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
@@ -161,14 +173,32 @@ export default function GaleriaPorAno() {
               <X className="w-8 h-8" />
             </button>
             <div className="text-center" onClick={(e) => e.stopPropagation()}>
-              <motion.img
-                initial={{ scale: 0.85 }}
-                animate={{ scale: 1 }}
-                exit={{ scale: 0.85 }}
-                src={selected.imagem_url}
-                alt={selected.titulo}
-                className="max-w-3xl max-h-[80vh] object-contain rounded-xl shadow-2xl mx-auto"
-              />
+              {lightboxFailed ? (
+                <motion.div
+                  initial={{ scale: 0.85 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0.85 }}
+                  className="max-w-3xl max-h-[80vh] min-h-[200px] w-full rounded-xl shadow-2xl mx-auto bg-black"
+                  style={{
+                    backgroundColor: CORRUPT_IMAGE_FALLBACK_BG,
+                    backgroundImage: `url(${CORRUPT_IMAGE_FALLBACK_IMAGE})`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
+                  }}
+                  aria-hidden
+                />
+              ) : (
+                <motion.img
+                  initial={{ scale: 0.85 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0.85 }}
+                  src={selected.imagem_url}
+                  alt={selected.titulo}
+                  className="max-w-3xl max-h-[80vh] object-contain rounded-xl shadow-2xl mx-auto"
+                  onError={() => setLightboxFailed(true)}
+                />
+              )}
               {selected.titulo && (
                 <p className="text-white mt-3 font-semibold">
                   {selected.titulo}

@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  DEFAULT_POSTAGENS_PAGE_BACKGROUND,
+  DEFAULT_RECURSOS_PAGE_BACKGROUND,
+  DEFAULT_AGENDA_PAGE_BACKGROUND,
+  DEFAULT_EVENTOS_PAGE_BACKGROUND,
+  DEFAULT_ADMIN_PAGE_BACKGROUND,
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { canEditPageBackground, getUser } from "@/lib/auth";
 
@@ -8,7 +18,8 @@ function readCanEdit(pageKey) {
   return canEditPageBackground(getUser(), pageKey);
 }
 
-function readBgUrl(pageKey) {
+/** URL do fundo guardada em `siteConfig` (ex.: hero da página de login). */
+export function getPageBackgroundUrl(pageKey) {
   if (!pageKey) return "";
   const cfg = getSiteConfig();
   if (pageKey === "home") {
@@ -16,7 +27,70 @@ function readBgUrl(pageKey) {
     if (Array.isArray(sl) && sl.length > 0 && sl[0]) return sl[0];
     return cfg.pageBackgrounds?.home || cfg.heroBg || "";
   }
+  if (pageKey === "postagens") {
+    const custom = (cfg.pageBackgrounds?.postagens || "").trim();
+    return custom || DEFAULT_POSTAGENS_PAGE_BACKGROUND;
+  }
+  if (pageKey === "recursos") {
+    const custom = (cfg.pageBackgrounds?.recursos || "").trim();
+    return custom || DEFAULT_RECURSOS_PAGE_BACKGROUND;
+  }
+  if (pageKey === "agenda") {
+    const custom = (cfg.pageBackgrounds?.agenda || "").trim();
+    return custom || DEFAULT_AGENDA_PAGE_BACKGROUND;
+  }
+  if (pageKey === "eventos") {
+    const custom = (cfg.pageBackgrounds?.eventos || "").trim();
+    return custom || DEFAULT_EVENTOS_PAGE_BACKGROUND;
+  }
+  if (pageKey === "admin") {
+    const custom = (cfg.pageBackgrounds?.admin || "").trim();
+    return custom || DEFAULT_ADMIN_PAGE_BACKGROUND;
+  }
   return cfg.pageBackgrounds?.[pageKey] || "";
+}
+
+/** Indica se existe fundo definido pelo admin (não o pré-definido automático). */
+export function hasCustomPageBackground(pageKey) {
+  if (!pageKey) return false;
+  const cfg = getSiteConfig();
+  if (pageKey === "home") {
+    const sl = cfg.homeHeroSlides;
+    if (Array.isArray(sl) && sl.length > 0 && sl[0]) return true;
+    return Boolean((cfg.pageBackgrounds?.home || cfg.heroBg || "").trim());
+  }
+  return Boolean((cfg.pageBackgrounds?.[pageKey] || "").trim());
+}
+
+/** Cor por baixo do PNG em mosaico (alinhar ao tom do padrão). */
+const TILE_BASE_COLORS = {
+  postagens: "#e1ebf7",
+  recursos: "#e8f4ef",
+  agenda: "#faf6ed",
+  eventos: "#f3f0fa",
+  admin: "#f4f4f5",
+};
+
+const PAGE_KEYS_TILED_DEFAULT = ["postagens", "recursos", "agenda", "eventos", "admin"];
+
+/** "tile" para padrões repetidos pré-definidos; "cover" para imagens largas. */
+export function getPageBackgroundDisplayMode(pageKey) {
+  if (
+    pageKey &&
+    PAGE_KEYS_TILED_DEFAULT.includes(pageKey) &&
+    !hasCustomPageBackground(pageKey)
+  ) {
+    return "tile";
+  }
+  return "cover";
+}
+
+export function getPageBackgroundTileBaseColor(pageKey) {
+  return TILE_BASE_COLORS[pageKey] || "#e1ebf7";
+}
+
+function readBgUrl(pageKey) {
+  return getPageBackgroundUrl(pageKey);
 }
 
 /**
@@ -70,14 +144,23 @@ export function usePageBackground(pageKey) {
         ...(cfg.pageBackgrounds || {}),
         [pageKey]: nextUrl,
       };
-      if (pageKey === "home") {
-        setSiteConfig({ pageBackgrounds: nextBg, heroBg: nextUrl });
+      const patch =
+        pageKey === "home"
+          ? { pageBackgrounds: nextBg, heroBg: nextUrl }
+          : { pageBackgrounds: nextBg };
+
+      if (isAdmin) {
+        savePublicSiteConfigAdmin(patch)
+          .then(() => refreshPublicSiteConfig())
+          .catch(() => {
+            setSiteConfig(patch);
+          });
       } else {
-        setSiteConfig({ pageBackgrounds: nextBg });
+        setSiteConfig(patch);
       }
       setUrl(nextUrl);
     },
-    [pageKey],
+    [pageKey, isAdmin],
   );
 
   const handleFile = useCallback(

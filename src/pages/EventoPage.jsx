@@ -17,7 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import ResponsivePageBgImage from "@/components/shared/ResponsivePageBgImage";
+import SafeImg from "@/components/shared/SafeImg";
 import AdminPageBgButton from "@/components/shared/AdminPageBgButton";
+import PageSkeleton from "@/components/shared/PageSkeleton";
+import EventActionsBar from "@/components/shared/EventActionsBar";
 import { usePageBackground } from "@/lib/usePageBackground";
 import EventoFormPanel from "@/components/agenda/EventoFormPanel";
 import { ProgramIcon } from "@/components/agenda/programIcons";
@@ -27,7 +30,12 @@ import {
 } from "@/lib/eventPeriod";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { useAuth } from "@/lib/AuthContext";
-import { canEditPageBackground, canMenuAction, MENU } from "@/lib/auth";
+import { canEditPageBackground, MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
+import { useEditMode } from "@/lib/EditModeContext";
+import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
+import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
+import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -40,28 +48,22 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-/** Banner sem imagem: degradê só preto/cinza (não usa cor do evento) */
+/** Banner sem imagem — superfície institucional */
 const BANNER_FALLBACK_CLASS =
-  "bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-800";
+  "bg-gradient-to-r from-brand-surface via-brand-surface to-brand-surface/90";
 
-const categoriaColorsBg = {
-  culto: "bg-blue-600",
-  estudo: "bg-green-600",
-  jovens: "bg-purple-600",
-  mulheres: "bg-pink-500",
-  homens: "bg-orange-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-red-600",
-  conferencia: "bg-indigo-600",
-};
+const categoriaColorsBg = CATEGORY_BAR_CLASS;
 
 export default function EventoPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canEditEvento = canMenuAction(user, MENU.EVENTOS, "edit");
-  const canEditBanner = canEditPageBackground(user, "evento");
-  const { url: bannerBgUrl, handleFile } = usePageBackground("evento");
+  const tituloCorBarraMap = useTituloCorBarraMap();
+  const { enabled: editModeEnabled } = useEditMode();
+  const canEditEvento = useCanEdit(MENU.EVENTOS);
+  const canEditBanner =
+    canEditPageBackground(user, "evento") && editModeEnabled;
+  const { url: bannerBgUrl, handleFile, applyUrl } = usePageBackground("evento");
   const [diaAtivo, setDiaAtivo] = useState(null);
   const [editing, setEditing] = useState(false);
 
@@ -94,11 +96,7 @@ export default function EventoPage() {
   const date = evento?.data ? parseISO(evento.data) : null;
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <PageSkeleton cards={2} />;
   }
 
   if (!evento) {
@@ -112,7 +110,7 @@ export default function EventoPage() {
     );
   }
 
-  const barColor = eventCardBarClass(evento, categoriaColorsBg);
+  const barColor = eventCardBarClass(evento, categoriaColorsBg, tituloCorBarraMap);
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,7 +125,8 @@ export default function EventoPage() {
         {bannerBgUrl ? (
           <>
             <ResponsivePageBgImage src={bannerBgUrl} />
-            <div className="absolute inset-0 bg-black/55 pointer-events-none" />
+            <div className={imageScrimFlat} aria-hidden />
+            <div className={imageScrimBottom} aria-hidden />
           </>
         ) : (
           <>
@@ -150,34 +149,39 @@ export default function EventoPage() {
                   setEditing(true);
                 }
               }}
+              aria-label={editing ? "Fechar edição" : "Editar evento"}
             >
               <Pencil className="w-4 h-4" />
-              {editing ? "Fechar edição" : "Editar evento"}
+              <span className="hidden sm:inline">
+                {editing ? "Fechar edição" : "Editar evento"}
+              </span>
             </Button>
           )}
           <AdminPageBgButton
             visible={canEditBanner}
             onSelectFile={handleFile}
+            onClear={() => applyUrl("")}
+            hasBackground={Boolean((bannerBgUrl || "").trim())}
             className="relative"
           />
         </div>
-        <div className="max-w-4xl mx-auto relative z-10">
+        <div className="max-w-4xl mx-auto relative z-10 text-white">
           <Link
             to="/Agenda"
-            className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-sm mb-6 transition-colors"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm text-white/90 transition-colors hover:text-white"
           >
             <ArrowLeft className="w-4 h-4" /> Voltar para a agenda
           </Link>
           {evento.categoria && (
-            <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full mb-4">
+            <span className="mb-4 inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
               {categoriaLabels[evento.categoria] || evento.categoria}
             </span>
           )}
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
+          <h1 className="text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
             {evento.titulo}
           </h1>
           {date && (
-            <p className="text-white/80 mt-3 text-lg">
+            <p className="mt-3 text-lg text-white/90">
               {format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
             </p>
           )}
@@ -200,20 +204,22 @@ export default function EventoPage() {
 
         {!editing && (
         <div className="space-y-8 max-w-3xl">
-            {canEditOnPage ? (
-              <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <EventActionsBar evento={evento} />
+              {canEditOnPage ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="gap-2"
                   onClick={() => setEditing(true)}
+                  aria-label="Editar evento"
                 >
                   <Pencil className="w-4 h-4" />
-                  Editar evento
+                  <span className="hidden sm:inline">Editar evento</span>
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
             {/* Detalhes */}
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -268,9 +274,18 @@ export default function EventoPage() {
                 )}
                 {evento.preletor && (
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                      <Mic2 className="w-4 h-4 text-accent" />
-                    </div>
+                    {evento.preletor_avatar_url ? (
+                      <SafeImg
+                        src={evento.preletor_avatar_url}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover border border-border bg-muted shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        <Mic2 className="w-4 h-4 text-accent" />
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-muted-foreground">Preletor</p>
                       <p className="text-sm font-semibold text-foreground">
@@ -281,11 +296,20 @@ export default function EventoPage() {
                 )}
                 {evento.pastor && (
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-                      <User className="w-4 h-4 text-accent" />
-                    </div>
+                    {evento.pastor_avatar_url ? (
+                      <SafeImg
+                        src={evento.pastor_avatar_url}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover border border-border bg-muted shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4 text-accent" />
+                      </div>
+                    )}
                     <div>
-                      <p className="text-xs text-muted-foreground">Pastor</p>
+                      <p className="text-xs text-muted-foreground">Presbítero</p>
                       <p className="text-sm font-semibold text-foreground">
                         {evento.pastor}
                       </p>

@@ -1,0 +1,16 @@
+# Nixpacks / EasyPanel
+# - Build: só `npm run build` (nunca `node server/index.js` — precisa de Mongo em runtime).
+# - Start: `npm start` → `node server/index.js`
+# - NIXPACKS_PATH: evita "UndefinedVar" no Dockerfile gerado (ENV ... $NIXPACKS_PATH)
+
+[variables]
+NIXPACKS_NODE_VERSION = "20"
+# Valor base para expansão `...:$NIXPACKS_PATH` no template do Nixpacks
+NIXPACKS_PATH = "/app/node_modules/.bin"
+
+[phases.build]
+dependsOn = ["install"]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm start"

@@ -5,13 +5,21 @@ module.exports = {
   theme: {
     extend: {
       boxShadow: {
-        soft: "0 1px 2px rgb(0 0 0 / 0.04), 0 4px 20px -4px rgb(0 0 0 / 0.07)",
-        card: "0 2px 8px -2px rgb(0 0 0 / 0.06), 0 8px 32px -8px rgb(0 0 0 / 0.1)",
-        nav: "0 1px 0 rgb(0 0 0 / 0.05), 0 10px 28px -10px rgb(0 0 0 / 0.09)",
+        soft: "0 1px 2px hsl(var(--foreground) / 0.04), 0 8px 24px -6px hsl(var(--foreground) / 0.08)",
+        card: "0 2px 8px -2px hsl(var(--foreground) / 0.06), 0 12px 40px -12px hsl(var(--foreground) / 0.1)",
+        nav: "0 1px 0 hsl(var(--foreground) / 0.06), 0 12px 32px -12px hsl(var(--foreground) / 0.08)",
       },
       fontFamily: {
-        inter: ["var(--font-inter)"],
-        display: ["var(--font-display)"],
+        sans: [
+          "var(--font-inter)",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+        display: ["var(--font-display)", "var(--font-inter)", "system-ui", "sans-serif"],
+      },
+      transitionDuration: {
+        250: "250ms",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -68,6 +76,25 @@ module.exports = {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        brand: {
+          surface: "hsl(var(--brand-surface) / <alpha-value>)",
+          "surface-dark": "hsl(var(--brand-surface-dark) / <alpha-value>)",
+          on: "hsl(var(--on-brand) / <alpha-value>)",
+        },
+        category: {
+          culto: "hsl(var(--category-culto) / <alpha-value>)",
+          estudo: "hsl(var(--category-estudo) / <alpha-value>)",
+          jovens: "hsl(var(--category-jovens) / <alpha-value>)",
+          mulheres: "hsl(var(--category-mulheres) / <alpha-value>)",
+          homens: "hsl(var(--category-homens) / <alpha-value>)",
+          criancas: "hsl(var(--category-criancas) / <alpha-value>)",
+          especial: "hsl(var(--category-especial) / <alpha-value>)",
+          conferencia: "hsl(var(--category-conferencia) / <alpha-value>)",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
         },
       },
       keyframes: {

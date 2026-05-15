@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Images } from "lucide-react";
+import {
+  CORRUPT_IMAGE_FALLBACK_BG,
+  CORRUPT_IMAGE_FALLBACK_IMAGE,
+} from "@/lib/corruptImageFallback";
+import SafeImg from "@/components/shared/SafeImg";
+import EmptyState from "@/components/shared/EmptyState";
 
 const categoriaLabels = {
   culto: "Culto",
@@ -15,6 +21,11 @@ const categoriaLabels = {
 
 export default function GaleriaSection() {
   const [selected, setSelected] = useState(null);
+  const [lightboxFailed, setLightboxFailed] = useState(false);
+
+  useEffect(() => {
+    setLightboxFailed(false);
+  }, [selected?.id]);
 
   const { data: fotos = [], isLoading } = useQuery({
     queryKey: ["galeria"],
@@ -46,10 +57,12 @@ export default function GaleriaSection() {
         {isLoading ? (
           <p className="text-center text-muted-foreground py-12">A carregar…</p>
         ) : lista.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12 max-w-md mx-auto">
-            Ainda não há fotografias na galeria. Quando forem adicionadas na
-            administração, aparecerão aqui.
-          </p>
+          <EmptyState
+            icon={Images}
+            title="Galeria vazia"
+            description="Ainda não há fotografias. Quando forem adicionadas na administração, aparecerão aqui."
+            compact
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             {lista.slice(0, 6).map((foto, i) => (
@@ -64,7 +77,7 @@ export default function GaleriaSection() {
               `}
                 onClick={() => setSelected(foto)}
               >
-                <img
+                <SafeImg
                   src={foto.imagem_url}
                   alt={foto.titulo || ""}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
@@ -96,18 +109,37 @@ export default function GaleriaSection() {
             className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
             onClick={() => setSelected(null)}
           >
-            <button className="absolute top-4 right-4 text-white/80 hover:text-white">
+            <button type="button" className="absolute top-4 right-4 text-white/80 hover:text-white">
               <X className="w-8 h-8" />
             </button>
-            <motion.img
-              initial={{ scale: 0.85 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.85 }}
-              src={selected.imagem_url}
-              alt={selected.titulo}
-              className="max-w-3xl max-h-[85vh] object-contain rounded-xl shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
+            {lightboxFailed ? (
+              <motion.div
+                initial={{ scale: 0.85 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.85 }}
+                className="max-w-3xl max-h-[85vh] min-h-[200px] w-full rounded-xl shadow-2xl bg-black"
+                style={{
+                  backgroundColor: CORRUPT_IMAGE_FALLBACK_BG,
+                  backgroundImage: `url(${CORRUPT_IMAGE_FALLBACK_IMAGE})`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "center",
+                  backgroundSize: "cover",
+                }}
+                onClick={(e) => e.stopPropagation()}
+                aria-hidden
+              />
+            ) : (
+              <motion.img
+                initial={{ scale: 0.85 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.85 }}
+                src={selected.imagem_url}
+                alt={selected.titulo}
+                className="max-w-3xl max-h-[85vh] object-contain rounded-xl shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+                onError={() => setLightboxFailed(true)}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

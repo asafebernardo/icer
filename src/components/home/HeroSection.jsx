@@ -22,13 +22,21 @@ import {
 import { ImagePlus, Pencil, Trash2 } from "lucide-react";
 
 import { useHeroBackground } from "@/lib/useHeroBackground";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
-import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, MENU } from "@/lib/auth";
+import usePrefersReducedMotion from "@/lib/usePrefersReducedMotion";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
+import { IMAGE_UPLOAD_RECOMMENDATION } from "@/lib/uploadImage";
+import { MENU } from "@/lib/auth";
+import useCanEdit from "@/lib/useCanEdit";
 import {
   DEFAULT_HERO_EYEBROW,
   DEFAULT_HERO_TITLE,
 } from "@/lib/homeContentDefaults";
+import { toast } from "sonner";
 
 function formatSeconds(ms) {
   const s = Math.round((ms / 1000) * 10) / 10;
@@ -38,7 +46,6 @@ function formatSeconds(ms) {
 export default function HeroSection() {
   const {
     slides,
-    isAdmin,
     appendFromFiles,
     removeAt,
     clearAll,
@@ -51,13 +58,62 @@ export default function HeroSection() {
   const multiRef = useRef(null);
   const [intervalDraft, setIntervalDraft] = useState("");
   const [transitionDraft, setTransitionDraft] = useState("");
-  const user = useSyncedAuthUser();
-  const canEditHome = canMenuAction(user, MENU.HOME, "edit");
+  const canEditHome = useCanEdit(MENU.HOME);
+  const reduceMotion = usePrefersReducedMotion();
   const [heroEyebrow, setHeroEyebrow] = useState(DEFAULT_HERO_EYEBROW);
   const [heroTitle, setHeroTitle] = useState(DEFAULT_HERO_TITLE);
   const [heroTextOpen, setHeroTextOpen] = useState(false);
   const [draftEyebrow, setDraftEyebrow] = useState("");
   const [draftHeroTitle, setDraftHeroTitle] = useState("");
+  const didCountRef = useRef(false);
+
+  // Ajusta altura do hero para acompanhar o aspect ratio da imagem.
+  const [heroAspect, setHeroAspect] = useState(16 / 9);
+
+  useEffect(() => {
+    const first = slides?.[0];
+    if (!first) {
+      setHeroAspect(16 / 9);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      if (cancelled) return;
+      const w = Number(img.naturalWidth) || 0;
+      const h = Number(img.naturalHeight) || 0;
+      if (w > 0 && h > 0) {
+        const r = w / h;
+        // Clamp para evitar layouts extremos.
+        const clamped = Math.min(21 / 9, Math.max(4 / 3, r));
+        setHeroAspect(clamped);
+      }
+    };
+    img.onerror = () => {
+      if (!cancelled) setHeroAspect(16 / 9);
+    };
+    img.src = first;
+    return () => {
+      cancelled = true;
+    };
+  }, [slides]);
+
+  useEffect(() => {
+    if (didCountRef.current) return;
+    didCountRef.current = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/metrics/home-views", {
+          method: "POST",
+          credentials: "include",
+        });
+        if (!r.ok) return;
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const c = getSiteConfig();
@@ -100,82 +156,117 @@ export default function HeroSection() {
     }
   };
 
+  const hasSlides = slides.length > 0;
+
   return (
-    <section className="relative min-h-[70vh] sm:min-h-[80vh] lg:min-h-[85vh] flex flex-col overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-800" />
+    <section className="relative overflow-hidden">
+      {/* Wrapper alinhado ao conteúdo (mesma largura/padding do restante do site) */}
+      <div className="relative z-[2] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        {/* Caixa do hero com altura responsiva — usa fundo neutro do tema */}
+        <div
+          className="relative w-full max-h-[85vh] min-h-[260px] sm:min-h-[360px] overflow-hidden bg-muted/40"
+          style={{ aspectRatio: heroAspect }}
+        >
+          {/* Imagem alinhada ao conteúdo */}
+          <div className="absolute inset-0 z-[2] overflow-hidden">
+            {hasSlides ? (
+              <BackgroundSlideshow
+                urls={slides}
+                rotateIntervalMs={rotateIntervalMs}
+                transitionMs={transitionMs}
+                transitionMode={transitionMode}
+                fit="cover"
+              />
+            ) : (
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(ellipse 120% 80% at 20% 30%, hsl(var(--primary) / 0.18) 0%, transparent 55%), radial-gradient(ellipse 90% 50% at 90% 80%, hsl(var(--accent) / 0.14) 0%, transparent 50%)",
+                }}
+                aria-hidden
+              />
+            )}
+          </div>
 
-      <div className="absolute inset-0 overflow-hidden">
-        {slides.length > 0 ? (
-          <BackgroundSlideshow
-            urls={slides}
-            rotateIntervalMs={rotateIntervalMs}
-            transitionMs={transitionMs}
-            transitionMode={transitionMode}
-          />
-        ) : (
+          {/* Scrim para legibilidade — só sobre imagens (mais escuro) ou sutil sobre fallback */}
           <div
-            className="absolute inset-0 opacity-10 pointer-events-none"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 20% 50%, #181818 0%, transparent 50%), radial-gradient(circle at 80% 20%, #a1a1aa 0%, transparent 40%)",
-            }}
+            className={
+              hasSlides
+                ? "pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/55 via-black/15 to-transparent"
+                : "pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-background/40 via-transparent to-transparent"
+            }
+            aria-hidden
           />
-        )}
-      </div>
 
-      {/* Degradé pequeno na base, sobre as imagens — transição suave para a secção seguinte */}
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[22%] min-h-[90px] max-h-[180px] bg-gradient-to-t from-black/35 via-black/[0.08] to-transparent dark:from-zinc-950/55 dark:via-zinc-950/10"
-        aria-hidden
-      />
-
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col flex-1 min-h-0 justify-end pb-10 sm:pb-14 lg:pb-16 pt-28 sm:pt-32">
-        {(isAdmin || canEditHome) && (
-          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end">
-            {canEditHome && (
+          {/* Conteúdo sobre a imagem */}
+          <div className="relative z-10 h-full w-full min-w-0 flex flex-col pb-6 sm:pb-8 lg:pb-10 pt-10 sm:pt-12 px-4 sm:px-6 lg:px-8">
+          {canEditHome && (
+            <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
+                className={
+                  hasSlides
+                    ? "border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm gap-2"
+                    : "gap-2 backdrop-blur-sm"
+                }
                 onClick={() => {
                   setDraftEyebrow(heroEyebrow);
                   setDraftHeroTitle(heroTitle);
                   setHeroTextOpen(true);
                 }}
+                title="Editar — Títulos do hero"
               >
                 <Pencil className="w-4 h-4" />
                 Títulos
               </Button>
-            )}
-            {isAdmin && (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
+                className={
+                  hasSlides
+                    ? "border-white/50 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
+                    : "backdrop-blur-sm"
+                }
                 onClick={() => setPanelOpen(true)}
+                title={`Editar — Fundo do hero. ${IMAGE_UPLOAD_RECOMMENDATION}`}
               >
                 <ImagePlus className="w-4 h-4 mr-2" />
-                Fundos do hero
+                Fundo do hero
               </Button>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.75 }}
-          className="max-w-3xl"
-        >
-          <p className="text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3">
-            {heroEyebrow}
-          </p>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight">
-            {heroTitle}
-          </h1>
-        </motion.div>
+          <motion.div
+            initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.75 }}
+            className="mt-auto max-w-3xl min-w-0 w-full"
+          >
+            <p
+              className={
+                hasSlides
+                  ? "text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]"
+                  : "text-accent text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3"
+              }
+            >
+              {heroEyebrow}
+            </p>
+            <h1
+              className={
+                hasSlides
+                  ? "font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight break-words [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]"
+                  : "font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-[1.1] tracking-tight break-words"
+              }
+            >
+              {heroTitle}
+            </h1>
+          </motion.div>
+          </div>
+        </div>
       </div>
 
       <Dialog open={heroTextOpen} onOpenChange={setHeroTextOpen}>
@@ -214,7 +305,18 @@ export default function HeroSection() {
                 const t = draftHeroTitle.trim() || DEFAULT_HERO_TITLE;
                 setHeroEyebrow(e);
                 setHeroTitle(t);
-                setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                if (canEditHome) {
+                  savePublicSiteConfigAdmin({ heroEyebrow: e, heroTitle: t })
+                    .then(() => refreshPublicSiteConfig())
+                    .then(() => toast.success("Textos do topo salvos com sucesso."))
+                    .catch(() => {
+                      setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                      toast.success("Textos do topo salvos com sucesso.");
+                    });
+                } else {
+                  setSiteConfig({ heroEyebrow: e, heroTitle: t });
+                  toast.success("Textos do topo salvos com sucesso.");
+                }
                 setHeroTextOpen(false);
               }}
             >
@@ -227,10 +329,10 @@ export default function HeroSection() {
       <Dialog open={panelOpen} onOpenChange={setPanelOpen}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Fundos do hero</DialogTitle>
+            <DialogTitle>Fundo do hero</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Imagens de fundo na página inicial. Com várias fotos, elas alternam
+            Imagens de fundo do topo da página. Com várias fotos, elas alternam
             conforme o intervalo e o tipo de transição abaixo. Uma só imagem
             fica fixa. Formatos: PNG, JPG, WebP.
           </p>
@@ -333,13 +435,13 @@ export default function HeroSection() {
                   </span>
                   <Button
                     type="button"
-                    size="icon"
+                    size="sm"
                     variant="ghost"
-                    className="shrink-0 h-8 w-8"
+                    className="shrink-0 h-8 gap-1 px-2"
                     onClick={() => removeAt(i)}
-                    aria-label={`Remover imagem ${i + 1}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remover
                   </Button>
                 </li>
               ))}

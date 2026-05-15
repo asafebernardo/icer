@@ -7,20 +7,11 @@ import {
   isSameDay,
   isToday,
 } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { motion } from "framer-motion";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 
-const categoriaColors = {
-  culto: "bg-blue-500",
-  estudo: "bg-purple-500",
-  jovens: "bg-green-500",
-  mulheres: "bg-pink-500",
-  homens: "bg-indigo-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-orange-500",
-  conferencia: "bg-red-500",
-};
+const categoriaColors = CATEGORY_BAR_CLASS;
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -29,6 +20,8 @@ export default function MonthlyCalendar({
   eventos,
   onEventClick,
   onDayClick,
+  showPreletorCards = false,
+  tituloCorBarraMap = {},
 }) {
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
@@ -112,12 +105,23 @@ export default function MonthlyCalendar({
                     className="w-full text-left rounded-lg border border-border bg-card overflow-hidden shadow-sm hover:border-accent/50 transition-colors shrink-0"
                   >
                     <div
-                      className={`h-1 w-full ${eventCardBarClass(ev, categoriaColors)}`}
+                      className={`h-1 w-full ${eventCardBarClass(ev, categoriaColors, tituloCorBarraMap)}`}
                     />
                     <div className="px-1 py-1">
-                      <span className="text-[10px] font-semibold text-foreground line-clamp-2 leading-tight block">
-                        {ev.titulo}
-                      </span>
+                      {showPreletorCards ? (
+                        <>
+                          <span className="text-[10px] font-semibold text-foreground line-clamp-1 leading-tight block">
+                            {ev.titulo}
+                          </span>
+                          <span className="text-[10px] font-medium text-muted-foreground line-clamp-1 leading-tight block">
+                            {String(ev.preletor || "").trim() || "—"}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-foreground line-clamp-2 leading-tight block">
+                          {ev.titulo}
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}

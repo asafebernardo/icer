@@ -5,12 +5,15 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { LinkCardIcon } from "./LinkCardIcon";
 
+/**
+ * Formulário enxuto: título + URL + ícone (opcional).
+ * Descrição e categoria foram removidas da UI; campos legados existentes em
+ * registos antigos são preservados.
+ */
 export function UsefulLinkForm({ link, onSave, onCancel, inDialog }) {
   const [form, setForm] = useState({
     titulo: link?.titulo || "",
     url: link?.url || "",
-    descricao: link?.descricao || "",
-    categoria: link?.categoria || "Recursos",
     icone_url: link?.icone_url || "",
   });
 
@@ -18,8 +21,6 @@ export function UsefulLinkForm({ link, onSave, onCancel, inDialog }) {
     setForm({
       titulo: link?.titulo || "",
       url: link?.url || "",
-      descricao: link?.descricao || "",
-      categoria: link?.categoria || "Recursos",
       icone_url: link?.icone_url || "",
     });
   }, [link]);
@@ -90,16 +91,6 @@ export function UsefulLinkForm({ link, onSave, onCancel, inDialog }) {
           ) : null}
         </div>
       </div>
-      <Input
-        placeholder="Descrição"
-        value={form.descricao}
-        onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-      />
-      <Input
-        placeholder="Categoria (ex: Bíblia, Estudos, Música...)"
-        value={form.categoria}
-        onChange={(e) => setForm({ ...form, categoria: e.target.value })}
-      />
       <div className="flex gap-2 justify-end">
         <Button variant="outline" size="sm" onClick={onCancel}>
           Cancelar
@@ -110,6 +101,8 @@ export function UsefulLinkForm({ link, onSave, onCancel, inDialog }) {
           className="gap-1"
           onClick={() =>
             onSave({
+              // Preserva campos legados (descrição, categoria) se já existirem.
+              ...(link || {}),
               ...form,
               icone_url: (form.icone_url || "").trim(),
             })

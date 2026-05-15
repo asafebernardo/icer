@@ -2,8 +2,8 @@ import { api } from "@/api/client";
 import { getUser, isServerAuthEnabled } from "@/lib/auth";
 
 /**
- * Com `VITE_LOCAL_IMAGE_UPLOAD=true` no .env, as imagens não são enviadas ao servidor:
- * usam-se data URLs (base64), úteis para testes locais sem API de upload.
+ * Com `VITE_USE_SERVER_AUTH=true`, imagens e documentos vão para `POST /api/files` (disco no servidor).
+ * Com `VITE_LOCAL_IMAGE_UPLOAD=true`, as imagens ficam em data URL (base64) só no browser — útil para testes sem Mongo/API.
  */
 export function isLocalImageUploadEnabled() {
   return import.meta.env.VITE_LOCAL_IMAGE_UPLOAD === "true";
@@ -243,3 +243,7 @@ export async function imageFileToStorableUrl(file) {
     return imageFileToCompressedDataUrl(file);
   }
 }
+
+// Tooltip padrão (usar em todos os uploads de imagem).
+export const IMAGE_UPLOAD_RECOMMENDATION =
+  "Recomendado: JPG/WebP/PNG • até 2 MB • 1920 px no lado maior (mín. 1280 px).";

@@ -1,47 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect } from "react";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
-import { uploadImageFile } from "@/lib/uploadImage";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Shield,
-  Lock,
-  UserPlus,
-  Users,
-  Eye,
-  EyeOff,
-  Mail,
-  RefreshCw,
-  CheckCircle,
-  ImagePlus,
-  Settings,
-  FileText,
-  Trash2,
-  Search,
-  Palette,
-} from "lucide-react";
+import { Lock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "../components/shared/PageHeader";
+import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
+import AdminMembrosPanel from "@/components/dashboard/AdminMembrosPanel";
 import { isAdminUser, getUser } from "@/lib/auth";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
-import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-const MEMBER_MENUS = [
-  { key: "galeria", label: "Galeria de Fotos" },
-  { key: "materiais_tab", label: "Materiais (na aba Recursos)" },
-];
+import { isServerAuthEnabled } from "@/lib/serverAuth";
+import UserAvatar from "@/components/shared/UserAvatar";
 
 function GateAdmin() {
   return (
@@ -587,7 +553,6 @@ function TabConteudo() {
 // ── Página principal ──────────────────────────────────────────
 export default function Admin() {
   const [user, setUser] = useState(undefined);
-  const [activeTab, setActiveTab] = useState("membros");
 
   useEffect(() => {
     const sync = () => setUser(getUser());
@@ -600,25 +565,11 @@ export default function Admin() {
     };
   }, []);
 
-  const {
-    data: users = [],
-    isLoading: loadingUsers,
-    refetch,
-  } = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: () => api.entities.User.list(),
-    enabled: isAdminUser(user),
-  });
-
   if (user === undefined) {
     return (
       <div>
-        <PageHeader
-          pageKey="admin"
-          tag="Admin"
-          title="Painel Administrativo"
-        />
-        <div className="max-w-4xl mx-auto px-4 py-20 space-y-4">
+        <PageHeader tag="Admin" title="Painel administrativo" pageKey="admin" />
+        <div className="mx-auto max-w-5xl space-y-4 px-4 py-20">
           {Array(3)
             .fill(0)
             .map((_, i) => (
@@ -632,66 +583,41 @@ export default function Admin() {
   if (!user || user.role !== "admin") {
     return (
       <div>
-        <PageHeader
-          pageKey="admin"
-          tag="Admin"
-          title="Painel Administrativo"
-        />
+        <PageHeader tag="Admin" title="Painel administrativo" pageKey="admin" />
         <GateAdmin />
       </div>
     );
   }
 
-  const tabs = [
-    { key: "membros", label: "Membros", icon: Users },
-    { key: "conteudo", label: "Conteúdo", icon: FileText },
-    { key: "site", label: "Site", icon: Settings },
-  ];
+  const serverControlsEnabled =
+    isAdminUser(user) && isServerAuthEnabled() && user?._authSource === "server";
 
   return (
     <div>
       <PageHeader
-        pageKey="admin"
         tag="Administração"
-        title="Painel Administrativo"
-        description="Gerencie membros, acessos e configurações do site."
+        title="Painel administrativo"
+        description="Perfil, utilizadores, grupos de permissão, site, Google, servidor, segurança e restantes opções."
+        pageKey="admin"
       />
 
-      <section className="py-12 lg:py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Tabs */}
-          <div className="flex gap-1 bg-muted/60 rounded-xl p-1 mb-10 w-fit">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === tab.key
-                      ? "bg-card shadow text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+      <div className="mx-auto max-w-5xl p-4 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4 text-sm">
+          <UserAvatar user={user} className="h-10 w-10" />
+          <div>
+            <span className="text-muted-foreground">Sessão:</span>{" "}
+            <span className="font-medium text-foreground">{user.full_name || user.email}</span>
+            <span className="text-muted-foreground"> · </span>
+            <span className="text-foreground">{user.email}</span>
           </div>
-
-          {activeTab === "membros" && (
-            <TabMembros
-              user={user}
-              users={users}
-              loadingUsers={loadingUsers}
-              refetch={refetch}
-            />
-          )}
-          {activeTab === "conteudo" && <TabConteudo />}
-          {activeTab === "site" && <TabSite />}
         </div>
-      </section>
+
+        <AdminSettingsShell
+          tabMembrosSlot={
+            <AdminMembrosPanel adminUser={user} serverControlsEnabled={serverControlsEnabled} />
+          }
+        />
+      </div>
     </div>
   );
 }

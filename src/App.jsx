@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NativeTitleLifetime from "@/components/layout/NativeTitleLifetime";
@@ -8,94 +9,158 @@ import {
   Route,
   Routes,
   Navigate,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
+import { EditModeProvider } from "@/lib/EditModeContext";
 import UserNotRegisteredError from "@/components/UserNotRegisteredError";
+import AppErrorBoundary from "@/components/shared/AppErrorBoundary";
 
 import Layout from "./components/layout/Layout";
+import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import { ThemeProvider } from "./lib/ThemeContext";
 import Recursos from "./pages/Recursos";
 import Agenda from "./pages/Agenda.jsx";
 import Dashboard from "./pages/Dashboard";
+import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
 import Eventos from "./pages/Eventos";
+import EventosRotinas from "./pages/EventosRotinas";
+import EventosRotinasAgendar from "./pages/EventosRotinasAgendar";
 import Postagens from "./pages/Postagens";
-import Login from "./pages/Login";
+import PostagemEditor from "./pages/PostagemEditor";
+import PostPage from "./pages/PostPage";
+import AcceptInvite from "./pages/AcceptInvite";
+import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
-// Wrapper que protege rotas privadas — redireciona ao login se não autenticado
+// Rotas privadas — abre modal de login e envia para Início (efeito evita loop no render)
 const PrivateRoute = ({ children }) => {
-  const {
+  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, navigateToLogin } =
+    useAuth();
+
+  useEffect(() => {
+    if (isLoadingAuth || isLoadingPublicSettings) return;
+    if (!isAuthenticated) navigateToLogin();
+  }, [
     isAuthenticated,
     isLoadingAuth,
     isLoadingPublicSettings,
     navigateToLogin,
-  } = useAuth();
+  ]);
 
   if (isLoadingAuth || isLoadingPublicSettings) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+    return <RouteSkeleton />;
   }
 
   if (!isAuthenticated) {
-    navigateToLogin();
-    return null;
+    return <RouteSkeleton />;
   }
 
   return children;
 };
 
+function TrackLastVisitedPath() {
+  const location = useLocation();
+  useEffect(() => {
+    const p = location.pathname + location.search;
+    if (p !== "/login" && p !== "/Login") {
+      sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
+    }
+  }, [location.pathname, location.search]);
+  return null;
+}
+
+/** Links antigos para /login: abre o modal e vai para Início. */
+function LoginPathRedirect() {
+  const { openLoginModal } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    openLoginModal();
+    navigate("/Home", { replace: true });
+  }, [openLoginModal, navigate]);
+  return <RouteSkeleton />;
+}
+
 const AppRoutes = () => {
   const { isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
+  useEffect(() => {
+    if (authError?.type === "auth_required") {
+      navigateToLogin();
+    }
+  }, [authError, navigateToLogin]);
+
   if (isLoadingPublicSettings) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+    return <RouteSkeleton />;
   }
 
-  if (authError) {
-    if (authError.type === "user_not_registered") {
-      return <UserNotRegisteredError />;
-    }
-    // Para outros erros de auth (ex: app privado), redireciona ao login
-    if (authError.type === "auth_required") {
-      navigateToLogin();
-      return null;
-    }
+  if (authError?.type === "user_not_registered") {
+    return <UserNotRegisteredError />;
+  }
+
+  if (authError?.type === "auth_required") {
+    return <RouteSkeleton />;
   }
 
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/Home" replace />} />
 
-      {/* LOGIN FORA DO LAYOUT */}
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<LoginPathRedirect />} />
+      <Route path="/Login" element={<LoginPathRedirect />} />
+      <Route path="/accept-invite" element={<AcceptInvite />} />
 
       <Route element={<Layout />}>
-        {/* públicas */}
-        <Route path="/Home" element={<Home />} />
-        <Route path="/Recursos" element={<Recursos />} />
-        <Route path="/Agenda" element={<Agenda />} />
-
-        {/* Área autenticada: perfil para todos; separador Membros só para admin */}
+        <Route path="Home" element={<Home />} />
+        <Route path="Recursos" element={<Recursos />} />
         <Route
-          path="/Dashboard"
+          path="LinksUteis"
+          element={<Navigate to="/Recursos" replace />}
+        />
+        <Route path="Agenda" element={<Agenda />} />
+
+        <Route
+          path="Dashboard"
           element={
             <PrivateRoute>
               <Dashboard />
             </PrivateRoute>
           }
         />
-        <Route path="/Evento/:id" element={<EventoPage />} />
-        <Route path="/Eventos" element={<Eventos />} />
-        <Route path="/Postagens" element={<Postagens />} />
+        <Route
+          path="Admin"
+          element={
+            <PrivateRoute>
+              <Admin />
+            </PrivateRoute>
+          }
+        />
+        <Route path="Evento/:id" element={<EventoPage />} />
+        <Route path="Eventos" element={<Eventos />} />
+        <Route path="Eventos/rotinas" element={<EventosRotinas />} />
+        <Route path="Eventos/rotinas/agendar/:id" element={<EventosRotinasAgendar />} />
+        <Route path="Eventos/rotinas/agendar" element={<EventosRotinasAgendar />} />
+        <Route
+          path="Postagens/nova"
+          element={
+            <PrivateRoute>
+              <PostagemEditor />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="Postagens/editar/:id"
+          element={
+            <PrivateRoute>
+              <PostagemEditor />
+            </PrivateRoute>
+          }
+        />
+        <Route path="Postagens" element={<Postagens />} />
+        <Route path="Post/:id" element={<PostPage />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />
@@ -105,19 +170,24 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <TooltipProvider delayDuration={300}>
-            <NativeTitleLifetime />
-            <Router>
-              <AppRoutes />
-            </Router>
-          </TooltipProvider>
-          <Toaster />
-        </QueryClientProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClientInstance}>
+      <Router>
+        <AuthProvider>
+          <ThemeProvider>
+            <EditModeProvider>
+              <TooltipProvider delayDuration={300}>
+                <NativeTitleLifetime />
+                <TrackLastVisitedPath />
+                <AppErrorBoundary>
+                  <AppRoutes />
+                </AppErrorBoundary>
+              </TooltipProvider>
+              <Toaster />
+            </EditModeProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </Router>
+    </QueryClientProvider>
   );
 }
 

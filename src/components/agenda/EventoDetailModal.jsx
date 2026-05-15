@@ -10,6 +10,9 @@ import { Clock, MapPin, Mic2, UserRound, Pencil } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+import { CATEGORY_BADGE_QUIET_CLASS } from "@/lib/categoryAppearance";
+import SafeImg from "@/components/shared/SafeImg";
+
 const categoriaLabels = {
   culto: "Culto",
   estudo: "Estudo",
@@ -21,16 +24,7 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-const categoriaColors = {
-  culto: "bg-blue-100 text-blue-700",
-  estudo: "bg-green-100 text-green-700",
-  jovens: "bg-purple-100 text-purple-700",
-  mulheres: "bg-pink-100 text-pink-700",
-  homens: "bg-orange-100 text-orange-700",
-  criancas: "bg-yellow-100 text-yellow-700",
-  especial: "bg-red-100 text-red-700",
-  conferencia: "bg-indigo-100 text-indigo-700",
-};
+const categoriaColors = CATEGORY_BADGE_QUIET_CLASS;
 
 export default function EventoDetailModal({
   evento,
@@ -65,7 +59,7 @@ export default function EventoDetailModal({
         <div className="space-y-4 py-2">
           {evento.categoria && (
             <Badge
-              className={`${categoriaColors[evento.categoria]} border-0 text-xs`}
+              className={`${categoriaColors[evento.categoria] ?? "bg-muted text-foreground"} border-0 text-xs`}
             >
               {categoriaLabels[evento.categoria] || evento.categoria}
             </Badge>
@@ -109,9 +103,18 @@ export default function EventoDetailModal({
             <div className="flex flex-col gap-2 border border-border rounded-xl p-3">
               {evento.preletor && (
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center">
-                    <Mic2 className="w-4 h-4 text-accent" />
-                  </div>
+                  {evento.preletor_avatar_url ? (
+                    <SafeImg
+                      src={evento.preletor_avatar_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-border bg-muted shrink-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+                      <Mic2 className="w-4 h-4 text-accent" />
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Preletor</p>
                     <p className="text-sm font-semibold text-foreground">
@@ -122,11 +125,20 @@ export default function EventoDetailModal({
               )}
               {evento.pastor && (
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
-                    <UserRound className="w-4 h-4 text-primary" />
-                  </div>
+                  {evento.pastor_avatar_url ? (
+                    <SafeImg
+                      src={evento.pastor_avatar_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-border bg-muted shrink-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                      <UserRound className="w-4 h-4 text-primary" />
+                    </div>
+                  )}
                   <div>
-                    <p className="text-xs text-muted-foreground">Pastor</p>
+                    <p className="text-xs text-muted-foreground">Presbítero</p>
                     <p className="text-sm font-semibold text-foreground">
                       {evento.pastor}
                     </p>

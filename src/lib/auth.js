@@ -3,13 +3,13 @@ import {
   getMemberPermissions,
   getMenuPermBlock,
   permKeyForUser,
-  migrateMemberStorageForEmailChange,
 } from "@/lib/memberRegistry";
 import {
   persistSessionUser,
   readSessionUser,
   clearSessionUser,
 } from "@/lib/sessionIntegrity";
+import { fetchJson, isServerAuthEnabled } from "@/lib/serverAuth";
 import {
   findLocalAccount,
   verifyLocalLogin,
@@ -53,7 +53,7 @@ const PAGE_KEY_TO_MENU = {
   eventos: MENU.EVENTOS,
   recursos: MENU.RECURSOS,
   dashboard: MENU.DASHBOARD,
-  materiais: MENU.MATERIAIS_TAB,
+  materiais: MENU.RECURSOS,
   links: MENU.RECURSOS,
   evento: MENU.EVENTOS,
   contato: MENU.HOME,
@@ -61,39 +61,29 @@ const PAGE_KEY_TO_MENU = {
   admin: MENU.DASHBOARD,
 };
 
-/**
- * Login local opcional (apenas desenvolvimento / demo).
- * Defina no .env: VITE_ENABLE_DEMO_LOGIN=true, VITE_DEMO_ADMIN_EMAIL, VITE_DEMO_ADMIN_PASSWORD
- * Nunca ative com palavra-passe fraca em produção.
- */
-export function resolveLoginUser(email, senha) {
-  const enabled = import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
-  const demoEmail = String(
-    import.meta.env.VITE_DEMO_ADMIN_EMAIL || "",
-  )
-    .toLowerCase()
-    .trim();
-  const demoPass = String(import.meta.env.VITE_DEMO_ADMIN_PASSWORD || "");
-  if (!enabled || !demoEmail || !demoPass) {
-    return null;
-  }
-  const e = String(email || "").toLowerCase().trim();
-  if (e === demoEmail && senha === demoPass) {
-    return { email: e, role: "admin" };
-  }
-  return null;
-}
+export { isServerAuthEnabled };
 
-function isDemoEmail(email) {
-  const enabled = import.meta.env.VITE_ENABLE_DEMO_LOGIN === "true";
-  const demoEmail = String(import.meta.env.VITE_DEMO_ADMIN_EMAIL || "")
-    .toLowerCase()
-    .trim();
-  return (
-    enabled &&
-    !!demoEmail &&
-    String(email || "").toLowerCase().trim() === demoEmail
-  );
+async function loginWithServer(email, senha, opts = {}) {
+  const body = { email, password: senha };
+  if (opts?.forceNewSession === true) {
+    body.force_new_session = true;
+  }
+  await fetchJson("/auth/login", {
+    method: "POST",
+    body,
+  });
+  const u = await fetchJson("/auth/me", { method: "GET" });
+  const userData = {
+    id: u.id,
+    email: u.email,
+    full_name: u.full_name,
+    role: u.role,
+    funcao: u.funcao ?? "",
+    avatar_url: u.avatar_url ? String(u.avatar_url) : "",
+    _authSource: "server",
+  };
+  persistSessionUser(userData);
+  recordMemberLogin(userData);
 }
 
 export { isServerAuthEnabled };
@@ -113,6 +103,11 @@ function syncLocalUsersSnapshot(oldEmail, newEmail, full_name) {
   } catch {
     /* ignore */
   }
+  if (code === "login_unavailable") {
+    return "Acesso temporariamente indisponível para esta conta/rede por excesso de tentativas. Tente novamente mais tarde.";
+  }
+  if (code && code !== "Error") return code;
+  return "Não foi possível iniciar sessão.";
 }
 
 async function loginWithServer(email, senha) {
@@ -135,24 +130,19 @@ async function loginWithServer(email, senha) {
 }
 
 /**
- * @returns {Promise<boolean>}
+ * @param {{ forceNewSession?: boolean }} [opts]
+ * @returns {Promise<
+ *   | { ok: true }
+ *   | { ok: false; message: string; sessionAlreadyActive?: boolean }
+ * >}
  */
-export async function login(email, senha) {
-  const demo = resolveLoginUser(email, senha);
-  if (demo) {
-    const e = demo.email;
-    const full_name =
-      String(import.meta.env.VITE_DEMO_ADMIN_FULL_NAME || "").trim() ||
-      e.split("@")[0];
-    const userData = {
-      email: e,
-      role: demo.role,
-      full_name,
-      _authSource: "demo",
+export async function login(email, senha, opts = {}) {
+  if (!isServerAuthEnabled()) {
+    return {
+      ok: false,
+      message:
+        "Autenticação do servidor desativada. Ative `VITE_USE_SERVER_AUTH=true` para usar contas no MongoDB.",
     };
-    persistSessionUser(userData);
-    recordMemberLogin(userData);
-    return true;
   }
 
   if (isServerAuthEnabled()) {
@@ -204,6 +194,7 @@ export function isAdminUser(user) {
  */
 export function canMenuAction(user, menuKey, action) {
   if (!user) return false;
+  if (isServerAuthEnabled() && user._authSource === "server") return true;
   if (isAdminUser(user)) return true;
   if (action !== "create" && action !== "edit" && action !== "delete") {
     return false;
@@ -220,6 +211,14 @@ export function canMenuAction(user, menuKey, action) {
   const perms = getMemberPermissions();
   const key = permKeyForUser(user);
   return !!getMenuPermBlock(perms, key, menuKey)[action];
+}
+
+/** Página Recursos (materiais + links): um único menu «recursos», com legado «materiais_tab». */
+export function canRecursosMenuAction(user, action) {
+  return (
+    canMenuAction(user, MENU.RECURSOS, action) ||
+    canMenuAction(user, MENU.MATERIAIS_TAB, action)
+  );
 }
 
 export function pageKeyToMenuKey(pageKey) {
@@ -261,10 +260,11 @@ export async function verifyCurrentPassword(user, plainPassword) {
 }
 
 /**
- * Atualiza nome, e-mail e opcionalmente a palavra-passe (hash PBKDF2 na conta local).
- * Conta demo: só o nome em sessão; e-mail e senha vêm do .env.
+ * Atualiza perfil do utilizador autenticado.
+ * Em modo servidor: persiste no MongoDB via API.
+ * Sessão demo: permite apenas alterar o nome em sessão.
  *
- * @param {{ full_name: string, email: string, currentPassword: string, newPassword?: string }} fields
+ * @param {{ full_name: string, email: string, currentPassword: string, newPassword?: string, avatar_url?: string }} fields
  */
 export async function updateUserProfile(fields) {
   const cur = readSessionUser();
@@ -324,61 +324,23 @@ export async function updateUserProfile(fields) {
   if (isDemoEmail(oldEmail)) {
     if (nextEmail !== oldEmail || newPassword.length > 0) {
       throw new Error(
-        "Conta de demonstração: o e-mail e a palavra-passe estão definidos no ficheiro .env.",
+        m === "current_password_required"
+          ? "Informe a palavra-passe atual."
+          : m === "password_not_set"
+            ? "A sua conta ainda não tem palavra-passe. Use o link do convite para criar a sua palavra-passe."
+            : m === "invalid_credentials"
+              ? "Palavra-passe atual incorreta."
+              : m || "Não foi possível atualizar o perfil.",
       );
     }
-    const next = { ...cur, full_name: nextName };
-    persistSessionUser(next);
-    recordMemberLogin(next);
-    return next;
   }
 
-  const localAcc = findLocalAccount(oldEmail);
-  if (!localAcc) {
-    throw new Error(
-      "Só é possível alterar a palavra-passe para contas registadas neste navegador (login local).",
-    );
-  }
-
-  if (nextEmail !== oldEmail) {
-    const clash = findLocalAccount(nextEmail);
-    if (clash) {
-      throw new Error("Este e-mail já está registado.");
-    }
-    migrateMemberStorageForEmailChange(oldEmail, nextEmail, cur.id);
-    syncLocalUsersSnapshot(oldEmail, nextEmail, nextName);
-    updateLocalAccountMeta(oldEmail, {
-      email: nextEmail,
-      full_name: nextName,
-      role: cur.role || localAcc.role || "user",
-    });
-  } else {
-    updateLocalAccountMeta(oldEmail, {
-      email: nextEmail,
-      full_name: nextName,
-      role: cur.role || localAcc.role || "user",
-    });
-    syncLocalUsersSnapshot(oldEmail, nextEmail, nextName);
-  }
-
-  if (newPassword.length > 0) {
-    if (newPassword.length < 8) {
-      throw new Error("A nova palavra-passe deve ter pelo menos 8 caracteres.");
-    }
-    await updateLocalAccountPassword(nextEmail, newPassword);
-  }
-
-  const next = {
-    ...cur,
-    email: nextEmail,
-    full_name: nextName,
-  };
-  persistSessionUser(next);
-  recordMemberLogin(next);
-  return next;
+  throw new Error(
+    "Apenas contas do servidor podem ser editadas. Crie e gerencie utilizadores pelo servidor (MongoDB).",
+  );
 }
 
 /** Sessão da conta de demonstração (.env) — e-mail e senha não se editam na UI. */
 export function isDemoAdminSession(user) {
-  return isDemoEmail(user?.email);
+  return false;
 }

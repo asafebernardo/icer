@@ -22,11 +22,14 @@ export function hashSessionPayload(payload, secret) {
 }
 
 function stableUserPayload(user) {
-  return JSON.stringify({
-    email: String(user?.email || "").toLowerCase().trim(),
-    role: String(user?.role || ""),
-    full_name: String(user?.full_name || ""),
-  });
+  const email = String(user?.email || "").toLowerCase().trim();
+  const role = String(user?.role || "");
+  const full_name = String(user?.full_name || "");
+  const avatar_url = String(user?.avatar_url || "").trim();
+  if (avatar_url) {
+    return JSON.stringify({ email, role, full_name, avatar_url });
+  }
+  return JSON.stringify({ email, role, full_name });
 }
 
 export function persistSessionUser(user) {

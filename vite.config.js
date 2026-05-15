@@ -1,9 +1,42 @@
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function readPackageVersion() {
+  const raw = readFileSync(path.join(__dirname, "package.json"), "utf8");
+  return JSON.parse(raw).version ?? "0.0.0";
+}
+
+/** Curto SHA do commit atual; vazio fora de um repo Git (ex.: zip do CI sem .git). */
+function readGitShortSha() {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      encoding: "utf8",
+      cwd: __dirname,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Nome da branch atual; vazio fora de um repo Git ou em detached HEAD sem nome. */
+function readGitBranch() {
+  try {
+    return execSync("git rev-parse --abbrev-ref HEAD", {
+      encoding: "utf8",
+      cwd: __dirname,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -17,6 +50,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     logLevel: "error",
+    define: {
+      "import.meta.env.VITE_ICER_SEMVER": JSON.stringify(icerSemver),
+      "import.meta.env.VITE_ICER_GIT_SHA": JSON.stringify(icerGitSha || "unknown"),
+      "import.meta.env.VITE_ICER_GIT_BRANCH": JSON.stringify(icerGitBranch || ""),
+      "import.meta.env.VITE_ICER_BUILD_ID": JSON.stringify(icerBuildId),
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

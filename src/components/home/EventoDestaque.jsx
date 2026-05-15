@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Link } from "react-router-dom";
@@ -5,19 +6,19 @@ import { format, parseISO, isFuture } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar, Clock, MapPin, ArrowRight, Star } from "lucide-react";
 import { motion } from "framer-motion";
+import SafeImg from "@/components/shared/SafeImg";
 import { listEventosMerged } from "@/lib/eventosQuery";
 import { eventCardBarClass } from "@/lib/eventCardColors";
+import { useTituloCorBarraMap } from "@/hooks/useTituloCorBarraMap";
+import { useTituloImagensFundoMap } from "@/hooks/useTituloImagensFundoMap";
+import { tituloImagensFundoUrls } from "@/lib/eventTitleCardBackgrounds";
+import CadastroTitleBackground from "@/components/shared/CadastroTitleBackground";
+import {
+  CATEGORY_BAR_CLASS,
+  CATEGORY_SOFT_BADGE_CLASS,
+} from "@/lib/categoryAppearance";
 
-const categoriaBg = {
-  culto: "bg-blue-600",
-  estudo: "bg-green-600",
-  jovens: "bg-purple-600",
-  mulheres: "bg-pink-500",
-  homens: "bg-orange-500",
-  criancas: "bg-yellow-500",
-  especial: "bg-red-600",
-  conferencia: "bg-indigo-600",
-};
+const categoriaBg = CATEGORY_BAR_CLASS;
 
 const categoriaLabels = {
   culto: "Culto",
@@ -30,40 +31,32 @@ const categoriaLabels = {
   conferencia: "Conferência",
 };
 
-const categoriaLight = {
-  culto: "bg-blue-50 text-blue-700 border-blue-200",
-  estudo: "bg-green-50 text-green-700 border-green-200",
-  jovens: "bg-purple-50 text-purple-700 border-purple-200",
-  mulheres: "bg-pink-50 text-pink-700 border-pink-200",
-  homens: "bg-orange-50 text-orange-700 border-orange-200",
-  criancas: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  especial: "bg-red-50 text-red-700 border-red-200",
-  conferencia: "bg-indigo-50 text-indigo-700 border-indigo-200",
-};
+const categoriaLight = CATEGORY_SOFT_BADGE_CLASS;
 
 export default function EventoDestaque() {
+  const tituloCorBarraMap = useTituloCorBarraMap();
+  const tituloImagensFundoMap = useTituloImagensFundoMap();
   const { data: eventos = [] } = useQuery({
     queryKey: ["eventos"],
     queryFn: listEventosMerged,
   });
 
-  // Pega o próximo evento futuro com categoria 'especial' ou 'conferencia', senão o próximo evento qualquer
-  const agora = new Date();
   const futuros = eventos
     .filter((e) => e.data && isFuture(parseISO(e.data + "T23:59:59")))
     .sort((a, b) => a.data.localeCompare(b.data));
 
-  const destaque =
-    futuros.find((e) => e.destaque) ||
-    futuros.find(
-      (e) => e.categoria === "especial" || e.categoria === "conferencia",
-    ) ||
-    futuros[0];
+  /** Só eventos com «Destacar evento» no formulário — sem usar o próximo futuro como substituto. */
+  const destaque = futuros.find((e) => e.destaque);
 
   if (!destaque) return null;
 
   const date = parseISO(destaque.data);
-  const barColor = eventCardBarClass(destaque, categoriaBg);
+  const barColor = eventCardBarClass(destaque, categoriaBg, tituloCorBarraMap);
+  const cadastroBgUrls = useMemo(
+    () => tituloImagensFundoUrls(destaque, tituloImagensFundoMap),
+    [destaque.titulo, destaque.imagem_url, tituloImagensFundoMap],
+  );
+  const showCadastroBg = cadastroBgUrls.length > 0;
 
   return (
     <section className="py-12 bg-gradient-to-br from-primary/5 via-background to-accent/5 border-b border-border">
@@ -79,8 +72,12 @@ export default function EventoDestaque() {
           <motion.div
             whileHover={{ y: -3 }}
             transition={{ type: "spring", stiffness: 300 }}
-            className="group bg-card border border-border rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow cursor-pointer"
+            className="group relative bg-card border border-border rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow cursor-pointer"
           >
+            {showCadastroBg ? (
+              <CadastroTitleBackground urls={cadastroBgUrls} />
+            ) : null}
+            <div className="relative z-10">
             <div className={`h-1.5 w-full ${barColor}`} />
             <div className="p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
               {/* Data destacada */}
@@ -137,11 +134,20 @@ export default function EventoDestaque() {
               </div>
 
               {/* CTA */}
-              <div className="shrink-0">
+              <div className="shrink-0 flex items-center gap-4">
+                {destaque.preletor_avatar_url ? (
+                  <SafeImg
+                    src={destaque.preletor_avatar_url}
+                    alt=""
+                    className="h-14 w-14 rounded-full object-cover border border-border bg-muted shadow-sm"
+                    loading="lazy"
+                  />
+                ) : null}
                 <span className="inline-flex items-center gap-2 bg-accent text-accent-foreground text-sm font-semibold px-5 py-2.5 rounded-xl group-hover:bg-accent/90 transition-colors">
                   Ver detalhes <ArrowRight className="w-4 h-4" />
                 </span>
               </div>
+            </div>
             </div>
           </motion.div>
         </Link>

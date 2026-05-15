@@ -1,33 +1,70 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { UserCircle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import PasswordRevealInput from "@/components/shared/PasswordRevealInput";
+import {
+  validateAccountPassword,
+  accountPasswordPolicyHint,
+  passwordPolicyErrorMessagePt,
+} from "@/lib/passwordPolicy";
 import { useAuth } from "@/lib/AuthContext";
-import { isDemoAdminSession } from "@/lib/auth";
+import { isDemoAdminSession, isServerAuthEnabled } from "@/lib/auth";
+import UserAvatar from "@/components/shared/UserAvatar";
+import {
+  IMAGE_UPLOAD_RECOMMENDATION,
+  uploadImageFile,
+} from "@/lib/uploadImage";
+import { toast } from "sonner";
 
 export default function ProfileSettings({ user: userProp }) {
   const { updateProfile } = useAuth();
   const user = userProp;
   const demo = isDemoAdminSession(user);
+  const canAvatar =
+    !demo && isServerAuthEnabled() && user?._authSource === "server";
 
+  const fileRef = useRef(null);
   const [fullName, setFullName] = useState(
     () => user?.full_name || user?.email?.split("@")[0] || "",
   );
   const [email, setEmail] = useState(() => user?.email || "");
+  const [avatarUrl, setAvatarUrl] = useState(() =>
+    String(user?.avatar_url || "").trim(),
+  );
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
+  const requiresCurrentPassword = !demo && (!!newPassword || email !== (user?.email || ""));
 
   useEffect(() => {
     if (!user) return;
     setFullName(user.full_name || user.email?.split("@")[0] || "");
     setEmail(user.email || "");
-  }, [user?.email, user?.full_name]);
+    setAvatarUrl(String(user.avatar_url || "").trim());
+  }, [user?.email, user?.full_name, user?.avatar_url]);
+
+  const handleAvatarPick = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f || !canAvatar) return;
+    setError(null);
+    setAvatarBusy(true);
+    try {
+      const { file_url } = await uploadImageFile(f);
+      if (file_url) setAvatarUrl(file_url);
+    } catch (err) {
+      setError(err?.message || "Não foi possível enviar a imagem.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,6 +75,13 @@ export default function ProfileSettings({ user: userProp }) {
       setError("A confirmação da nova palavra-passe não coincide.");
       return;
     }
+    if (newPassword) {
+      const pw = validateAccountPassword(newPassword);
+      if (!pw.ok) {
+        setError(passwordPolicyErrorMessagePt(pw.code));
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -46,8 +90,10 @@ export default function ProfileSettings({ user: userProp }) {
         email,
         currentPassword,
         newPassword: newPassword || undefined,
+        ...(canAvatar ? { avatar_url: avatarUrl } : {}),
       });
-      setMessage("Alterações guardadas.");
+      setMessage("Alterações salvas.");
+      toast.success("Alterações salvas com sucesso.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -67,14 +113,11 @@ export default function ProfileSettings({ user: userProp }) {
       className="bg-card border border-border rounded-2xl p-6"
     >
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-          <UserCircle className="w-5 h-5 text-accent" />
-        </div>
+        <UserAvatar user={user} className="h-10 w-10" />
         <div>
           <h2 className="font-semibold text-foreground text-lg">A minha conta</h2>
           <p className="text-sm text-muted-foreground">
-            Nome, e-mail e palavra-passe (armazenada com hash seguro neste
-            navegador)
+            Nome, e-mail, foto de perfil e palavra-passe
           </p>
         </div>
       </div>
@@ -89,6 +132,58 @@ export default function ProfileSettings({ user: userProp }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
+        {canAvatar ? (
+          <div className="space-y-3 pb-4 border-b border-border">
+            <Label>Foto de perfil</Label>
+            <div className="flex flex-wrap items-center gap-4">
+              <UserAvatar
+                user={{ ...user, avatar_url: avatarUrl }}
+                className="h-20 w-20"
+              />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarPick}
+              />
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={avatarBusy}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  {avatarBusy ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      A enviar…
+                    </>
+                  ) : (
+                    "Escolher imagem"
+                  )}
+                </Button>
+                {avatarUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => setAvatarUrl("")}
+                  >
+                    Remover foto
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{IMAGE_UPLOAD_RECOMMENDATION}</p>
+            <p className="text-xs text-muted-foreground">
+              Guarde com &quot;Salvar&quot; para aplicar a foto na sua conta.
+            </p>
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           <Label htmlFor="profile-name">Nome</Label>
           <Input
@@ -109,22 +204,28 @@ export default function ProfileSettings({ user: userProp }) {
             autoComplete="email"
           />
         </div>
+        <p className="text-xs text-muted-foreground max-w-lg">
+          {accountPasswordPolicyHint()}
+        </p>
         <div className="space-y-2">
           <Label htmlFor="profile-current">Palavra-passe atual</Label>
-          <Input
+          <PasswordRevealInput
             id="profile-current"
-            type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             autoComplete="current-password"
-            required
+            required={requiresCurrentPassword}
+            placeholder={
+              requiresCurrentPassword
+                ? ""
+                : "Só é necessária para trocar e-mail ou palavra-passe"
+            }
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="profile-new">Nova palavra-passe (opcional)</Label>
-          <Input
+          <PasswordRevealInput
             id="profile-new"
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             disabled={demo}
@@ -134,9 +235,8 @@ export default function ProfileSettings({ user: userProp }) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="profile-confirm">Confirmar nova palavra-passe</Label>
-          <Input
+          <PasswordRevealInput
             id="profile-confirm"
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             disabled={demo}
@@ -153,7 +253,7 @@ export default function ProfileSettings({ user: userProp }) {
           <p className="text-sm text-green-600 dark:text-green-500">{message}</p>
         )}
 
-        <Button type="submit" variant="success" disabled={saving}>
+        <Button type="submit" variant="success" disabled={saving || avatarBusy}>
           {saving ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

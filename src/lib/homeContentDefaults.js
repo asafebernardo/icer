@@ -18,3 +18,37 @@ export const DEFAULT_VERSE_REF = "— João 3:16";
 
 export const DEFAULT_HISTORY_VALUE = "3+";
 export const DEFAULT_HISTORY_LABEL = "Anos de história";
+
+/** Secção do canal (entre Sobre e Horários) — cabeçalho + link + carrossel */
+export const DEFAULT_CHANNEL_SECTION_TAG = "Online";
+export const DEFAULT_CHANNEL_SECTION_TITLE = "Nosso canal no YouTube";
+export const DEFAULT_CHANNEL_SECTION_SUBTITLE =
+  "Acompanhe cultos, mensagens e estudos em vídeo.";
+export const DEFAULT_CHANNEL_URL = "https://www.youtube.com";
+
+export const DEFAULT_INSTAGRAM_SECTION_TITLE = "Instagram";
+export const DEFAULT_INSTAGRAM_SECTION_SUBTITLE =
+  "Acompanhe novidades e avisos rápidos no nosso perfil.";
+export const DEFAULT_INSTAGRAM_URL = "https://www.instagram.com";
+
+/** Cartões YouTube + Instagram na home (após «Sobre nós») — `siteConfig` */
+export const DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG = "Online";
+export const DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE = "Redes sociais";
+export const DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE =
+  "Acompanhe cultos em vídeo, novidades e avisos nos nossos canais oficiais.";
+
+export const DEFAULT_HOME_YOUTUBE_CARD_TITLE = "Nosso canal no YouTube";
+export const DEFAULT_HOME_YOUTUBE_CARD_TEXT =
+  "Acompanhe cultos, mensagens e estudos em vídeo.";
+export const DEFAULT_HOME_YOUTUBE_CARD_URL = DEFAULT_CHANNEL_URL;
+
+export const DEFAULT_HOME_INSTAGRAM_CARD_TITLE = "Instagram";
+export const DEFAULT_HOME_INSTAGRAM_CARD_TEXT =
+  "Acompanhe novidades e avisos rápidos no nosso perfil.";
+export const DEFAULT_HOME_INSTAGRAM_CARD_URL = DEFAULT_INSTAGRAM_URL;
+
+/** Chaves em `siteConfig` para fundos por secção (home) */
+export const SECTION_BG_KEYS = {
+  welcome: "sectionBgWelcome",
+  serviceTimes: "sectionBgServiceTimes",
+};

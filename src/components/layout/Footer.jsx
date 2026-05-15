@@ -1,245 +1,184 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import {
-  Church,
-  MapPin,
-  Phone,
-  Mail,
-  Clock,
-  Pencil,
-  Check,
-  X,
-} from "lucide-react";
+import { MapPin, Phone, Mail, Clock, Navigation } from "lucide-react";
 
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
-import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { canMenuAction, MENU } from "@/lib/auth";
-
-const DEFAULT_CONFIG = {
-  footerDescricao:
-    "Somos uma família comprometida com a pregação do evangelho de Jesus Cristo.",
-  footerEndereco: "Rua Hermes da Fonseca, 1559 — Bela Vista, Chapecó - SC",
-  footerTelefone: "(49) 9952-7840",
-  footerEmail: "icerchap@gmail.com",
-  footerHorario1Dia: "Domingo",
-  footerHorario1Desc: "Culto — 9h e 19h",
-  footerHorario2Dia: "Quarta-feira",
-  footerHorario2Desc: "Reunião de oração — 19h30",
-};
-
-function EditableText({ value, onSave, className, multiline = false }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-
-  const save = () => {
-    onSave(draft);
-    setEditing(false);
-  };
-  const cancel = () => {
-    setDraft(value);
-    setEditing(false);
-  };
-
-  if (editing) {
-    return (
-      <span className="inline-flex flex-col gap-1 w-full">
-        {multiline ? (
-          <textarea
-            className="bg-primary-foreground/10 border border-primary-foreground/30 text-primary-foreground rounded px-2 py-1 text-sm w-full resize-none focus:outline-none"
-            rows={2}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-          />
-        ) : (
-          <input
-            className="bg-primary-foreground/10 border border-primary-foreground/30 text-primary-foreground rounded px-2 py-1 text-sm w-full focus:outline-none"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoFocus
-          />
-        )}
-        <span className="flex gap-1">
-          <button
-            onClick={save}
-            className="p-0.5 rounded bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
-          >
-            <Check className="w-3 h-3" />
-          </button>
-          <button
-            onClick={cancel}
-            className="p-0.5 rounded bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground/70"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </span>
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={`group/editable inline-flex items-start gap-1 ${className}`}
-    >
-      <span>{value}</span>
-      <button
-        onClick={() => {
-          setDraft(value);
-          setEditing(true);
-        }}
-        className="opacity-0 group-hover/editable:opacity-100 transition-opacity p-0.5 rounded hover:bg-primary-foreground/20 text-primary-foreground/60 hover:text-primary-foreground shrink-0 mt-0.5"
-      >
-        <Pencil className="w-2.5 h-2.5" />
-      </button>
-    </span>
-  );
-}
+import { getSiteConfig, FOOTER_SITE_CONFIG_DEFAULTS } from "@/lib/siteConfig";
+import SiteLogoMark from "@/components/layout/SiteLogoMark";
+import SiteSocialLinks from "@/components/layout/SiteSocialLinks";
+import { hasAnyResolvedSocialLinks } from "@/lib/socialLinks";
+import { cn } from "@/lib/utils";
 
 export default function Footer() {
-  const user = useSyncedAuthUser();
-  const canEditHome = canMenuAction(user, MENU.HOME, "edit");
-  const [cfg, setCfg] = useState(DEFAULT_CONFIG);
+  const [cfg, setCfg] = useState(() => ({
+    ...FOOTER_SITE_CONFIG_DEFAULTS,
+    ...getSiteConfig(),
+  }));
+  const [showSocialCol, setShowSocialCol] = useState(() =>
+    hasAnyResolvedSocialLinks(getSiteConfig()),
+  );
 
   useEffect(() => {
-    const saved = getSiteConfig();
-    setCfg({ ...DEFAULT_CONFIG, ...saved });
+    const sync = () => {
+      setCfg({ ...FOOTER_SITE_CONFIG_DEFAULTS, ...getSiteConfig() });
+      setShowSocialCol(hasAnyResolvedSocialLinks(getSiteConfig()));
+    };
+    sync();
+    window.addEventListener("icer-site-config", sync);
+    return () => window.removeEventListener("icer-site-config", sync);
   }, []);
 
-  const update = (key, value) => {
-    const next = { ...cfg, [key]: value };
-    setCfg(next);
-    setSiteConfig(next);
-  };
+  const value = (field) => String(cfg?.[field] ?? "").trim();
 
-  const Txt = ({ field, className, multiline }) => {
-    const value = cfg?.[field] ?? "";
+  const endereco = value("footerEndereco");
+  const encoded = endereco ? encodeURIComponent(endereco) : "";
 
-    if (canEditHome) {
-      return (
-        <EditableText
-          value={value}
-          onSave={(v) => update(field, v)}
-          className={className}
-          multiline={multiline}
-        />
-      );
-    }
+  const gitBranch = String(import.meta.env.VITE_ICER_GIT_BRANCH || "").trim();
 
-    return <span className={className}>{value}</span>;
-  };
+  const sectionTitleClass =
+    "font-display text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground";
 
   return (
-    <footer className="relative bg-primary text-primary-foreground border-t border-primary-foreground/10">
+    <footer className="relative border-t border-border bg-background text-foreground overflow-hidden">
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary-foreground/20 to-transparent"
+        className="pointer-events-none absolute -top-24 right-0 h-96 w-96 rounded-full bg-accent/[0.07] blur-3xl dark:bg-accent/[0.05]"
         aria-hidden
       />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
-          {/* Brand */}
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shadow-soft shrink-0">
-                <Church className="w-5 h-5 text-accent-foreground" />
-              </div>
+      <div className="container-page relative py-10 lg:py-12">
+        <section
+          className="grid grid-cols-1 gap-8 sm:gap-9 lg:grid-cols-12 lg:gap-x-8"
+          aria-label="Informações do rodapé"
+        >
+          <div className="flex min-w-0 flex-col gap-3 lg:col-span-3">
+            <Link
+              to="/Home"
+              className="group -m-1 flex max-w-sm items-start gap-3 rounded-xl p-1 outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <SiteLogoMark
+                imgClassName="h-9 w-auto max-h-10 max-w-[120px] shrink-0 rounded-md object-contain object-left transition-opacity group-hover:opacity-90 sm:max-w-[180px]"
+              />
               <div className="min-w-0 pt-0.5">
-                <span className="font-display text-lg font-semibold tracking-tight block">
+                <span className="font-display block text-lg font-semibold tracking-tight text-foreground">
                   ICER Chapecó
                 </span>
-                <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary-foreground/55 block mt-0.5">
+                <span className="mt-0.5 block text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   Casa de Oração
                 </span>
               </div>
-            </div>
-            <p className="text-[15px] text-primary-foreground/75 leading-relaxed max-w-sm">
-              <Txt field="footerDescricao" multiline />
-            </p>
+            </Link>
           </div>
 
-          {/* Links */}
-          <div className="space-y-4">
-            <h4 className="font-semibold text-xs tracking-[0.14em] uppercase text-primary-foreground/45">
-              Navegação
-            </h4>
-            <div className="flex flex-col gap-1">
-              {[
-                { label: "Início", path: "/Home" },
-                { label: "Postagens", path: "/Postagens" },
-                { label: "Recursos", path: "/Recursos" },
-                { label: "Agenda", path: "/Agenda" },
-              ].map((link) => (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className="inline-flex items-center min-h-[44px] text-[15px] text-primary-foreground/75 hover:text-primary-foreground transition-colors rounded-lg py-2 -mx-1 px-2 hover:bg-primary-foreground/8"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Contact */}
-          <div className="space-y-4">
-            <h4 className="font-semibold text-xs tracking-[0.14em] uppercase text-primary-foreground/45">
-              Contato
-            </h4>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-2.5 text-sm text-primary-foreground/70">
-                <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                <Txt field="footerEndereco" />
-              </div>
-              <div className="flex items-center gap-2.5 text-sm text-primary-foreground/70">
-                <Phone className="w-4 h-4 shrink-0" />
-                <Txt field="footerTelefone" />
-              </div>
-              <div className="flex items-center gap-2.5 text-sm text-primary-foreground/70">
-                <Mail className="w-4 h-4 shrink-0" />
-                <Txt field="footerEmail" />
-              </div>
-            </div>
-          </div>
-
-          {/* Hours */}
-          <div className="space-y-4">
-            <h4 className="font-semibold text-xs tracking-[0.14em] uppercase text-primary-foreground/45">
-              Horários
-            </h4>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-start gap-2.5 text-sm text-primary-foreground/70">
-                <Clock className="w-4 h-4 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-primary-foreground">
-                    <Txt field="footerHorario1Dia" />
-                  </p>
-                  <Txt field="footerHorario1Desc" />
+          <div
+            className={cn(
+              "flex min-w-0 flex-col gap-3",
+              showSocialCol ? "lg:col-span-5" : "lg:col-span-6",
+            )}
+          >
+            <h2 className={sectionTitleClass}>Contato</h2>
+            <ul className="flex min-w-0 flex-col gap-0 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/50 bg-card/40 text-sm text-muted-foreground">
+              {endereco ? (
+                <>
+                  <li className="bg-muted/15">
+                    <iframe
+                      title="Mapa da ICER Chapecó"
+                      src={`https://www.google.com/maps?q=${encoded}&output=embed`}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      className="block h-[100px] w-full sm:h-[108px]"
+                      style={{ border: 0 }}
+                      allowFullScreen
+                    />
+                  </li>
+                  <li className="flex min-w-0 items-start gap-2.5 px-3 py-2.5">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
+                    <div className="min-w-0 flex-1 break-words leading-relaxed">
+                      <span className="block w-full min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
+                        {value("footerEndereco")}
+                      </span>
+                    </div>
+                  </li>
+                  <li className="px-3 py-2.5">
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encoded}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-fit items-center gap-2 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <Navigation className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Como chegar
+                    </a>
+                  </li>
+                </>
+              ) : null}
+              <li className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
+                <Phone className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <span
+                    className="block w-full truncate"
+                    title={value("footerTelefone") || undefined}
+                  >
+                    {value("footerTelefone")}
+                  </span>
                 </div>
-              </div>
-              <div className="flex items-start gap-2.5 text-sm text-primary-foreground/70">
-                <Clock className="w-4 h-4 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-primary-foreground">
-                    <Txt field="footerHorario2Dia" />
-                  </p>
-                  <Txt field="footerHorario2Desc" />
+              </li>
+              <li className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
+                <Mail className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <span
+                    className="block w-full truncate"
+                    title={value("footerEmail") || undefined}
+                  >
+                    {value("footerEmail")}
+                  </span>
                 </div>
-              </div>
-            </div>
+              </li>
+            </ul>
           </div>
-        </div>
 
-        <div className="mt-12 pt-8 border-t border-primary-foreground/10 text-center">
-          <p className="text-xs text-primary-foreground/45">
-            © {new Date().getFullYear()} ICER Chapecó. Todos os direitos
-            reservados.
+          <div
+            className={cn(
+              "flex min-w-0 flex-col gap-3",
+              showSocialCol ? "lg:col-span-2" : "lg:col-span-3",
+            )}
+          >
+            <h2 className={sectionTitleClass}>Horários</h2>
+            <ul className="flex min-w-0 flex-col gap-0 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/50 bg-card/40 px-3 py-1 text-sm text-muted-foreground">
+              <li className="flex min-w-0 gap-2.5 py-2.5">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
+                <div className="min-w-0 flex-1 space-y-0.5 break-words [overflow-wrap:anywhere]">
+                  <p className="font-medium text-foreground">{value("footerHorario1Dia")}</p>
+                  <p className="leading-relaxed">{value("footerHorario1Desc")}</p>
+                </div>
+              </li>
+              <li className="flex min-w-0 gap-2.5 py-2.5">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
+                <div className="min-w-0 flex-1 space-y-0.5 break-words [overflow-wrap:anywhere]">
+                  <p className="font-medium text-foreground">{value("footerHorario2Dia")}</p>
+                  <p className="leading-relaxed">{value("footerHorario2Desc")}</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          {showSocialCol ? (
+            <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
+              <SiteSocialLinks variant="footer" />
+            </div>
+          ) : null}
+        </section>
+
+        <div className="mt-10 flex flex-col items-center gap-2 border-t border-border/80 pt-8 text-center sm:mt-11 sm:flex-row sm:justify-between sm:gap-4 sm:text-left">
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} ICER Chapecó. Todos os direitos reservados.
           </p>
-          {canEditHome && (
-            <p className="text-xs text-primary-foreground/35 mt-2 max-w-md mx-auto">
-              Como administrador, pode apontar o rato sobre um texto e clicar no
-              lápis para alterar.
-            </p>
-          )}
         </div>
+        {gitBranch ? (
+          <p
+            className="mt-4 text-center text-[10px] font-mono tracking-wide text-muted-foreground/70"
+            title="Branch Git no momento do build"
+          >
+            Versão: {gitBranch}
+          </p>
+        ) : null}
       </div>
     </footer>
   );

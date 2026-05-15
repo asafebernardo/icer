@@ -449,23 +449,23 @@ export default function Dashboard() {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-[60vh] text-muted-foreground">
-        <Lock className="w-8 h-8" />
+      <div className="flex h-[60vh] items-center justify-center text-muted-foreground">
+        <Lock className="h-8 w-8" />
       </div>
     );
+  }
+
+  if (auth.isAdminUser(user)) {
+    return <Navigate to="/Admin" replace />;
   }
 
   return (
     <div>
       <PageHeader
         pageKey="dashboard"
-        tag={isAdmin ? "Admin" : "Conta"}
-        title={isAdmin ? "Dashboard" : "Minha área"}
-        description={
-          isAdmin
-            ? "Perfil, membros e permissões nos menus do site"
-            : "Edite o seu nome, e-mail e palavra-passe"
-        }
+        tag="Conta"
+        title="Minha área"
+        description="Edite o seu nome, e-mail e palavra-passe"
       />
 
       <div className="max-w-5xl mx-auto p-4 sm:p-6">
@@ -507,11 +507,7 @@ export default function Dashboard() {
               </Button>
             )}
           </div>
-        )}
-
-        {(!isAdmin || activeTab === "profile") && (
-          <ProfileSettings user={user} />
-        )}
+        </div>
 
         {isAdmin && activeTab === "members" && (
           <TabMembros

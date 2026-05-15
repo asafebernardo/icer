@@ -1,75 +1,75 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   File,
   FolderOpen,
-  Palette,
   Plus,
   Pencil,
   Trash2,
   Download,
+  ExternalLink,
+  Search,
+  X,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
-import { toast } from "sonner";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import {
   tipoIcons,
-  materialCategorias,
-  CATEGORIA_ICON_OPTIONS,
-  getMergedCategoriaIconIds,
   categoriaIconComponent,
 } from "./materiaisConfig";
 import { MaterialForm } from "./MaterialForm";
+import { LinkCardIcon } from "@/components/useful-links/LinkCardIcon";
+import { UsefulLinkForm } from "@/components/useful-links/UsefulLinkForm";
+import { toast } from "sonner";
 
-function readCategoriaIcons() {
-  return getMergedCategoriaIconIds(getSiteConfig());
-}
+const TIPO_LABELS = {
+  pdf: "PDF",
+  audio: "Áudio",
+  video: "Vídeo",
+  imagem: "Imagem",
+  documento: "Documento",
+  apresentacao: "Apresentação",
+};
 
+/**
+ * Lista unificada de materiais + links úteis em cards pequenos.
+ * Mostra: ícone, título, tipo e ação (Baixar / Acessar).
+ */
 export default function MateriaisTab({ perm }) {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState("all");
-  const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState("");
+  const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
-  const [categoriaIconIds, setCategoriaIconIds] = useState(readCategoriaIcons);
-  const [iconsDialogOpen, setIconsDialogOpen] = useState(false);
-  const [iconsDraft, setIconsDraft] = useState(readCategoriaIcons);
-
-  const syncIcons = useCallback(() => {
-    setCategoriaIconIds(readCategoriaIcons());
-  }, []);
+  const [showLinkForm, setShowLinkForm] = useState(false);
+  const [editingLink, setEditingLink] = useState(null);
+  const [links, setLinks] = useState([]);
 
   useEffect(() => {
-    window.addEventListener("icer-site-config", syncIcons);
-    return () => window.removeEventListener("icer-site-config", syncIcons);
-  }, [syncIcons]);
-
-  const openIconsDialog = () => {
-    setIconsDraft(readCategoriaIcons());
-    setIconsDialogOpen(true);
-  };
-
-  const saveCategoriaIcons = () => {
-    try {
-      setSiteConfig({ materialCategoriaIcons: iconsDraft });
-      setCategoriaIconIds({ ...iconsDraft });
-      setIconsDialogOpen(false);
-      toast.success("Ícones das categorias guardados.");
-    } catch (e) {
-      toast.error(e?.message || "Não foi possível guardar.");
-    }
-  };
+    const load = () => {
+      const cfg = getSiteConfig();
+      setLinks(Array.isArray(cfg.linksUteis) ? cfg.linksUteis : []);
+    };
+    load();
+    window.addEventListener("icer-site-config", load);
+    return () => window.removeEventListener("icer-site-config", load);
+  }, []);
 
   const { data: materiais = [], isLoading } = useQuery({
     queryKey: ["materiais"],
@@ -83,156 +83,210 @@ export default function MateriaisTab({ perm }) {
     },
   });
 
-  const createMutation = useMutation({
+  const createMaterialMutation = useMutation({
     mutationFn: (data) => api.entities.Material.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materiais"] });
-      setShowForm(false);
+      setShowMaterialForm(false);
+      toast.success("Material criado com sucesso.");
     },
   });
 
-  const updateMutation = useMutation({
+  const updateMaterialMutation = useMutation({
     mutationFn: ({ id, data }) => api.entities.Material.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["materiais"] });
       setEditingMaterial(null);
+      toast.success("Material salvo com sucesso.");
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMaterialMutation = useMutation({
     mutationFn: (id) => api.entities.Material.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["materiais"] }),
   });
 
-  const filtered =
-    filter === "all"
-      ? materiais
-      : materiais.filter((m) => m.categoria === filter);
+  const saveLinks = async (newLinks, successMessage) => {
+    setLinks(newLinks);
+    if (perm?.create || perm?.edit || perm?.delete) {
+      try {
+        await savePublicSiteConfigAdmin({ linksUteis: newLinks });
+        await refreshPublicSiteConfig();
+      } catch {
+        setSiteConfig({ linksUteis: newLinks });
+      }
+    } else {
+      setSiteConfig({ linksUteis: newLinks });
+    }
+    if (successMessage) toast.success(successMessage);
+  };
+
+  const handleAddLink = async (data) => {
+    await saveLinks(
+      [...links, { ...data, id: Date.now() }],
+      "Link salvo com sucesso.",
+    );
+    setShowLinkForm(false);
+  };
+  const handleEditLink = async (data) => {
+    await saveLinks(
+      links.map((l) => (l.id === editingLink.id ? { ...l, ...data } : l)),
+      "Link salvo com sucesso.",
+    );
+    setEditingLink(null);
+  };
+  const handleDeleteLink = (id) =>
+    saveLinks(links.filter((l) => l.id !== id), "Link removido.");
+
+  /** Itens unificados: materiais + links normalizados. */
+  const items = useMemo(() => {
+    const out = [];
+    for (const m of materiais) {
+      const url = String(m.arquivo_url ?? "").trim();
+      if (!url) continue;
+      out.push({
+        key: `mat-${m.id}`,
+        kind: "material",
+        titulo: String(m.titulo ?? "").trim() || "(sem título)",
+        typeKey: m.tipo || "documento",
+        typeLabel: TIPO_LABELS[m.tipo] || "Material",
+        actionUrl: url,
+        actionLabel: "Baixar",
+        actionIcon: Download,
+        raw: m,
+      });
+    }
+    for (const l of links) {
+      const url = String(l.url ?? "").trim();
+      if (!url) continue;
+      out.push({
+        key: `lnk-${l.id}`,
+        kind: "link",
+        titulo: String(l.titulo ?? "").trim() || "(sem título)",
+        typeKey: "link",
+        typeLabel: "Link",
+        actionUrl: url,
+        actionLabel: "Acessar",
+        actionIcon: ExternalLink,
+        raw: l,
+      });
+    }
+    return out;
+  }, [materiais, links]);
+
+  const normalizedSearch = useMemo(
+    () =>
+      String(search)
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase()
+        .trim(),
+    [search],
+  );
+
+  const filtered = useMemo(() => {
+    if (!normalizedSearch) return items;
+    return items.filter((i) => {
+      const t = String(i.titulo)
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase();
+      const tipo = String(i.typeLabel).toLowerCase();
+      return t.includes(normalizedSearch) || tipo.includes(normalizedSearch);
+    });
+  }, [items, normalizedSearch]);
+
+  const renderIcon = (item) => {
+    if (item.kind === "material") {
+      const IconTipo = tipoIcons[item.typeKey] || File;
+      const IconMat = item.raw.icone_id
+        ? categoriaIconComponent(item.raw.icone_id)
+        : IconTipo;
+      return (
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/8 group-hover:bg-accent/12 transition-colors shrink-0">
+          <IconMat className="w-5 h-5 text-primary group-hover:text-accent transition-colors" />
+        </span>
+      );
+    }
+    return (
+      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/40 shrink-0">
+        <LinkCardIcon link={item.raw} className="w-5 h-5" />
+      </span>
+    );
+  };
 
   return (
     <div>
-      {(perm.create || perm.edit) && (
-        <div className="flex flex-wrap justify-end gap-2 mb-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2"
-            onClick={openIconsDialog}
-            title="Escolher ícone por categoria (filtros e etiquetas)"
-          >
-            <Palette className="w-4 h-4" />
-            Ícones por categoria
-          </Button>
-          {perm.create ? (
-            <Button
-              className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2"
-              onClick={() => {
-                setShowForm(true);
-                setEditingMaterial(null);
-              }}
-            >
-              <Plus className="w-4 h-4" /> Novo Material
-            </Button>
-          ) : null}
-        </div>
-      )}
-      {(perm.edit || perm.create) && (
-        <Dialog open={iconsDialogOpen} onOpenChange={setIconsDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Ícone por categoria</DialogTitle>
-              <p className="text-sm text-muted-foreground font-normal">
-                Cada categoria pode ter um ícone. As escolhas ficam guardadas
-                neste navegador e aparecem nos filtros e nas etiquetas dos
-                cartões.
-              </p>
-            </DialogHeader>
-            <div className="space-y-6 py-2">
-              {Object.entries(materialCategorias).map(([catKey, catLabel]) => {
-                const selected = iconsDraft[catKey];
-                return (
-                  <div key={catKey} className="space-y-2">
-                    <p className="text-sm font-medium text-foreground">
-                      {catLabel}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CATEGORIA_ICON_OPTIONS.map(({ id, Icon, label }) => {
-                        const isOn = selected === id;
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            title={label}
-                            onClick={() =>
-                              setIconsDraft((d) => ({ ...d, [catKey]: id }))
-                            }
-                            className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-colors ${
-                              isOn
-                                ? "border-accent bg-accent/15 text-accent"
-                                : "border-border bg-muted/40 text-muted-foreground hover:border-accent/50 hover:bg-muted"
-                            }`}
-                          >
-                            <Icon className="h-5 w-5 shrink-0" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIconsDialogOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                variant="success"
-                onClick={saveCategoriaIcons}
-              >
-                Salvar ícones
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+        <h2 className="text-lg font-semibold text-foreground tracking-tight">
+          Materiais e links
+        </h2>
+        {(perm.create || perm.edit) ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {perm.create ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-fit gap-2"
+                  onClick={() => {
+                    setShowMaterialForm(true);
+                    setEditingMaterial(null);
+                  }}
+                  aria-label="Novo material"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Material</span>
+                </Button>
+                <Button
+                  className="w-fit gap-2"
+                  onClick={() => {
+                    setShowLinkForm(true);
+                    setEditingLink(null);
+                  }}
+                  aria-label="Novo link"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Link</span>
+                </Button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
       {(perm.create || perm.edit) && (
         <Dialog
-          open={Boolean(showForm || editingMaterial)}
+          open={Boolean(showMaterialForm || editingMaterial)}
           onOpenChange={(o) => {
             if (!o) {
-              setShowForm(false);
+              setShowMaterialForm(false);
               setEditingMaterial(null);
             }
           }}
         >
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingMaterial ? "Editar material" : "Novo material"}
               </DialogTitle>
             </DialogHeader>
-            {(showForm || editingMaterial) && (
+            {(showMaterialForm || editingMaterial) && (
               <MaterialForm
                 inDialog
                 key={editingMaterial?.id ?? "new-material"}
                 material={editingMaterial || undefined}
                 onSave={(d) => {
                   if (editingMaterial) {
-                    updateMutation.mutate({
+                    updateMaterialMutation.mutate({
                       id: editingMaterial.id,
                       data: d,
                     });
                   } else {
-                    createMutation.mutate(d);
+                    createMaterialMutation.mutate(d);
                   }
                 }}
                 onCancel={() => {
-                  setShowForm(false);
+                  setShowMaterialForm(false);
                   setEditingMaterial(null);
                 }}
               />
@@ -241,135 +295,190 @@ export default function MateriaisTab({ perm }) {
         </Dialog>
       )}
 
-      <div className="flex flex-wrap gap-2 mb-8">
-        <Button
-          variant={filter === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setFilter("all")}
-          className="rounded-full"
+      {(perm.create || perm.edit) && (
+        <Dialog
+          open={Boolean(showLinkForm || editingLink)}
+          onOpenChange={(o) => {
+            if (!o) {
+              setShowLinkForm(false);
+              setEditingLink(null);
+            }
+          }}
         >
-          Todos
-        </Button>
-        {Object.entries(materialCategorias).map(([key, label]) => {
-          const CatIcon = categoriaIconComponent(categoriaIconIds[key]);
-          return (
-            <Button
-              key={key}
-              variant={filter === key ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter(key)}
-              className="rounded-full gap-1.5"
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingLink ? "Editar link" : "Novo link"}
+              </DialogTitle>
+            </DialogHeader>
+            {(showLinkForm || editingLink) && (
+              <UsefulLinkForm
+                inDialog
+                key={editingLink?.id ?? "new-link"}
+                link={editingLink || undefined}
+                onSave={(data) => {
+                  if (editingLink) handleEditLink(data);
+                  else handleAddLink(data);
+                }}
+                onCancel={() => {
+                  setShowLinkForm(false);
+                  setEditingLink(null);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Pesquisa por título ou tipo */}
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Pesquisar por título ou tipo…"
+            aria-label="Pesquisar"
+            className="pl-9 pr-9"
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Limpar pesquisa"
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-ring"
             >
-              <CatIcon className="h-3.5 w-3.5 shrink-0" />
-              {label}
-            </Button>
-          );
-        })}
+              <X className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Array(6)
             .fill(0)
             .map((_, i) => (
-              <div key={i} className="rounded-2xl border border-border p-5">
-                <Skeleton className="h-10 w-10 rounded-xl mb-4" />
-                <Skeleton className="h-5 w-3/4 mb-2" />
-                <Skeleton className="h-4 w-full" />
+              <div key={i} className="rounded-xl border border-border p-3">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-lg" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                </div>
               </div>
             ))}
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={FolderOpen}
-          title="Nenhum material encontrado"
-          description="Em breve novos materiais serão disponibilizados."
+          icon={normalizedSearch ? Search : FolderOpen}
+          title={
+            normalizedSearch
+              ? `Sem resultados para "${search.trim()}"`
+              : "Nada por aqui ainda"
+          }
+          description={
+            normalizedSearch
+              ? "Tente outro termo ou remova a pesquisa."
+              : "Em breve novos materiais e links serão disponibilizados."
+          }
+          compact
+          action={
+            normalizedSearch ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearch("")}
+              >
+                Limpar pesquisa
+              </Button>
+            ) : null
+          }
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((material, index) => {
-            const Icon = tipoIcons[material.tipo] || File;
-            const CatIcon = material.categoria
-              ? categoriaIconComponent(categoriaIconIds[material.categoria])
-              : null;
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map((item, index) => {
+            const ActionIcon = item.actionIcon;
             return (
               <motion.div
-                key={material.id}
-                initial={{ opacity: 0, y: 20 }}
+                key={item.key}
+                initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.05 }}
-                className="group bg-card rounded-2xl border border-border p-6 hover:shadow-lg hover:border-accent/30 transition-all duration-300"
+                transition={{ delay: Math.min(index * 0.02, 0.2) }}
+                className="group bg-card rounded-xl border border-border p-3 card-hover hover:border-accent/30 flex items-center gap-3 min-w-0"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-primary/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors overflow-hidden shrink-0">
-                    {material.imagem_url ? (
-                      <img
-                        src={material.imagem_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Icon className="w-6 h-6 text-primary group-hover:text-accent transition-colors" />
-                    )}
+                {renderIcon(item)}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground truncate">
+                      {item.titulo}
+                    </h3>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {material.categoria && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs gap-1 pl-1.5 pr-2"
-                      >
-                        {CatIcon ? (
-                          <CatIcon className="h-3 w-3 shrink-0 opacity-90" />
-                        ) : null}
-                        {materialCategorias[material.categoria] ||
-                          material.categoria}
-                      </Badge>
-                    )}
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <Badge
+                      variant="secondary"
+                      className="h-5 text-[10px] font-medium px-1.5"
+                    >
+                      {item.typeLabel}
+                    </Badge>
                   </div>
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">
-                  {material.titulo}
-                </h3>
-                {material.descricao && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                    {material.descricao}
-                  </p>
-                )}
-                {material.arquivo_url && (
+                <div className="flex items-center gap-1 shrink-0">
                   <a
-                    href={material.arquivo_url}
+                    href={item.actionUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:text-accent/80 transition-colors"
+                    title={item.actionLabel}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors focus-ring"
                   >
-                    <Download className="w-4 h-4" /> Baixar
+                    <ActionIcon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{item.actionLabel}</span>
                   </a>
-                )}
-                {(perm.edit || perm.delete) && (
-                  <div className="flex gap-1 mt-3 pt-3 border-t border-border">
-                    {perm.edit ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1 text-xs"
-                        onClick={() => setEditingMaterial(material)}
-                      >
-                        <Pencil className="w-3 h-3" /> Editar
-                      </Button>
-                    ) : null}
-                    {perm.delete ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1 text-xs text-destructive hover:text-destructive"
-                        onClick={() => deleteMutation.mutate(material.id)}
-                      >
-                        <Trash2 className="w-3 h-3" /> Excluir
-                      </Button>
-                    ) : null}
-                  </div>
-                )}
+                  {(perm.edit || perm.delete) && (
+                    <div className="flex items-center opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+                      {perm.edit ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="w-7 h-7"
+                          onClick={() => {
+                            if (item.kind === "material") {
+                              setEditingMaterial(item.raw);
+                            } else {
+                              setEditingLink(item.raw);
+                            }
+                          }}
+                          aria-label="Editar"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : null}
+                      {perm.delete ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="w-7 h-7 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            if (item.kind === "material") {
+                              deleteMaterialMutation.mutate(item.raw.id);
+                            } else {
+                              handleDeleteLink(item.raw.id);
+                            }
+                          }}
+                          aria-label="Excluir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               </motion.div>
             );
           })}
