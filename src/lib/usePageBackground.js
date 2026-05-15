@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-import { getSiteConfig, setSiteConfig } from "@/lib/siteConfig";
+import {
+  getSiteConfig,
+  refreshPublicSiteConfig,
+  savePublicSiteConfigAdmin,
+  setSiteConfig,
+} from "@/lib/siteConfig";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { canEditPageBackground, getUser } from "@/lib/auth";
 
@@ -75,14 +80,23 @@ export function usePageBackground(pageKey) {
         ...(cfg.pageBackgrounds || {}),
         [pageKey]: nextUrl,
       };
-      if (pageKey === "home") {
-        setSiteConfig({ pageBackgrounds: nextBg, heroBg: nextUrl });
+      const patch =
+        pageKey === "home"
+          ? { pageBackgrounds: nextBg, heroBg: nextUrl }
+          : { pageBackgrounds: nextBg };
+
+      if (isAdmin) {
+        savePublicSiteConfigAdmin(patch)
+          .then(() => refreshPublicSiteConfig())
+          .catch(() => {
+            setSiteConfig(patch);
+          });
       } else {
-        setSiteConfig({ pageBackgrounds: nextBg });
+        setSiteConfig(patch);
       }
       setUrl(nextUrl);
     },
-    [pageKey],
+    [pageKey, isAdmin],
   );
 
   const handleFile = useCallback(
