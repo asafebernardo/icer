@@ -889,5 +889,18 @@ export function createApplication(db, options = {}) {
     );
   }
 
+  /** SPA em produção: `npm run build` → `dist/` (Docker / deploy único). */
+  const distPath = path.resolve(process.cwd(), "dist");
+  if (fs.existsSync(path.join(distPath, "index.html"))) {
+    app.use(express.static(distPath, { index: false }));
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        next();
+        return;
+      }
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
   return app;
 }
