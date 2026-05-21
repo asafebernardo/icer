@@ -45,6 +45,7 @@ import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { useAuth } from "@/lib/AuthContext";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import SiteLogoMark, {
   useSiteLogoUrl,
 } from "@/components/layout/SiteLogoMark";
@@ -70,7 +71,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
-  const { navigateToLogin } = useAuth();
+  const { navigateToLogin, googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const setThemeMode = (next) => {
     const isDark = theme === "dark";
@@ -299,17 +300,11 @@ export default function Navbar() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="hidden sm:inline-flex items-center gap-2 rounded-lg text-muted-foreground hover:text-foreground min-h-[40px] px-3"
-                onClick={() => navigateToLogin()}
-              >
-                <User className="w-4 h-4" />
-                <span className="text-sm font-medium">Entrar</span>
-              </Button>
-            )}
+            ) : googleLoginAvailable ? (
+              <div className="hidden sm:flex">
+                <GoogleSignInButton size="sm" compact />
+              </div>
+            ) : null}
 
             {/* Mobile menu */}
             <div className="lg:hidden">
@@ -497,18 +492,18 @@ export default function Navbar() {
                               <LogOut className="w-4 h-4 shrink-0" /> <span className="truncate">Sair</span>
                             </button>
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpen(false);
-                              navigateToLogin();
-                            }}
-                            className="w-full min-h-[44px] flex items-center gap-2 px-4 py-2.5 text-[14px] font-medium rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80 min-w-0"
-                          >
-                            <User className="w-4 h-4 shrink-0" /> <span className="truncate">Entrar</span>
-                          </button>
-                        )}
+                        ) : googleLoginAvailable ? (
+                          <div className="px-4 py-2">
+                            <GoogleSignInButton
+                              className="w-full min-h-[44px] justify-center"
+                              size="default"
+                              onClick={() => {
+                                setOpen(false);
+                                navigateToLogin();
+                              }}
+                            />
+                          </div>
+                        ) : null}
                       </div>
                     </nav>
                   </div>

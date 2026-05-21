@@ -44,6 +44,7 @@ import { useEditMode } from "@/lib/EditModeContext";
 import { useAuth } from "@/lib/AuthContext";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
+  getPostAttachmentMime,
   getPostCardThumbnailUrl,
   getPostListThumbMediaKind,
   getYouTubeId,
@@ -69,13 +70,27 @@ function PostPreviewThumb({ post }) {
   const mediaKind = getPostListThumbMediaKind(post);
 
   if (thumb) {
+    const isVideoFile =
+      mediaKind === "video" &&
+      !String(thumb).includes("img.youtube.com") &&
+      getPostAttachmentMime(p, thumb).startsWith("video/");
     return (
       <div className="relative h-full w-full">
-        <SafeImg
-          src={thumb}
-          alt=""
-          className="h-full w-full object-cover"
-        />
+        {isVideoFile ? (
+          <video
+            src={thumb}
+            muted
+            playsInline
+            preload="metadata"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <SafeImg
+            src={thumb}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        )}
         {mediaKind ? (
           <MediaKindCornerBadge kind={mediaKind} />
         ) : null}

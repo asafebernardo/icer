@@ -36,7 +36,7 @@ import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
-// Rotas privadas — abre modal de login e envia para Início (efeito evita loop no render)
+// Rotas privadas — inicia login Google e envia para Início (efeito evita loop no render)
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, navigateToLogin } =
     useAuth();
@@ -73,14 +73,14 @@ function TrackLastVisitedPath() {
   return null;
 }
 
-/** Links antigos para /login: abre o modal e vai para Início. */
+/** Links antigos para /login: inicia OAuth Google e vai para Início. */
 function LoginPathRedirect() {
-  const { openLoginModal } = useAuth();
+  const { navigateToLogin } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
-    openLoginModal();
     navigate("/Home", { replace: true });
-  }, [openLoginModal, navigate]);
+    navigateToLogin();
+  }, [navigateToLogin, navigate]);
   return <RouteSkeleton />;
 }
 

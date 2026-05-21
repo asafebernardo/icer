@@ -35,6 +35,7 @@ import {
 import { useTheme } from "@/lib/ThemeContext";
 import { useEditMode } from "@/lib/EditModeContext";
 import { useAuth } from "@/lib/AuthContext";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { logout as authLogout, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
@@ -59,7 +60,7 @@ export default function BottomNav() {
   const [adminDockOpen, setAdminDockOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
-  const { navigateToLogin } = useAuth();
+  const { navigateToLogin, googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const isLoggedIn = !!sessionUser;
   const isAdmin = isAdminUser(sessionUser);
@@ -318,19 +319,18 @@ export default function BottomNav() {
                   <span className="text-base">Sair</span>
                 </button>
               </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  navigateToLogin();
-                  setOpen(false);
-                }}
-                className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50 text-left"
-              >
-                <User className="w-5 h-5 text-foreground/70" />
-                <span className="text-base">Entrar</span>
-              </button>
-            )}
+            ) : googleLoginAvailable ? (
+              <div className="px-5 py-4">
+                <GoogleSignInButton
+                  className="w-full justify-center"
+                  size="default"
+                  onClick={() => {
+                    setOpen(false);
+                    navigateToLogin();
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         </SheetContent>
       </Sheet>

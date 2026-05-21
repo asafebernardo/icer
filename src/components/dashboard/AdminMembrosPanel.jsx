@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { fetchJson } from "@/lib/serverAuth";
+import { splitAllowedEmails } from "@/lib/googleAllowedEmails";
+import GoogleAllowedEmailsEditor from "@/components/admin/GoogleAllowedEmailsEditor";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { format, parseISO, isValid } from "date-fns";
@@ -43,6 +46,7 @@ import {
   ScrollText,
   Trash2,
   User as UserIcon,
+  Mail,
 } from "lucide-react";
 import {
   Avatar,
@@ -61,7 +65,6 @@ import PasswordRevealInput from "@/components/shared/PasswordRevealInput";
 import EmptyState from "@/components/shared/EmptyState";
 import {
   validateAccountPassword,
-  accountPasswordPolicyHint,
   passwordPolicyErrorMessagePt,
   isAccountPasswordPolicyCode,
 } from "@/lib/passwordPolicy";
@@ -134,9 +137,8 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
   const { user: sessionUser } = useAuth();
   const qc = useQueryClient();
   const [togglingDisabled, setTogglingDisabled] = useState({});
-  const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [password, setPassword] = useState("");
+  const [allowedEmailDraft, setAllowedEmailDraft] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [createMsg, setCreateMsg] = useState(null);
   const [resetId, setResetId] = useState(null);
@@ -154,6 +156,22 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
     queryFn: () => api.entities.User.list(),
     enabled: !!adminUser && adminUser.role === "admin",
   });
+
+  const { data: googleConfig } = useQuery({
+    queryKey: ["admin-google-login-config"],
+    queryFn: () => fetchJson("/admin/google-login/config", { method: "GET" }),
+    enabled: serverControlsEnabled,
+  });
+
+  const allowedEmails = useMemo(() => {
+    if (!googleConfig) return [];
+    const raw = Array.isArray(googleConfig.allowed_emails)
+      ? googleConfig.allowed_emails
+      : googleConfig.allowed_emails_text;
+    return splitAllowedEmails(
+      Array.isArray(raw) ? raw.join(",") : String(raw || ""),
+    );
+  }, [googleConfig]);
 
   const {
     data: permissionGroups = [],
@@ -228,27 +246,24 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
     }
   };
 
-  const handleCreateServerUser = async () => {
+  const mapGoogleAccountError = (msg) => {
+    const m = String(msg || "");
+    if (m === "invalid_allowed_email") return "E-mail inválido.";
+    if (m === "invalid_request") return "Dados inválidos.";
+    return mapPanelApiErrorMessage(m);
+  };
+
+  const handleAddGoogleAccount = async (email) => {
     setCreateMsg(null);
-    if (!email.trim() || !fullName.trim()) {
-      setCreateMsg({ type: "err", text: "Preencha e-mail e nome." });
-      return;
-    }
-    const pwCheck = validateAccountPassword(password);
-    if (!pwCheck.ok) {
-      setCreateMsg({ type: "err", text: passwordPolicyErrorMessagePt(pwCheck.code) });
-      return;
-    }
     setCreateBusy(true);
     try {
-      const r = await fetch("/api/admin/users", {
+      const r = await fetch("/api/admin/users/google-account", {
         method: "POST",
         credentials: "include",
         headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          full_name: fullName.trim(),
-          password,
+          email,
+          full_name: fullName.trim() || undefined,
         }),
       });
       const t = await r.text();
@@ -259,17 +274,54 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
         data = { message: t };
       }
       if (!r.ok) {
-        throw new Error(mapPanelApiErrorMessage(data.message) || r.statusText);
+        throw new Error(mapGoogleAccountError(data.message) || r.statusText);
       }
-      setEmail("");
       setFullName("");
-      setPassword("");
-      setCreateMsg({ type: "ok", text: "Utilizador criado." });
+      setAllowedEmailDraft("");
+      setCreateMsg({
+        type: "ok",
+        text: data.created
+          ? "Conta Google criada e autorizada."
+          : "E-mail autorizado (conta já existia).",
+      });
       await qc.invalidateQueries({ queryKey: ["admin-users"] });
+      await qc.invalidateQueries({ queryKey: ["admin-google-login-config"] });
     } catch (e) {
       setCreateMsg({
         type: "err",
-        text: e?.message || "Não foi possível criar o utilizador.",
+        text: e?.message || "Não foi possível adicionar a conta Google.",
+      });
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
+  const handleRemoveAllowedEmail = async (email) => {
+    setCreateMsg(null);
+    setCreateBusy(true);
+    try {
+      const r = await fetch("/api/admin/google-login/allowed-emails", {
+        method: "DELETE",
+        credentials: "include",
+        headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email }),
+      });
+      const t = await r.text();
+      let data = {};
+      try {
+        data = t ? JSON.parse(t) : {};
+      } catch {
+        data = { message: t };
+      }
+      if (!r.ok) {
+        throw new Error(mapGoogleAccountError(data.message) || r.statusText);
+      }
+      toast.success("E-mail removido da lista de autorizados.");
+      await qc.invalidateQueries({ queryKey: ["admin-google-login-config"] });
+    } catch (e) {
+      setCreateMsg({
+        type: "err",
+        text: e?.message || "Não foi possível remover o e-mail autorizado.",
       });
     } finally {
       setCreateBusy(false);
@@ -368,8 +420,8 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
           </div>
           <p className="mt-2">
             Com <code className="rounded bg-muted px-1 text-xs">VITE_USE_SERVER_AUTH=true</code>{" "}
-            inicie sessão com uma conta da base para criar utilizadores, ver atividade, redefinir
-            palavra-passe na base e gerir grupos de permissão por utilizador.
+            inicie sessão com uma conta da base para adicionar contas Google, ver atividade,
+            redefinir palavra-passe (contas antigas) e gerir grupos de permissão por utilizador.
           </p>
         </div>
       ) : null}
@@ -380,42 +432,43 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl border border-border bg-card p-6"
         >
-          <h2 className="mb-1 text-lg font-semibold text-foreground">Novo utilizador</h2>
-          <p className="mb-4 text-sm text-muted-foreground">{accountPasswordPolicyHint()}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="mbr-srv-email">E-mail</Label>
-              <Input
-                id="mbr-srv-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@exemplo.com"
-              />
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
+              <Mail className="h-5 w-5 text-accent" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="mbr-srv-name">Nome completo</Label>
-              <Input
-                id="mbr-srv-name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Nome"
-              />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="mbr-srv-pass">Palavra-passe inicial</Label>
-              <PasswordRevealInput
-                id="mbr-srv-pass"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-                placeholder="Cumprir requisitos acima"
-              />
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Nova conta Google</h2>
+              <p className="text-sm text-muted-foreground">
+                Adicione o Gmail do utilizador. A conta é criada na base e autorizada para login
+                com Google (sem palavra-passe no site).
+              </p>
             </div>
           </div>
-          <Button className="mt-4" onClick={() => void handleCreateServerUser()} disabled={createBusy}>
-            {createBusy ? "A criar…" : "Criar utilizador"}
-          </Button>
+          <div className="mb-4 max-w-md space-y-2">
+            <Label htmlFor="mbr-srv-name">Nome (opcional)</Label>
+            <Input
+              id="mbr-srv-name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Nome a mostrar no site"
+              disabled={createBusy}
+            />
+            <p className="text-xs text-muted-foreground">
+              Se deixar vazio, usa a parte antes do @ do e-mail.
+            </p>
+          </div>
+          <GoogleAllowedEmailsEditor
+            id="mbr-google-allowed"
+            emails={allowedEmails}
+            draft={allowedEmailDraft}
+            onDraftChange={setAllowedEmailDraft}
+            onEmailsChange={() => {}}
+            onAddEmail={handleAddGoogleAccount}
+            onRemoveEmail={handleRemoveAllowedEmail}
+            disabled={createBusy}
+            label="E-mails autorizados (login Google)"
+            hint="Digite ou cole e-mails e prima Enter. Remover da lista impede novo login Google; a conta permanece na lista abaixo."
+          />
           {createMsg ? (
             <p
               className={`mt-3 text-sm ${createMsg.type === "ok" ? "text-green-600" : "text-destructive"}`}
@@ -523,6 +576,12 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
                             {u.role || "Conta"}
                           </span>
                         )}
+                        {u.login_via_google === true ? (
+                          <span className="flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                            <Mail className="h-3 w-3" />
+                            Google
+                          </span>
+                        ) : null}
                         {u.disabled === true ? (
                           <span className="text-[11px] text-destructive">Desativado</span>
                         ) : null}
@@ -629,18 +688,20 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
                           <ScrollText className="mr-1 h-4 w-4" />
                           Ver atividade
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full sm:w-auto"
-                          onClick={() => {
-                            setResetId(u.id);
-                            setResetPass("");
-                          }}
-                        >
-                          <KeyRound className="mr-1 h-4 w-4" />
-                          Redefinir palavra-passe
-                        </Button>
+                        {u.login_via_google !== true ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full sm:w-auto"
+                            onClick={() => {
+                              setResetId(u.id);
+                              setResetPass("");
+                            }}
+                          >
+                            <KeyRound className="mr-1 h-4 w-4" />
+                            Redefinir palavra-passe
+                          </Button>
+                        ) : null}
                         <Button
                           type="button"
                           variant="outline"

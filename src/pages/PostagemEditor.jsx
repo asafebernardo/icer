@@ -18,7 +18,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  GripVertical,
   Film,
   Headphones,
   Image,
@@ -63,6 +62,9 @@ import AnexoOrderMosaicDnd, {
   ANEXO_ORDER_MOSAIC_CELL,
   ANEXO_ORDER_MOSAIC_COLS,
 } from "@/components/posts/AnexoOrderMosaicDnd";
+import EditorAnexoSlidesPreviewDialog, {
+  AnexoPreviewOpenButton,
+} from "@/components/posts/EditorAnexoSlidesPreviewDialog";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -71,6 +73,7 @@ import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
   appendYoutubeSlidesFromUrls,
   buildSlidesFromAnexos,
+  collectPostFeaturedEligibleUrls,
   collectVisualMediaUrlsFromAnexos,
   dedupeTagsPreserveOrder,
   normalizeDiasGaleria,
@@ -415,8 +418,32 @@ export default function PostagemEditor() {
   const [diasGaleria, setDiasGaleria] = useState([]);
   /** Visibilidade: "public" (qualquer pessoa) | "unlisted" (só com link) | "private" (só admin/dono). */
   const [visibility, setVisibility] = useState("public");
-  /** Modal «Por atribuir» — pré-visualização ampliada */
-  const [poolAssignPreviewUrl, setPoolAssignPreviewUrl] = useState(null);
+  /** Índice do slide em pré-visualização ampliada (etapas com anexos). */
+  const [anexoPreviewIndex, setAnexoPreviewIndex] = useState(null);
+
+  const anexoPreviewSlides = useMemo(
+    () => buildSlidesFromAnexos(anexos),
+    [anexos],
+  );
+
+  const openAnexoPreview = useCallback(
+    (url) => {
+      const u = String(url || "").trim();
+      if (!u) return;
+      const idx = anexoPreviewSlides.findIndex((s) => s.url === u);
+      if (idx >= 0) setAnexoPreviewIndex(idx);
+    },
+    [anexoPreviewSlides],
+  );
+
+  useEffect(() => {
+    if (
+      anexoPreviewIndex != null &&
+      anexoPreviewIndex >= anexoPreviewSlides.length
+    ) {
+      setAnexoPreviewIndex(null);
+    }
+  }, [anexoPreviewIndex, anexoPreviewSlides.length]);
 
   /** Fotos e outros anexos visuais (para secções e «por atribuir»). */
   const visualMediaUrlsForDias = useMemo(
@@ -424,12 +451,18 @@ export default function PostagemEditor() {
     [anexos],
   );
 
-  /** Só imagens — miniatura em lista / estrela. */
+  /** Só imagens — destaque por omissão na lista (sem estrela). */
   const imageUrlsForFeatured = useMemo(
     () =>
       anexos
         .filter((a) => a && isImageMime(a.mime) && a.url)
         .map((a) => a.url),
+    [anexos],
+  );
+
+  /** Fotos e vídeos de anexo que podem receber estrela. */
+  const featuredEligibleUrls = useMemo(
+    () => collectPostFeaturedEligibleUrls({ anexos }),
     [anexos],
   );
 
@@ -761,6 +794,19 @@ export default function PostagemEditor() {
     }
   };
 
+  const removeAnexoByUrl = useCallback((url) => {
+    const u = String(url || "").trim();
+    if (!u) return;
+    setImagemDestaqueUrl((cur) => (cur === u ? "" : cur));
+    setAnexos((arr) => arr.filter((a) => a?.url !== u));
+    setDiasGaleria((prev) =>
+      prev.map((s) => ({
+        ...s,
+        imagens_urls: s.imagens_urls.filter((x) => x !== u),
+      })),
+    );
+  }, []);
+
   const removePreviewSlideAt = useCallback(
     (slideIndex) => {
       const yt = video_urls.map((s) => String(s || "").trim()).filter(Boolean);
@@ -982,11 +1028,8 @@ export default function PostagemEditor() {
     const videoUrlsClean = video_urls
       .map((s) => String(s || "").trim())
       .filter(Boolean);
-    const imageUrls = anexos
-      .filter((a) => a && isImageMime(a.mime) && a.url)
-      .map((a) => a.url);
     let featured = String(imagemDestaqueUrl || "").trim();
-    if (featured && !imageUrls.includes(featured)) featured = "";
+    if (featured && !featuredEligibleUrls.includes(featured)) featured = "";
 
     const pubIso =
       mode === "draft"
@@ -2108,7 +2151,7 @@ export default function PostagemEditor() {
                                                     }}
                                                     onClick={(e) => {
                                                       e.stopPropagation();
-                                                      setPoolAssignPreviewUrl(url);
+                                                      openAnexoPreview(url);
                                                     }}
                                                     aria-label="Ver em tamanho maior"
                                                   >
@@ -2210,16 +2253,16 @@ export default function PostagemEditor() {
                         Galeria por secções: cada grupo corresponde a uma secção na
                         publicação. A ordem das miniaturas dentro do grupo é a ordem da
                         apresentação nessa parte. Arraste entre secções ou desde «Por
-                        atribuir». A estrela (só imagens) define a miniatura na lista de
-                        publicações.
+                        atribuir». A estrela (foto ou vídeo) define a miniatura na lista de
+                        publicações; sem estrela, usa a 1.ª imagem.
                       </>
                     ) : (
                       <>
                         Mosaico em grelha: <strong className="font-medium text-foreground">
                           {ANEXO_ORDER_MOSAIC_COLS} miniaturas por linha
                         </strong>
-                        ; a linha seguinte continua a ordem do carrossel. Arraste pela
-                        miniatura — pode largar na linha de baixo.
+                        ; a linha seguinte continua a ordem do carrossel. Arraste o bloco
+                        da imagem ou use o ícone de ampliar para ver em tamanho maior.
                       </>
                     )}
                   </p>
@@ -2262,26 +2305,21 @@ export default function PostagemEditor() {
                                     );
                                     const isImg =
                                       a && isImageMime(a.mime) && a.url;
-                                    const imgRank =
-                                      index >= 0
-                                        ? anexos
-                                            .slice(0, index)
-                                            .filter(
-                                              (x) =>
-                                                x &&
-                                                isImageMime(x.mime) &&
-                                                x.url,
-                                            ).length
-                                        : 0;
+                                    const isVideo =
+                                      a &&
+                                      typeof a.mime === "string" &&
+                                      a.mime.startsWith("video/") &&
+                                      a.url;
+                                    const firstImageUrl =
+                                      imageUrlsForFeatured[0] || "";
                                     const explicit = String(
                                       imagemDestaqueUrl || "",
                                     ).trim();
                                     const featuredRing =
-                                      isImg &&
-                                      ((explicit && explicit === a.url) ||
-                                        (!explicit &&
-                                          imgRank === 0 &&
-                                          imageUrlsForFeatured.length > 0));
+                                      (explicit && explicit === a.url) ||
+                                      (!explicit &&
+                                        isImg &&
+                                        a.url === firstImageUrl);
                                     return (
                                       <Draggable
                                         key={`ord-${secIdx}-${urlIdx}-${galleryDragId(url)}`}
@@ -2292,7 +2330,8 @@ export default function PostagemEditor() {
                                           <div
                                             ref={dragProvided.innerRef}
                                             {...dragProvided.draggableProps}
-                                            className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border bg-muted/30 outline-none transition-[box-shadow,ring,opacity] sm:h-28 sm:w-28 md:h-32 md:w-32 ${
+                                            {...dragProvided.dragHandleProps}
+                                            className={`relative h-24 w-24 shrink-0 cursor-grab touch-none overflow-hidden rounded-xl border bg-muted/30 outline-none transition-[box-shadow,ring,opacity] active:cursor-grabbing sm:h-28 sm:w-28 md:h-32 md:w-32 ${
                                               snapshot.isDragging
                                                 ? "z-10 opacity-90 shadow-lg ring-2 ring-accent"
                                                 : ""
@@ -2302,25 +2341,40 @@ export default function PostagemEditor() {
                                                 : "border-border"
                                             }`}
                                           >
+                                            {(isImg || isVideo) ? (
+                                              <AnexoPreviewOpenButton
+                                                className="absolute left-1 top-1 z-[30]"
+                                                onClick={() => openAnexoPreview(url)}
+                                              />
+                                            ) : null}
                                             <button
                                               type="button"
-                                              className="absolute left-1 top-1 z-20 flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-md border border-border bg-background/95 text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground active:cursor-grabbing"
-                                              {...dragProvided.dragHandleProps}
-                                              aria-label="Arrastar miniatura"
-                                              onClick={(e) => e.stopPropagation()}
+                                              className="absolute left-1 bottom-1 z-[35] flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-background/95 text-destructive shadow-sm transition-colors hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                              onPointerDown={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                              onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                removeAnexoByUrl(url);
+                                              }}
+                                              aria-label={`Remover ${a?.name || "ficheiro"}`}
                                             >
-                                              <GripVertical className="h-4 w-4 shrink-0" />
+                                              <Trash2
+                                                className="h-4 w-4 shrink-0"
+                                                strokeWidth={2}
+                                                aria-hidden
+                                              />
                                             </button>
                                             {isImg ? (
                                               <>
                                                 <GalleryFeaturedStar
                                                   src={a.url}
-                                                  index={imgRank}
-                                                  urls={imageUrlsForFeatured}
                                                   starCtl={{
                                                     value: imagemDestaqueUrl,
                                                     onChange: setImagemDestaqueUrl,
                                                   }}
+                                                  defaultThumbUrl={firstImageUrl}
                                                 />
                                                 <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]">
                                                   <SafeImg
@@ -2330,6 +2384,25 @@ export default function PostagemEditor() {
                                                   />
                                                 </div>
                                                 <MediaKindCornerBadge kind="image" />
+                                              </>
+                                            ) : isVideo ? (
+                                              <>
+                                                <GalleryFeaturedStar
+                                                  src={a.url}
+                                                  starCtl={{
+                                                    value: imagemDestaqueUrl,
+                                                    onChange: setImagemDestaqueUrl,
+                                                  }}
+                                                  defaultThumbUrl={firstImageUrl}
+                                                />
+                                                <video
+                                                  src={a.url}
+                                                  muted
+                                                  playsInline
+                                                  preload="metadata"
+                                                  className="pointer-events-none absolute inset-0 z-10 h-full w-full object-cover"
+                                                />
+                                                <MediaKindCornerBadge kind="video" />
                                               </>
                                             ) : (
                                               <>
@@ -2390,12 +2463,36 @@ export default function PostagemEditor() {
                                           ref={dp.innerRef}
                                           {...dp.draggableProps}
                                           {...dp.dragHandleProps}
-                                          className={`relative h-16 w-16 shrink-0 cursor-grab overflow-hidden rounded-lg border-2 border-dashed border-border sm:h-20 sm:w-20 ${
+                                          className={`relative h-16 w-16 shrink-0 cursor-grab touch-none overflow-hidden rounded-lg border-2 border-dashed border-border active:cursor-grabbing sm:h-20 sm:w-20 ${
                                             ds.isDragging
                                               ? "z-10 opacity-90 shadow-lg ring-2 ring-accent"
                                               : ""
                                           }`}
                                         >
+                                          <AnexoPreviewOpenButton
+                                            size="sm"
+                                            className="absolute left-0.5 top-0.5 z-[30]"
+                                            onClick={() => openAnexoPreview(url)}
+                                          />
+                                          <button
+                                            type="button"
+                                            className="absolute left-0.5 bottom-0.5 z-[35] flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border bg-background/95 text-destructive shadow-sm transition-colors hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            onPointerDown={(e) =>
+                                              e.stopPropagation()
+                                            }
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              removeAnexoByUrl(url);
+                                            }}
+                                            aria-label="Remover ficheiro"
+                                          >
+                                            <Trash2
+                                              className="h-3.5 w-3.5 shrink-0"
+                                              strokeWidth={2}
+                                              aria-hidden
+                                            />
+                                          </button>
                                           {isVideoAttachmentUrl(anexos, url) ? (
                                             <video
                                               src={url}
@@ -2438,6 +2535,14 @@ export default function PostagemEditor() {
                       imagemDestaqueUrl={imagemDestaqueUrl}
                       setImagemDestaqueUrl={setImagemDestaqueUrl}
                       imageUrlsForFeatured={imageUrlsForFeatured}
+                      onRemoveAt={(idx) => {
+                        const url = anexos[idx]?.url;
+                        if (url) removeAnexoByUrl(url);
+                      }}
+                      onPreviewAt={(idx) => {
+                        const url = anexos[idx]?.url;
+                        if (url) openAnexoPreview(url);
+                      }}
                     />
                   ) : (
                     <div
@@ -2450,14 +2555,18 @@ export default function PostagemEditor() {
                         const a = anexos[0];
                         const isImg =
                           a && isImageMime(a.mime) && a.url;
+                        const isVideo =
+                          a &&
+                          typeof a.mime === "string" &&
+                          a.mime.startsWith("video/") &&
+                          a.url;
+                        const firstImageUrl = imageUrlsForFeatured[0] || "";
                         const explicit = String(
                           imagemDestaqueUrl || "",
                         ).trim();
                         const featuredRing =
-                          isImg &&
-                          ((explicit && explicit === a.url) ||
-                            (!explicit &&
-                              imageUrlsForFeatured.length > 0));
+                          (explicit && explicit === a.url) ||
+                          (!explicit && isImg && a.url === firstImageUrl);
                         return (
                           <div
                             style={{
@@ -2471,19 +2580,35 @@ export default function PostagemEditor() {
                                 : "border-border"
                             }`}
                           >
-                            <div className="pointer-events-none absolute left-1 top-1 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/95 text-muted-foreground opacity-60 shadow-sm">
-                              <GripVertical className="h-4 w-4 shrink-0" />
-                            </div>
+                            {(isImg || isVideo) ? (
+                              <AnexoPreviewOpenButton
+                                className="absolute left-1 top-1 z-[30]"
+                                onClick={() => openAnexoPreview(a.url)}
+                              />
+                            ) : null}
+                            <button
+                              type="button"
+                              className="absolute left-1 bottom-1 z-[35] flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-background/95 text-destructive shadow-sm transition-colors hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              onClick={() => {
+                                if (a?.url) removeAnexoByUrl(a.url);
+                              }}
+                              aria-label="Remover ficheiro"
+                            >
+                              <Trash2
+                                className="h-4 w-4 shrink-0"
+                                strokeWidth={2}
+                                aria-hidden
+                              />
+                            </button>
                             {isImg ? (
                               <>
                                 <GalleryFeaturedStar
                                   src={a.url}
-                                  index={0}
-                                  urls={imageUrlsForFeatured}
                                   starCtl={{
                                     value: imagemDestaqueUrl,
                                     onChange: setImagemDestaqueUrl,
                                   }}
+                                  defaultThumbUrl={firstImageUrl}
                                 />
                                 <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]">
                                   <SafeImg
@@ -2493,6 +2618,25 @@ export default function PostagemEditor() {
                                   />
                                 </div>
                                 <MediaKindCornerBadge kind="image" />
+                              </>
+                            ) : isVideo ? (
+                              <>
+                                <GalleryFeaturedStar
+                                  src={a.url}
+                                  starCtl={{
+                                    value: imagemDestaqueUrl,
+                                    onChange: setImagemDestaqueUrl,
+                                  }}
+                                  defaultThumbUrl={firstImageUrl}
+                                />
+                                <video
+                                  src={a.url}
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  className="pointer-events-none absolute inset-0 z-10 h-full w-full object-cover"
+                                />
+                                <MediaKindCornerBadge kind="video" />
                               </>
                             ) : (
                               <>
@@ -2779,38 +2923,11 @@ export default function PostagemEditor() {
           </div>
         </div>
 
-        <Dialog
-          open={poolAssignPreviewUrl != null}
-          onOpenChange={(open) => {
-            if (!open) setPoolAssignPreviewUrl(null);
-          }}
-        >
-          <DialogContent
-            className="max-h-[90vh] max-w-[min(96vw,56rem)] gap-0 overflow-hidden border bg-background p-0 sm:rounded-xl"
-            aria-describedby={undefined}
-          >
-            <DialogTitle className="sr-only">
-              Pré-visualização do ficheiro
-            </DialogTitle>
-            <div className="flex max-h-[min(85vh,720px)] min-h-[200px] items-center justify-center bg-black/95 p-2 sm:p-4">
-              {poolAssignPreviewUrl &&
-              isVideoAttachmentUrl(anexos, poolAssignPreviewUrl) ? (
-                <video
-                  src={poolAssignPreviewUrl}
-                  controls
-                  playsInline
-                  className="max-h-[min(85vh,720px)] w-full object-contain"
-                />
-              ) : poolAssignPreviewUrl ? (
-                <SafeImg
-                  src={poolAssignPreviewUrl}
-                  alt=""
-                  className="max-h-[min(85vh,720px)] w-full object-contain"
-                />
-              ) : null}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <EditorAnexoSlidesPreviewDialog
+          slides={anexoPreviewSlides}
+          previewIndex={anexoPreviewIndex}
+          onPreviewIndexChange={setAnexoPreviewIndex}
+        />
       </section>
     </div>
   );

@@ -59,11 +59,8 @@ const PAGE_KEY_TO_MENU = {
 
 export { isServerAuthEnabled };
 
-async function loginWithServer(email, senha, opts = {}) {
+async function loginWithServer(email, senha) {
   const body = { email, password: senha };
-  if (opts?.forceNewSession === true) {
-    body.force_new_session = true;
-  }
   await fetchJson("/auth/login", {
     method: "POST",
     body,
@@ -95,9 +92,6 @@ function mapServerLoginError(e) {
   if (code === "password_not_set") {
     return "A sua conta ainda não tem palavra-passe. Use o link do convite para criar a sua palavra-passe.";
   }
-  if (code === "session_already_active") {
-    return "Esta conta já está com uma sessão ativa. Saia (logout) na outra sessão ou aguarde expirar para entrar novamente.";
-  }
   if (code === "invalid_request") {
     return "Dados inválidos.";
   }
@@ -115,13 +109,9 @@ function mapServerLoginError(e) {
 }
 
 /**
- * @param {{ forceNewSession?: boolean }} [opts]
- * @returns {Promise<
- *   | { ok: true }
- *   | { ok: false; message: string; sessionAlreadyActive?: boolean }
- * >}
+ * @returns {Promise<{ ok: true } | { ok: false; message: string }>}
  */
-export async function login(email, senha, opts = {}) {
+export async function login(email, senha) {
   if (!isServerAuthEnabled()) {
     return {
       ok: false,
@@ -131,7 +121,7 @@ export async function login(email, senha, opts = {}) {
   }
 
   try {
-    await loginWithServer(email, senha, opts);
+    await loginWithServer(email, senha);
     return { ok: true };
   } catch (e) {
     const status = /** @type {Error & { status?: number }} */ (e)?.status;
@@ -139,23 +129,15 @@ export async function login(email, senha, opts = {}) {
       status === 400 ||
       status === 401 ||
       status === 403 ||
-      status === 409 ||
       status === 423 ||
       status === 429 ||
       status === 503
     ) {
-      const data = /** @type {{ message?: string }} */ (
-        /** @type {Error & { data?: unknown }} */ (e)?.data
-      );
-      const code = String(data?.message || "");
       return {
         ok: false,
         message: mapServerLoginError(
           /** @type {Error & { status?: number; data?: unknown }} */ (e),
         ),
-        ...(status === 409 && code === "session_already_active"
-          ? { sessionAlreadyActive: true }
-          : {}),
       };
     }
     return {

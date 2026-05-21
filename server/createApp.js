@@ -41,6 +41,7 @@ import {
   setSessionCookie,
   verifyPassword,
 } from "./auth.js";
+import { envBoolTrue, isHomologEnvironment, readCookieSecureFlag } from "./envFlags.js";
 import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
 import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
 import {
@@ -69,17 +70,23 @@ import {
 } from "./permissionGroupDefaults.js";
 import {
   buildGoogleLoginAuthorizeUrl,
+  clearGoogleLoginHintCookie,
   consumeGoogleLoginOauthState,
   createGoogleLoginOauthState,
   exchangeGoogleLoginCodeForProfile,
   getGoogleLoginConfig,
+  GOOGLE_LOGIN_HINT_COOKIE,
   googleLoginPublicBase,
   googleLoginRedirectUri,
   isEmailAllowedForGoogleLogin,
   isGoogleLoginConfiguredValue,
   parseGoogleLoginAllowedEmails,
   publicGoogleLoginConfig,
+  sanitizeGoogleLoginHint,
+  addGoogleAllowedEmail,
+  removeGoogleAllowedEmail,
   saveGoogleLoginConfig,
+  setGoogleLoginHintCookie,
 } from "./googleLogin.js";
 
 /**
@@ -157,17 +164,8 @@ export function createApplication(db, options = {}) {
   const enforceSingleSession = options.enforceSingleSession !== false;
 
   /** Homologação / staging: sem limite de pedidos de login nem bloqueio por falhas (IP/utilizador). */
-  function envBoolTrue(name) {
-    const v = process.env[name];
-    if (v === undefined || v === null || String(v).trim() === "") return false;
-    const s = String(v).trim().toLowerCase();
-    return ["1", "true", "yes", "on"].includes(s);
-  }
-  const homologEnvRaw = String(process.env.ICER_ENV || "").trim().toLowerCase();
   const skipLoginAttemptLock =
-    envBoolTrue("ICER_DISABLE_LOGIN_ATTEMPT_LOCK") ||
-    envBoolTrue("ICER_HOMOLOG") ||
-    ["homolog", "homologacao", "homologação", "staging", "hml"].includes(homologEnvRaw);
+    envBoolTrue("ICER_DISABLE_LOGIN_ATTEMPT_LOCK") || isHomologEnvironment();
 
   fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -461,11 +459,10 @@ export function createApplication(db, options = {}) {
 
   // ── CSRF (double-submit cookie) ─────────────────────────────────────────
   const CSRF_COOKIE = "icer_csrf";
-  const isProd = process.env.NODE_ENV === "production";
   const csrfCookieOptions = {
     httpOnly: false,
     sameSite: "lax",
-    secure: isProd,
+    secure: readCookieSecureFlag(),
     path: "/",
   };
 
@@ -650,8 +647,6 @@ export function createApplication(db, options = {}) {
     const schema = z.object({
       email: z.string().email(),
       password: z.string().min(1),
-      /** Com palavra-passe válida, apaga sessões existentes e inicia uma nova (só se `enforceSingleSession`). */
-      force_new_session: z.boolean().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -748,7 +743,7 @@ export function createApplication(db, options = {}) {
     }
     await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
 
-    // Sessão única: só depois de validar a palavra-passe (evita sondagem sem credenciais).
+    // Sessão única: com credenciais válidas, substitui sessões activas (outro dispositivo ou cookie antigo).
     if (enforceSingleSession && !isEnvAdmin) {
       const now = nowIso();
       const active = await db.collection("sessions").findOne({
@@ -756,20 +751,15 @@ export function createApplication(db, options = {}) {
         expires_at: { $gt: now },
       });
       if (active) {
-        if (parsed.data.force_new_session === true) {
-          await db.collection("sessions").deleteMany({ user_id: row.id });
-          await recordAudit(db, {
-            userId: row.id,
-            actorUserId: row.id,
-            action: "auth.sessions_revoked_by_login",
-            details: { reason: "force_new_session" },
-            ip: clientIp(req),
-            ...auditCtx(req),
-          });
-        } else {
-          res.status(409).json({ message: "session_already_active" });
-          return;
-        }
+        await db.collection("sessions").deleteMany({ user_id: row.id });
+        await recordAudit(db, {
+          userId: row.id,
+          actorUserId: row.id,
+          action: "auth.sessions_revoked_by_login",
+          details: { reason: "replace_on_login" },
+          ip: clientIp(req),
+          ...auditCtx(req),
+        });
       }
     }
 
@@ -900,10 +890,20 @@ export function createApplication(db, options = {}) {
     res.json(publicGoogleLoginConfig(cfg));
   });
 
-  app.get("/api/auth/google-login/config", async (_req, res) => {
+  app.get("/api/auth/google-login/config", async (req, res) => {
     const cfg = await getGoogleLoginConfig(db);
+    const remembered_email = sanitizeGoogleLoginHint(req.cookies?.[GOOGLE_LOGIN_HINT_COOKIE]);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ enabled: isGoogleLoginConfiguredValue(cfg) });
+    res.json({
+      enabled: isGoogleLoginConfiguredValue(cfg),
+      remembered_email: remembered_email || null,
+    });
+  });
+
+  app.post("/api/auth/google-login/forget-hint", (_req, res) => {
+    clearGoogleLoginHintCookie(res);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true });
   });
 
   app.get("/api/auth/google-login/start", loginMw, async (req, res) => {
@@ -913,11 +913,27 @@ export function createApplication(db, options = {}) {
       return;
     }
     const redirectUri = googleLoginRedirectUri(googleConfig);
+    const pickAccount =
+      String(req.query.pick_account || "").trim() === "1" ||
+      String(req.query.pick_account || "").trim().toLowerCase() === "true";
+    const noSilent =
+      String(req.query.no_silent || "").trim() === "1" ||
+      String(req.query.no_silent || "").trim().toLowerCase() === "true";
+    const hintParam = sanitizeGoogleLoginHint(req.query.login_hint);
+    const hintCookie = sanitizeGoogleLoginHint(req.cookies?.[GOOGLE_LOGIN_HINT_COOKIE]);
+    const loginHint = pickAccount ? "" : hintParam || hintCookie;
     try {
       const state = await createGoogleLoginOauthState(db);
-      const url = buildGoogleLoginAuthorizeUrl({ state, redirectUri, config: googleConfig });
+      const url = buildGoogleLoginAuthorizeUrl({
+        state,
+        redirectUri,
+        config: googleConfig,
+        loginHint,
+        forceAccountPicker: pickAccount,
+        preferSilent: !pickAccount && !noSilent && !!loginHint,
+      });
       res.setHeader("Cache-Control", "no-store");
-      res.json({ auth_url: url });
+      res.json({ auth_url: url, remembered_email: loginHint || null });
     } catch {
       res.status(500).json({ message: "google_login_start_failed" });
     }
@@ -943,7 +959,12 @@ export function createApplication(db, options = {}) {
     };
 
     if (oauthErr) {
-      errRedirect("oauth");
+      const retryable = new Set([
+        "login_required",
+        "interaction_required",
+        "consent_required",
+      ]);
+      errRedirect(retryable.has(oauthErr) ? "google_reauth" : "oauth");
       return;
     }
 
@@ -1047,16 +1068,15 @@ export function createApplication(db, options = {}) {
         expires_at: { $gt: nowIsoStr },
       });
       if (active) {
+        await db.collection("sessions").deleteMany({ user_id: row.id });
         await recordAudit(db, {
           userId: row.id,
           actorUserId: row.id,
-          action: "auth.login_google_failed",
-          details: { reason: "session_already_active" },
+          action: "auth.sessions_revoked_by_login",
+          details: { reason: "replace_on_google_login" },
           ip: clientIp(req),
           ...auditCtx(req),
         });
-        errRedirect("session_active");
-        return;
       }
     }
 
@@ -1088,6 +1108,7 @@ export function createApplication(db, options = {}) {
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
     setSessionCookie(res, token);
+    setGoogleLoginHintCookie(res, email);
     ensureCsrfCookie(req, res);
     await recordAudit(db, {
       userId: row.id,
@@ -1280,12 +1301,21 @@ export function createApplication(db, options = {}) {
             last_login_at: 1,
             avatar_url: 1,
             permission_group_id: 1,
+            password_hash: 1,
           },
         },
       )
       .sort({ role: -1, created_at: -1 })
       .toArray();
-    res.json(users);
+    res.json(
+      users.map((u) => {
+        const { password_hash, ...rest } = u;
+        return {
+          ...rest,
+          login_via_google: !password_hash,
+        };
+      }),
+    );
   });
 
   const permissionBlockSchema = z
@@ -2308,47 +2338,121 @@ export function createApplication(db, options = {}) {
     res.json({ ok: true });
   });
 
-  app.post("/api/admin/users", requireAdmin, async (req, res) => {
+  app.post("/api/admin/users", requireAdmin, async (_req, res) => {
+    res.status(400).json({ message: "google_account_only" });
+  });
+
+  app.post("/api/admin/users/google-account", requireAdmin, async (req, res) => {
     const schema = z.object({
       email: z.string().email(),
-      full_name: z.string().min(1),
-      password: z.string().min(1),
+      full_name: z.string().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
-    const pwPolicy = validateAccountPassword(parsed.data.password);
-    if (respondIfPasswordPolicyFails(res, pwPolicy)) return;
     const email = parsed.data.email.toLowerCase().trim();
-    const exists = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
-    if (exists) {
-      res.status(409).json({ message: "email_already_exists" });
+    const fullNameRaw = String(parsed.data.full_name || "").trim();
+    const defaultName = email.includes("@") ? email.split("@")[0] : email;
+
+    let allowResult;
+    try {
+      allowResult = await addGoogleAllowedEmail(db, email);
+    } catch (e) {
+      if (String(e?.message) === "invalid_allowed_email") {
+        res.status(400).json({ message: "invalid_allowed_email" });
+        return;
+      }
+      throw e;
+    }
+
+    const existing = await db.collection("users").findOne(
+      { email },
+      { projection: { _id: 0, id: 1, full_name: 1 } },
+    );
+    const now = nowIso();
+    let userId;
+    let created = false;
+
+    if (existing) {
+      userId = existing.id;
+      if (fullNameRaw && fullNameRaw !== String(existing.full_name || "").trim()) {
+        await db.collection("users").updateOne(
+          { id: existing.id },
+          { $set: { full_name: fullNameRaw, updated_at: now } },
+        );
+      }
+    } else {
+      userId = await nextSeq(db, "users");
+      await db.collection("users").insertOne({
+        id: userId,
+        email,
+        full_name: fullNameRaw || defaultName,
+        role: "admin",
+        funcao: "",
+        password_hash: null,
+        disabled: false,
+        created_at: now,
+        updated_at: now,
+      });
+      created = true;
+    }
+
+    await recordAudit(db, {
+      userId,
+      actorUserId: req.user.id,
+      action: created ? "admin.user.create_google" : "admin.user.google_allowlist_add",
+      details: {
+        email,
+        allowlist_added: allowResult.added,
+        login_via_google: true,
+      },
+      ip: clientIp(req),
+      ...auditCtx(req),
+    });
+
+    res.status(created ? 201 : 200).json({
+      id: userId,
+      email,
+      created,
+      allowlist_added: allowResult.added,
+      allowed_emails: allowResult.cfg.allowed_emails,
+      login_via_google: true,
+    });
+  });
+
+  app.delete("/api/admin/google-login/allowed-emails", requireAdmin, async (req, res) => {
+    const schema = z.object({ email: z.string().email() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "invalid_request" });
       return;
     }
-    const password_hash = await hashPassword(parsed.data.password);
-    const now = nowIso();
-    const id = await nextSeq(db, "users");
-    await db.collection("users").insertOne({
-      id,
-      email,
-      full_name: parsed.data.full_name.trim(),
-      role: "admin",
-      funcao: "",
-      password_hash,
-      disabled: false,
-      created_at: now,
-      updated_at: now,
-    });
+    const email = parsed.data.email.toLowerCase().trim();
+    let result;
+    try {
+      result = await removeGoogleAllowedEmail(db, email);
+    } catch (e) {
+      if (String(e?.message) === "invalid_allowed_email") {
+        res.status(400).json({ message: "invalid_allowed_email" });
+        return;
+      }
+      throw e;
+    }
     await recordAudit(db, {
-      userId: id,
+      userId: null,
       actorUserId: req.user.id,
-      action: "admin.user.create",
-      details: { email, role: "admin" },
+      action: "admin.google_allowlist_remove",
+      details: { email, removed: result.removed },
       ip: clientIp(req),
+      ...auditCtx(req),
     });
-    res.status(201).json({ id });
+    res.json({
+      ok: true,
+      removed: result.removed,
+      allowed_emails: result.cfg.allowed_emails,
+    });
   });
 
   app.post("/api/admin/users/invite", requireAdmin, async (req, res) => {

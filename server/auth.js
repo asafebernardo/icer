@@ -1,17 +1,8 @@
 import argon2 from "argon2";
+import { sessionCookieOptions } from "./envFlags.js";
 import { randomToken, sha256Hex, nowIso, addDaysIso, addMinutesIso } from "./security.js";
 
 const COOKIE_NAME = process.env.ICER_SESSION_COOKIE_NAME || "icer_session";
-
-function cookieOptions() {
-  const isProd = process.env.NODE_ENV === "production";
-  return {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProd,
-    path: "/",
-  };
-}
 
 export function getCookieName() {
   return COOKIE_NAME;
@@ -30,11 +21,11 @@ export async function verifyPassword(hash, plain) {
 }
 
 export function setSessionCookie(res, token) {
-  res.cookie(COOKIE_NAME, token, cookieOptions());
+  res.cookie(COOKIE_NAME, token, sessionCookieOptions());
 }
 
 export function clearSessionCookie(res) {
-  res.clearCookie(COOKIE_NAME, cookieOptions());
+  res.clearCookie(COOKIE_NAME, sessionCookieOptions());
 }
 
 /**

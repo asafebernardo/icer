@@ -48,10 +48,11 @@ export function buildSlidesFromAnexos(anexos) {
   const slides = [];
   for (const a of items) {
     if (!a?.url || typeof a.mime !== "string") continue;
+    const name = String(a.name || "").trim();
     if (a.mime.startsWith("image/")) {
-      slides.push({ kind: "image", url: a.url });
+      slides.push({ kind: "image", url: a.url, ...(name ? { name } : {}) });
     } else if (a.mime.startsWith("video/")) {
-      slides.push({ kind: "video", url: a.url });
+      slides.push({ kind: "video", url: a.url, ...(name ? { name } : {}) });
     }
   }
   return slides;
@@ -67,8 +68,11 @@ export function urlsToSlides(urls, anexos) {
   const ax = Array.isArray(anexos) ? anexos : [];
   return list.map((url) => {
     const a = ax.find((x) => x && x.url === url);
-    if (a?.mime?.startsWith("video/")) return { kind: "video", url };
-    return { kind: "image", url };
+    const name = String(a?.name || "").trim();
+    if (a?.mime?.startsWith("video/")) {
+      return { kind: "video", url, ...(name ? { name } : {}) };
+    }
+    return { kind: "image", url, ...(name ? { name } : {}) };
   });
 }
 
@@ -90,9 +94,41 @@ export function appendYoutubeSlidesFromUrls(slides, urls) {
     const trimmed = String(raw || "").trim();
     const id = getYouTubeId(trimmed);
     if (!id) continue;
-    base.push({ kind: "youtube", videoId: id, url: trimmed });
+    base.push({ kind: "youtube", videoId: id, url: trimmed, name: "YouTube" });
   }
   return base;
+}
+
+/**
+ * Legenda do modal de visualização (nome do ficheiro ou nome derivado do URL).
+ * @param {{ kind?: string; url?: string; name?: string; videoId?: string } | null | undefined} slide
+ */
+export function getSlideCaptionLabel(slide) {
+  if (!slide || typeof slide !== "object") return "";
+  const explicit = String(slide.name || "").trim();
+  if (explicit) return explicit;
+  if (slide.kind === "youtube") {
+    return String(slide.url || "").trim() || "YouTube";
+  }
+  const url = String(slide.url || "").trim();
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    const leaf = decodeURIComponent(
+      u.pathname.split("/").filter(Boolean).pop() || "",
+    );
+    if (leaf) return leaf;
+  } catch {
+    const leaf = url.split("/").filter(Boolean).pop();
+    if (leaf) {
+      try {
+        return decodeURIComponent(leaf);
+      } catch {
+        return leaf;
+      }
+    }
+  }
+  return url;
 }
 
 /** Acrescenta um slide YouTube (legado: campo único `video_url`). */
@@ -211,21 +247,68 @@ export function normalizePost(post) {
 }
 
 /**
- * URL para miniatura na lista de posts (YouTube, imagem de destaque ou primeira imagem).
+ * URLs que podem receber estrela (imagens e vídeos nos anexos).
+ * @param {object | null | undefined} post
+ * @returns {string[]}
+ */
+export function collectPostFeaturedEligibleUrls(post) {
+  const p = normalizePost(post || {});
+  const fromAnexos = collectVisualMediaUrlsFromAnexos(p.anexos);
+  if (fromAnexos.length > 0) return fromAnexos;
+  return Array.isArray(p.imagens_urls) ? p.imagens_urls.filter(Boolean) : [];
+}
+
+/**
+ * Miniatura da lista: estrela explícita (foto ou vídeo), senão 1.ª imagem.
+ * Vídeo de anexo sem estrela nunca é usado; YouTube só se não houver imagens.
+ * @param {object | null | undefined} post
+ * @returns {string | null}
+ */
+export function resolvePostListFeaturedUrl(post) {
+  const p = normalizePost(post || {});
+  const eligible = collectPostFeaturedEligibleUrls(p);
+  const explicit = String(p.imagem_destaque_url || "").trim();
+  if (explicit && eligible.includes(explicit)) return explicit;
+  const items = Array.isArray(p.anexos) ? p.anexos : [];
+  for (const a of items) {
+    if (a?.url && typeof a.mime === "string" && a.mime.startsWith("image/")) {
+      return a.url;
+    }
+  }
+  const legacy = Array.isArray(p.imagens_urls) ? p.imagens_urls.filter(Boolean) : [];
+  return legacy[0] || null;
+}
+
+/** @param {object | null | undefined} post @param {string} url */
+export function getPostAttachmentMime(post, url) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  const p = normalizePost(post || {});
+  const a = (Array.isArray(p.anexos) ? p.anexos : []).find((x) => x?.url === u);
+  return typeof a?.mime === "string" ? a.mime : "";
+}
+
+/**
+ * URL para miniatura na lista de posts.
  * @param {object | null | undefined} post
  * @returns {string | null}
  */
 export function getPostCardThumbnailUrl(post) {
   const p = normalizePost(post || {});
-  const ytUrls = normalizeVideoUrlsFromPost(p);
-  for (const raw of ytUrls) {
-    const id = getYouTubeId(String(raw).trim());
-    if (id) return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+  const featured = resolvePostListFeaturedUrl(p);
+  if (featured) {
+    const ytId = getYouTubeId(featured);
+    if (ytId) return `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+    return featured;
   }
-  const urls = collectPostImageUrls(p);
-  const featured = String(p.imagem_destaque_url || "").trim();
-  if (featured && urls.includes(featured)) return featured;
-  return urls[0] || null;
+  if (collectPostImageUrls(p).length === 0) {
+    const ytUrls = normalizeVideoUrlsFromPost(p);
+    for (const raw of ytUrls) {
+      const id = getYouTubeId(String(raw).trim());
+      if (id) return `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -234,14 +317,22 @@ export function getPostCardThumbnailUrl(post) {
  */
 export function getPostListThumbMediaKind(post) {
   const p = normalizePost(post || {});
-  const thumb = getPostCardThumbnailUrl(post);
-  const ytUrls = normalizeVideoUrlsFromPost(p);
-  if (thumb) {
-    if (String(thumb).includes("img.youtube.com")) return "video";
-    return "image";
+  const featured = resolvePostListFeaturedUrl(p);
+  if (!featured) {
+    const ytUrls = normalizeVideoUrlsFromPost(p);
+    if (
+      collectPostImageUrls(p).length === 0 &&
+      ytUrls.some((u) => getYouTubeId(String(u).trim()))
+    ) {
+      return "video";
+    }
+    return null;
   }
-  if (ytUrls.some((u) => String(u).trim() && !getYouTubeId(u))) return "video";
-  return null;
+  if (String(featured).includes("img.youtube.com") || getYouTubeId(featured)) {
+    return "video";
+  }
+  if (getPostAttachmentMime(p, featured).startsWith("video/")) return "video";
+  return "image";
 }
 
 /** Evento global: `Postagens.jsx` abre o visualizador em grande ao escutar este nome. */

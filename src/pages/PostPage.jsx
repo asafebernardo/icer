@@ -13,6 +13,7 @@ import { MENU } from "@/lib/auth";
 import useCanEdit from "@/lib/useCanEdit";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
+  collectPostFeaturedEligibleUrls,
   dedupeTagsPreserveOrder,
   normalizePost,
   normalizeTagKey,
@@ -92,17 +93,11 @@ export default function PostPage() {
   const updateGalleryMutation = useMutation({
     mutationFn: async () => {
       if (!post?.id) throw new Error("Post inválido.");
-      const imageUrls = effectiveAnexos
-        .filter(
-          (a) =>
-            a &&
-            typeof a.mime === "string" &&
-            a.mime.startsWith("image/") &&
-            a.url,
-        )
-        .map((a) => a.url);
+      const eligible = collectPostFeaturedEligibleUrls({
+        anexos: effectiveAnexos,
+      });
       let featured = String(effectiveFeatured || "").trim();
-      if (featured && !imageUrls.includes(featured)) featured = "";
+      if (featured && !eligible.includes(featured)) featured = "";
 
       const r = await fetch(`/api/data/posts/${post.id}`, {
         method: "PUT",

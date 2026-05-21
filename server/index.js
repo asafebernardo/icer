@@ -12,11 +12,20 @@ import {
   defaultGroupPermissionsMap,
 } from "./permissionGroupDefaults.js";
 import { log, color } from "./log.js";
+import { isHomologEnvironment, envBoolTrue } from "./envFlags.js";
 
 const root = process.cwd();
 dotenv.config({ path: path.join(root, ".env") });
 // Sobrescreve chaves de `.env` (igual ao Vite): credenciais só em `.env.local` passam a valer.
 dotenv.config({ path: path.join(root, ".env.local"), override: true });
+
+if (isHomologEnvironment() || envBoolTrue("ICER_DISABLE_LOGIN_ATTEMPT_LOCK")) {
+  log.info(
+    color.dim(
+      "Login: bloqueio por tentativas falhadas desativado (ICER_ENV homolog ou ICER_DISABLE_LOGIN_ATTEMPT_LOCK).",
+    ),
+  );
+}
 
 const PORT = Number(process.env.PORT || process.env.ICER_SERVER_PORT || 3001);
 const UPLOAD_DIR = process.env.ICER_UPLOAD_DIR

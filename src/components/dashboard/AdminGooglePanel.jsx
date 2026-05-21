@@ -12,7 +12,6 @@ import {
   Loader2,
   RefreshCw,
   Save,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,17 +54,6 @@ const CALENDAR_SYNC_OPTIONS = [
   },
 ];
 
-function splitAllowedEmails(value) {
-  return [...new Set(String(value || "")
-    .split(/[\s,;]+/)
-    .map((email) => email.toLowerCase().trim())
-    .filter(Boolean))];
-}
-
-function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
-}
-
 function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
 }
@@ -91,8 +79,6 @@ export default function AdminGooglePanel() {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [clearClientSecret, setClearClientSecret] = useState(false);
-  const [allowedEmails, setAllowedEmails] = useState([]);
-  const [allowedEmailDraft, setAllowedEmailDraft] = useState("");
   const [backupEnabled, setBackupEnabled] = useState(false);
   const [backupFolderId, setBackupFolderId] = useState("");
   const [backupAccountEmail, setBackupAccountEmail] = useState("");
@@ -130,11 +116,6 @@ export default function AdminGooglePanel() {
     setClientId(String(data.client_id || ""));
     setClientSecret("");
     setClearClientSecret(false);
-    const emails = Array.isArray(data.allowed_emails)
-      ? data.allowed_emails
-      : splitAllowedEmails(data.allowed_emails_text);
-    setAllowedEmails(splitAllowedEmails(emails.join(",")));
-    setAllowedEmailDraft("");
     setBackupEnabled(data.backup?.enabled === true);
     setBackupFolderId(String(data.backup?.drive_folder_id || ""));
     setBackupAccountEmail(String(data.backup?.account_email || ""));
@@ -165,47 +146,13 @@ export default function AdminGooglePanel() {
     return base ? `${base}/api/auth/google-login/callback` : "";
   }, [publicBaseUrl]);
 
-  const allowedCount = allowedEmails.length;
   const hasSecret = clearClientSecret ? false : Boolean(clientSecret.trim() || data?.has_client_secret);
   const configuredPreview = Boolean(
     enabled &&
       normalizeBaseUrl(publicBaseUrl) &&
       clientId.trim() &&
-      hasSecret &&
-      allowedCount > 0,
+      hasSecret,
   );
-
-  const addAllowedEmails = (rawValue) => {
-    const parts = splitAllowedEmails(rawValue);
-    if (parts.length === 0) return;
-    const invalid = parts.filter((email) => !isValidEmail(email));
-    if (invalid.length > 0) {
-      toast.error(`E-mail inválido: ${invalid[0]}`);
-      return;
-    }
-    setAllowedEmails((current) => {
-      const seen = new Set(current);
-      const next = [...current];
-      let duplicates = 0;
-      for (const email of parts) {
-        if (seen.has(email)) {
-          duplicates += 1;
-          continue;
-        }
-        seen.add(email);
-        next.push(email);
-      }
-      if (duplicates > 0) {
-        toast.info("E-mail duplicado ignorado.");
-      }
-      return next;
-    });
-    setAllowedEmailDraft("");
-  };
-
-  const removeAllowedEmail = (email) => {
-    setAllowedEmails((current) => current.filter((item) => item !== email));
-  };
 
   const toggleBackupDay = (day) => {
     setBackupDays((current) => {
@@ -216,14 +163,6 @@ export default function AdminGooglePanel() {
         (item) => item.id,
       );
     });
-  };
-
-  const handleAllowedEmailInput = (value) => {
-    if (/[,;\s]/.test(value)) {
-      addAllowedEmails(value);
-      return;
-    }
-    setAllowedEmailDraft(value.toLowerCase());
   };
 
   const copyRedirectUri = async () => {
@@ -247,7 +186,6 @@ export default function AdminGooglePanel() {
         enabled,
         public_base_url: normalizeBaseUrl(publicBaseUrl),
         client_id: clientId.trim(),
-        allowed_emails: allowedEmails,
         clear_client_secret: clearClientSecret,
         backup: {
           enabled: backupEnabled,
@@ -312,7 +250,7 @@ export default function AdminGooglePanel() {
                 Login com Google
               </h2>
               <p className="text-sm text-muted-foreground">
-                Configure o OAuth e autorize os Gmail que poderão iniciar sessão.
+                Configure o OAuth do Google. Os e-mails autorizados gerem-se em Utilizadores.
               </p>
             </div>
           </div>
@@ -454,63 +392,11 @@ export default function AdminGooglePanel() {
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="google-allowed-emails">E-mails autorizados</Label>
-              <div className="rounded-md border border-input bg-background px-3 py-2">
-                <div className="flex min-h-10 flex-wrap items-center gap-2">
-                  {allowedEmails.map((email) => (
-                    <span
-                      key={email}
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground"
-                    >
-                      {email}
-                      <button
-                        type="button"
-                        onClick={() => removeAllowedEmail(email)}
-                        className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
-                        aria-label={`Remover ${email}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    id="google-allowed-emails"
-                    value={allowedEmailDraft}
-                    onChange={(e) => handleAllowedEmailInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === "," || e.key === ";") {
-                        e.preventDefault();
-                        addAllowedEmails(allowedEmailDraft);
-                      } else if (
-                        e.key === "Backspace" &&
-                        !allowedEmailDraft &&
-                        allowedEmails.length > 0
-                      ) {
-                        removeAllowedEmail(allowedEmails[allowedEmails.length - 1]);
-                      }
-                    }}
-                    onBlur={() => addAllowedEmails(allowedEmailDraft)}
-                    onPaste={(e) => {
-                      const text = e.clipboardData.getData("text");
-                      if (/[,;\s]/.test(text)) {
-                        e.preventDefault();
-                        addAllowedEmails(text);
-                      }
-                    }}
-                    placeholder={allowedEmails.length === 0 ? "email@gmail.com, outro@gmail.com" : ""}
-                    className="min-w-[13rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Digite ou cole e-mails separados por vírgula. Não é permitido cadastrar o mesmo e-mail duas vezes.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Para migrar um membro existente, altere o e-mail da conta em Membros para o Gmail que ele usa no Google e depois adicione esse mesmo Gmail aqui.
-              </p>
-            </div>
+            <p className="rounded-xl border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+              Os Gmail autorizados a iniciar sessão são adicionados em{" "}
+              <span className="font-medium text-foreground">Admin → Utilizadores</span>{" "}
+              (secção «Nova conta Google»).
+            </p>
               </TabsContent>
 
               <TabsContent value="cloud" className="mt-6 space-y-6">
@@ -820,8 +706,10 @@ export default function AdminGooglePanel() {
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border">
               <p className="text-xs text-muted-foreground">
-                {allowedCount} e-mail(s) na allowlist. Client secret:{" "}
-                {hasSecret ? "configurado" : "em falta"}.
+                Client secret: {hasSecret ? "configurado" : "em falta"}.
+                {(data?.allowed_emails?.length ?? 0) > 0
+                  ? ` · ${data.allowed_emails.length} e-mail(s) autorizados (geridos em Utilizadores).`
+                  : ""}
               </p>
               <Button
                 type="button"

@@ -13,7 +13,8 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import SafeImg from "@/components/shared/SafeImg";
-import { POST_IMAGE_PRESENTATION_EVENT } from "@/lib/posts";
+import SlideMediaCaption from "@/components/posts/SlideMediaCaption";
+import { getSlideCaptionLabel, POST_IMAGE_PRESENTATION_EVENT } from "@/lib/posts";
 import { usePresentationBackgroundAudio } from "@/components/posts/usePresentationBackgroundAudio";
 
 /** Carrega a API iframe do YouTube (player + eventos). */
@@ -249,31 +250,34 @@ export default function PostImagePresentationHost() {
             <span className="hidden sm:inline">Fechar</span>
           </Button>
           <div className="relative flex flex-1 items-center justify-center bg-black">
-            {slide.kind === "image" ? (
-              <SafeImg
-                src={slide.url}
-                alt=""
-                className="max-h-[85vh] h-full w-full object-contain bg-black"
-              />
-            ) : slide.kind === "video" ? (
-              <video
-                key={slide.url}
-                src={slide.url}
-                controls
-                autoPlay
-                muted
-                playsInline
-                className="max-h-[85vh] h-full w-full object-contain"
-                onVolumeChange={onFileVideoVolumeChange}
-              />
-            ) : (
-              <div
-                id={youtubePresentationDomId}
-                role="region"
-                aria-label="YouTube"
-                className="aspect-video max-h-[85vh] min-h-[240px] w-full bg-black"
-              />
-            )}
+            <div className="relative flex h-full w-full max-w-full items-center justify-center">
+              {slide.kind === "image" ? (
+                <SafeImg
+                  src={slide.url}
+                  alt={getSlideCaptionLabel(slide)}
+                  className="max-h-[85vh] h-full w-full object-contain bg-black"
+                />
+              ) : slide.kind === "video" ? (
+                <video
+                  key={slide.url}
+                  src={slide.url}
+                  controls
+                  autoPlay
+                  muted
+                  playsInline
+                  className="max-h-[85vh] h-full w-full object-contain"
+                  onVolumeChange={onFileVideoVolumeChange}
+                />
+              ) : (
+                <div
+                  id={youtubePresentationDomId}
+                  role="region"
+                  aria-label={getSlideCaptionLabel(slide) || "YouTube"}
+                  className="aspect-video max-h-[85vh] min-h-[240px] w-full bg-black"
+                />
+              )}
+              <SlideMediaCaption slide={slide} />
+            </div>
             {presentation.slides.length > 1 && (
               <>
                 <button

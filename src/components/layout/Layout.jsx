@@ -7,7 +7,6 @@ import WhatsAppFab from "./WhatsAppFab";
 import SiteSocialLinks from "@/components/layout/SiteSocialLinks";
 import HomeViewsMetricsDock from "@/components/layout/HomeViewsMetricsDock";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
-import AdminActiveSessionsFab from "@/components/admin/AdminActiveSessionsFab";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
 import CommandPalette, {
   useCommandPaletteShortcut,
@@ -60,7 +59,6 @@ export default function Layout() {
         className="pointer-events-auto hidden sm:flex fixed right-6 z-40 flex-col items-end gap-2 bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))]"
         aria-label="Atalhos flutuantes"
       >
-        <AdminActiveSessionsFab />
         <HomeViewsMetricsDock />
         <SiteSocialLinks variant="dock" />
       </div>

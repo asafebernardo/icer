@@ -16,10 +16,11 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Film, GripVertical } from "lucide-react";
+import { Film, Trash2 } from "lucide-react";
 
 import SafeImg from "@/components/shared/SafeImg";
 import MediaKindCornerBadge from "@/components/shared/MediaKindCornerBadge";
+import { AnexoPreviewOpenButton } from "@/components/posts/EditorAnexoSlidesPreviewDialog";
 import { GalleryFeaturedStar } from "@/components/posts/PostImagesBlock";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,10 @@ export const ANEXO_ORDER_MOSAIC_CELL = "calc((100% - 2rem) / 5)";
 
 function isImageMime(mime) {
   return typeof mime === "string" && mime.startsWith("image/");
+}
+
+function isVideoMime(mime) {
+  return typeof mime === "string" && mime.startsWith("video/");
 }
 
 /** Identificador estável por ficheiro (ordenação sem índice). Desambigua duplicados. */
@@ -51,14 +56,34 @@ function buildSortableIds(anexos) {
   });
 }
 
+function AnexoOrderRemoveButton({ onRemove, label }) {
+  if (typeof onRemove !== "function") return null;
+  return (
+    <button
+      type="button"
+      className="absolute left-1 bottom-1 z-[35] flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border bg-background/95 text-destructive shadow-sm transition-colors hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onRemove();
+      }}
+      aria-label={label}
+    >
+      <Trash2 className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+    </button>
+  );
+}
+
 function SortableAnexoCard({
   id,
   a,
   index,
-  anexos,
   imagemDestaqueUrl,
   setImagemDestaqueUrl,
   imageUrlsForFeatured,
+  onRemoveAt,
+  onPreviewAt,
 }) {
   const {
     attributes,
@@ -70,14 +95,12 @@ function SortableAnexoCard({
   } = useSortable({ id });
 
   const isImg = a && isImageMime(a.mime) && a.url;
-  const imgRank = anexos
-    .slice(0, index)
-    .filter((x) => x && isImageMime(x.mime) && x.url).length;
+  const isVideo = a && isVideoMime(a.mime) && a.url;
+  const firstImageUrl = imageUrlsForFeatured[0] || "";
   const explicit = String(imagemDestaqueUrl || "").trim();
   const featuredRing =
-    isImg &&
-    ((explicit && explicit === a.url) ||
-      (!explicit && imgRank === 0 && imageUrlsForFeatured.length > 0));
+    (explicit && explicit === a.url) ||
+    (!explicit && isImg && a.url === firstImageUrl);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -92,36 +115,35 @@ function SortableAnexoCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "relative aspect-square min-w-0 overflow-hidden rounded-xl border bg-muted/30 outline-none transition-shadow",
+        "relative aspect-square min-w-0 cursor-grab touch-none overflow-hidden rounded-xl border bg-muted/30 outline-none transition-shadow active:cursor-grabbing",
         isDragging && "z-20 opacity-95 shadow-lg ring-2 ring-accent",
         featuredRing
           ? "ring-2 ring-amber-400 shadow-md"
           : "border-border",
       )}
+      aria-label={`Arrastar anexo ${index + 1} — ordem no carrossel`}
+      {...attributes}
+      {...listeners}
     >
-      <button
-        type="button"
-        className="absolute inset-0 z-[5] cursor-grab touch-none rounded-[inherit] active:cursor-grabbing"
-        aria-label={`Arrastar anexo ${index + 1} — ordem no carrossel (mosaico)`}
-        {...attributes}
-        {...listeners}
+      {(isImg || isVideo) && typeof onPreviewAt === "function" ? (
+        <AnexoPreviewOpenButton
+          className="absolute left-1 top-1 z-[30]"
+          onClick={() => onPreviewAt(index)}
+        />
+      ) : null}
+      <AnexoOrderRemoveButton
+        onRemove={() => onRemoveAt?.(index)}
+        label={`Remover anexo ${index + 1}`}
       />
-      <span
-        className="pointer-events-none absolute left-1 top-1 z-20 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/95 text-muted-foreground shadow-sm"
-        aria-hidden
-      >
-        <GripVertical className="h-4 w-4 shrink-0" />
-      </span>
       {isImg ? (
         <>
           <GalleryFeaturedStar
             src={a.url}
-            index={imgRank}
-            urls={imageUrlsForFeatured}
             starCtl={{
               value: imagemDestaqueUrl,
               onChange: setImagemDestaqueUrl,
             }}
+            defaultThumbUrl={firstImageUrl}
           />
           <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-[inherit]">
             <SafeImg
@@ -131,6 +153,25 @@ function SortableAnexoCard({
             />
           </div>
           <MediaKindCornerBadge kind="image" />
+        </>
+      ) : isVideo ? (
+        <>
+          <GalleryFeaturedStar
+            src={a.url}
+            starCtl={{
+              value: imagemDestaqueUrl,
+              onChange: setImagemDestaqueUrl,
+            }}
+            defaultThumbUrl={firstImageUrl}
+          />
+          <video
+            src={a.url}
+            muted
+            playsInline
+            preload="metadata"
+            className="pointer-events-none absolute inset-0 z-10 h-full w-full object-cover"
+          />
+          <MediaKindCornerBadge kind="video" />
         </>
       ) : (
         <>
@@ -159,6 +200,8 @@ export default function AnexoOrderMosaicDnd({
   imagemDestaqueUrl,
   setImagemDestaqueUrl,
   imageUrlsForFeatured,
+  onRemoveAt,
+  onPreviewAt,
 }) {
   const sortableIds = useMemo(() => buildSortableIds(anexos), [anexos]);
   const [activeId, setActiveId] = useState(null);
@@ -203,10 +246,11 @@ export default function AnexoOrderMosaicDnd({
               id={sortableIds[index]}
               a={a}
               index={index}
-              anexos={anexos}
               imagemDestaqueUrl={imagemDestaqueUrl}
               setImagemDestaqueUrl={setImagemDestaqueUrl}
               imageUrlsForFeatured={imageUrlsForFeatured}
+              onRemoveAt={onRemoveAt}
+              onPreviewAt={onPreviewAt}
             />
           ))}
         </div>

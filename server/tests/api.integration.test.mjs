@@ -457,14 +457,14 @@ describe("ICER API", () => {
     await user.delete(`/api/data/eventos/${evId}`).set("X-CSRF-Token", csrfUser).expect(204);
   });
 
-  it("POST /api/admin/users (admin)", async () => {
+  it("POST /api/admin/users rejeita conta com palavra-passe", async () => {
     const agent = request.agent(app);
     await agent
       .post("/api/auth/login")
       .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
       .expect(200);
     const csrf = await getCsrf(agent);
-    const res = await agent
+    await agent
       .post("/api/admin/users")
       .set("X-CSRF-Token", csrf)
       .send({
@@ -472,8 +472,28 @@ describe("ICER API", () => {
         full_name: "Extra",
         password: "ExtraPassword12!",
       })
+      .expect(400);
+  });
+
+  it("POST /api/admin/users/google-account (admin)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const csrf = await getCsrf(agent);
+    const res = await agent
+      .post("/api/admin/users/google-account")
+      .set("X-CSRF-Token", csrf)
+      .send({
+        email: "extra-google@test.icer",
+        full_name: "Extra Google",
+      })
       .expect(201);
     assert.ok(res.body.id);
+    assert.equal(res.body.login_via_google, true);
+    assert.ok(Array.isArray(res.body.allowed_emails));
+    assert.ok(res.body.allowed_emails.includes("extra-google@test.icer"));
   });
 
   it("DELETE /api/admin/users/:id — admin elimina utilizador normal", async () => {
@@ -506,6 +526,7 @@ describe("ICER API", () => {
   it("GET /api/auth/google-login/config", async () => {
     const r = await request(app).get("/api/auth/google-login/config").expect(200);
     assert.equal(typeof r.body.enabled, "boolean");
+    assert.ok("remembered_email" in r.body);
   });
 
   it("admin configura login Google sem expor client secret", async () => {

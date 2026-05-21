@@ -32,7 +32,9 @@ import {
 } from "@/components/ui/dialog";
 import SafeImg from "@/components/shared/SafeImg";
 import MediaKindCornerBadge from "@/components/shared/MediaKindCornerBadge";
+import SlideMediaCaption from "@/components/posts/SlideMediaCaption";
 import { usePresentationBackgroundAudio } from "@/components/posts/usePresentationBackgroundAudio";
+import { getSlideCaptionLabel } from "@/lib/posts";
 import { cn } from "@/lib/utils";
 
 function isVisualMime(mime) {
@@ -122,17 +124,22 @@ function loadYoutubeIframeAPI() {
   return youtubeApiPromise;
 }
 
-/** Miniatura na lista de posts: estrela só em imagens; cheia = destaque explícito ou 1.ª imagem. */
-export function GalleryFeaturedStar({ src, index, urls, starCtl }) {
+/**
+ * Miniatura na lista: estrela em fotos e vídeos de anexo.
+ * Sem estrela explícita, só a 1.ª imagem é destaque (vídeo exige estrela).
+ */
+export function GalleryFeaturedStar({ src, starCtl, defaultThumbUrl }) {
   if (!starCtl?.onChange) return null;
   const explicit = String(starCtl.value ?? "").trim();
+  const fallback = String(defaultThumbUrl ?? "").trim();
   const isActive =
     (explicit && explicit === src) ||
-    (!explicit && index === 0 && urls.length > 0);
+    (!explicit && fallback && src === fallback);
   return (
     <button
       type="button"
       className="absolute right-1 top-1 z-30 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/95 text-foreground shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onClick={(e) => {
@@ -196,6 +203,7 @@ export default function PostImagesBlock({
     () => slides.filter((s) => s.kind === "image").map((s) => s.url),
     [slides],
   );
+  const defaultListThumbUrl = imageUrlsForStar[0] || "";
 
   const starCtl =
     typeof adminGallery?.onImagemDestaqueChange === "function"
@@ -497,9 +505,6 @@ export default function PostImagesBlock({
     return `gal-${String(slide.url || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 200)}-${i}`;
   };
 
-  const starIndexForImageUrl = (imageUrl) =>
-    imageUrlsForStar.indexOf(imageUrl);
-
   return (
     <>
       <Tabs
@@ -729,12 +734,12 @@ export default function PostImagesBlock({
                             >
                               <GripVertical className="h-4 w-4 shrink-0" />
                             </button>
-                            {slide.kind === "image" ? (
+                            {(slide.kind === "image" || slide.kind === "video") &&
+                            slide.url ? (
                               <GalleryFeaturedStar
                                 src={slide.url}
-                                index={starIndexForImageUrl(slide.url)}
-                                urls={imageUrlsForStar}
                                 starCtl={starCtl}
+                                defaultThumbUrl={defaultListThumbUrl}
                               />
                             ) : null}
                             <button
@@ -798,12 +803,12 @@ export default function PostImagesBlock({
                         : "border-border"
                     }`}
                   >
-                    {slide.kind === "image" ? (
+                    {(slide.kind === "image" || slide.kind === "video") &&
+                    slide.url ? (
                       <GalleryFeaturedStar
                         src={slide.url}
-                        index={starIndexForImageUrl(slide.url)}
-                        urls={imageUrlsForStar}
                         starCtl={starCtl}
+                        defaultThumbUrl={defaultListThumbUrl}
                       />
                     ) : null}
                     <button
@@ -909,7 +914,7 @@ export default function PostImagesBlock({
                 : null}
               {galleryDragEnabled && starCtl ? " " : null}
               {starCtl
-                ? "Estrela (só em fotos): miniatura na lista de publicações (por omissão, a 1.ª imagem)."
+                ? "Estrela: miniatura na lista (foto ou vídeo). Sem estrela, usa a 1.ª imagem; vídeo só com estrela."
                 : null}
             </p>
           ) : null}
@@ -927,7 +932,10 @@ export default function PostImagesBlock({
           className="max-h-[90vh] max-w-[min(96vw,56rem)] gap-0 overflow-hidden border bg-background p-0 shadow-xl sm:rounded-xl"
           aria-describedby={undefined}
         >
-          <DialogTitle className="sr-only">Pré-visualização</DialogTitle>
+          <DialogTitle className="sr-only">
+            Pré-visualização
+            {lightSlide ? ` — ${getSlideCaptionLabel(lightSlide)}` : ""}
+          </DialogTitle>
           <div className="relative flex max-h-[85vh] min-h-[200px] items-center justify-center bg-black/95">
             <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
               {canOpenFullscreen ? (
@@ -954,30 +962,33 @@ export default function PostImagesBlock({
               </Button>
             </div>
 
-            {lightSlide.kind === "image" ? (
-              <SafeImg
-                src={lightSlide.url}
-                alt=""
-                className="max-h-[85vh] w-full object-contain"
-              />
-            ) : lightSlide.kind === "video" ? (
-              <video
-                src={lightSlide.url}
-                muted
-                playsInline
-                preload="metadata"
-                controls
-                className="max-h-[85vh] w-full object-contain"
-              />
-            ) : (
-              <iframe
-                title="YouTube"
-                src={`https://www.youtube-nocookie.com/embed/${lightSlide.videoId}?rel=0`}
-                className="aspect-video max-h-[85vh] min-h-[200px] w-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            )}
+            <div className="relative flex w-full max-w-full items-center justify-center">
+              {lightSlide.kind === "image" ? (
+                <SafeImg
+                  src={lightSlide.url}
+                  alt={getSlideCaptionLabel(lightSlide)}
+                  className="max-h-[85vh] w-full object-contain"
+                />
+              ) : lightSlide.kind === "video" ? (
+                <video
+                  src={lightSlide.url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  controls
+                  className="max-h-[85vh] w-full object-contain"
+                />
+              ) : (
+                <iframe
+                  title={getSlideCaptionLabel(lightSlide) || "YouTube"}
+                  src={`https://www.youtube-nocookie.com/embed/${lightSlide.videoId}?rel=0`}
+                  className="aspect-video max-h-[85vh] min-h-[200px] w-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              )}
+              <SlideMediaCaption slide={lightSlide} />
+            </div>
             {showMediaKindBadge ? (
               <MediaKindCornerBadge
                 kind={slideGalleryBadgeKind(lightSlide)}

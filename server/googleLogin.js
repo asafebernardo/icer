@@ -1,7 +1,10 @@
+import { readCookieSecureFlag } from "./envFlags.js";
 import { nowIso, randomToken } from "./security.js";
 
 export const GOOGLE_LOGIN_OAUTH_STATES = "auth_google_login_oauth_states_v1";
 export const GOOGLE_LOGIN_CONFIG_KEY = "auth_google_login_config_v1";
+/** Cookie não-httpOnly: o servidor lê no `/start`; o cliente pode espelhar em localStorage. */
+export const GOOGLE_LOGIN_HINT_COOKIE = "icer_google_login_hint";
 const BACKUP_DAYS = new Set(["sun", "mon", "tue", "wed", "thu", "fri", "sat"]);
 
 function cleanPublicBase(value) {
@@ -385,11 +388,89 @@ export async function saveGoogleLoginConfig(db, input) {
 }
 
 /**
- * @param {{ redirectUri: string; state: string; config?: unknown }} p
+ * @param {import("mongodb").Db} db
+ * @param {string} emailRaw
+ */
+export async function addGoogleAllowedEmail(db, emailRaw) {
+  const parsed = parseGoogleLoginAllowedEmails(emailRaw);
+  const email = parsed[0];
+  if (!email) {
+    const err = new Error("invalid_allowed_email");
+    throw err;
+  }
+  const cfg = await getGoogleLoginConfig(db);
+  const set = new Set(cfg.allowed_emails);
+  if (set.has(email)) {
+    return { cfg, added: false, email };
+  }
+  set.add(email);
+  const next = await saveGoogleLoginConfig(db, { allowed_emails: [...set] });
+  return { cfg: next, added: true, email };
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @param {string} emailRaw
+ */
+export async function removeGoogleAllowedEmail(db, emailRaw) {
+  const email = String(emailRaw || "").toLowerCase().trim();
+  if (!email) {
+    const err = new Error("invalid_allowed_email");
+    throw err;
+  }
+  const cfg = await getGoogleLoginConfig(db);
+  const nextList = cfg.allowed_emails.filter((e) => e !== email);
+  if (nextList.length === cfg.allowed_emails.length) {
+    return { cfg, removed: false, email };
+  }
+  const next = await saveGoogleLoginConfig(db, { allowed_emails: nextList });
+  return { cfg: next, removed: true, email };
+}
+
+/** E-mail guardado para reutilizar sessão Google (login_hint) sem pedir consentimento de novo. */
+export function sanitizeGoogleLoginHint(raw) {
+  const email = String(raw || "").toLowerCase().trim();
+  if (!email || email.length > 254) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "";
+  return email;
+}
+
+export function googleLoginHintCookieOptions() {
+  return {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: readCookieSecureFlag(),
+    path: "/",
+    maxAge: 365 * 24 * 60 * 60,
+  };
+}
+
+export function setGoogleLoginHintCookie(res, email) {
+  const hint = sanitizeGoogleLoginHint(email);
+  if (!hint) return;
+  res.cookie(GOOGLE_LOGIN_HINT_COOKIE, hint, googleLoginHintCookieOptions());
+}
+
+export function clearGoogleLoginHintCookie(res) {
+  res.clearCookie(GOOGLE_LOGIN_HINT_COOKIE, googleLoginHintCookieOptions());
+}
+
+/**
+ * @param {{
+ *   redirectUri: string;
+ *   state: string;
+ *   config?: unknown;
+ *   loginHint?: string;
+ *   forceAccountPicker?: boolean;
+ *   preferSilent?: boolean;
+ * }} p
  */
 export function buildGoogleLoginAuthorizeUrl(p) {
   const cfg = normalizeGoogleLoginConfig(p.config);
   const clientId = String(cfg.client_id || "").trim();
+  const loginHint = sanitizeGoogleLoginHint(p.loginHint);
+  const forceAccountPicker = p.forceAccountPicker === true;
+  const preferSilent = p.preferSilent === true;
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id", clientId);
   u.searchParams.set("redirect_uri", p.redirectUri);
@@ -397,7 +478,17 @@ export function buildGoogleLoginAuthorizeUrl(p) {
   u.searchParams.set("scope", "openid email profile");
   u.searchParams.set("state", p.state);
   u.searchParams.set("access_type", "online");
-  u.searchParams.set("prompt", "select_account");
+  u.searchParams.set("include_granted_scopes", "true");
+  if (loginHint) {
+    u.searchParams.set("login_hint", loginHint);
+  }
+  if (forceAccountPicker) {
+    u.searchParams.set("prompt", "select_account");
+  } else if (preferSilent && loginHint) {
+    u.searchParams.set("prompt", "none");
+  } else if (!loginHint) {
+    u.searchParams.set("prompt", "select_account");
+  }
   return u.toString();
 }
 
