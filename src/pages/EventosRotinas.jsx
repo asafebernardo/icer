@@ -29,7 +29,7 @@ export default function EventosRotinas() {
         pageKey="eventos"
         tag="Programação"
         title="Rotinas"
-        description="Gerir modelos de agendamento em massa, executar fluxos guardados ou consultar o histórico."
+        description="Rotinas e agendamento em massa."
       />
 
       <section className="py-10 lg:py-14">

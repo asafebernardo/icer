@@ -80,7 +80,7 @@ export default function EventosRotinasAgendar() {
         pageKey="eventos"
         tag="Programação"
         title="Agendar em massa"
-        description="Assistente em 3 passos: datas e dados, preletores por data e revisão. Guarde o modelo ou execute já na agenda."
+        description="Assistente em 3 passos."
       />
 
       <section className="py-10 lg:py-14">

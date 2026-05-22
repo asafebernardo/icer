@@ -40,17 +40,17 @@ const CALENDAR_SYNC_OPTIONS = [
   {
     value: "push",
     label: "Enviar para o Google",
-    description: "Apenas envia os eventos do site para a agenda Google.",
+    description: "Site → Google.",
   },
   {
     value: "pull",
     label: "Receber do Google",
-    description: "Apenas lê eventos da agenda Google e mostra no site.",
+    description: "Google → site.",
   },
   {
     value: "two_way",
     label: "Dois sentidos",
-    description: "Sincroniza eventos em ambas as direções (avançado).",
+    description: "Nos dois sentidos.",
   },
 ];
 

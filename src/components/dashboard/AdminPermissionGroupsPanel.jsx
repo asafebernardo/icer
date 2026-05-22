@@ -213,14 +213,8 @@ export default function AdminPermissionGroupsPanel() {
             <h2 className="text-xl font-semibold tracking-tight text-foreground">
               Grupos de permissão
             </h2>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              O grupo <strong className="font-medium text-foreground">Admin</strong> é criado
-              automaticamente na base com todas as permissões e não pode ser eliminado. Em{" "}
-              <strong className="font-medium text-foreground">Utilizadores</strong> pode associar
-              cada conta a um grupo. Contas{" "}
-              <strong className="font-medium text-foreground">admin</strong> continuam com acesso
-              total; grupos aplicam-se sobretudo quando existirem contas não admin com o mesmo
-              modelo de permissões.
+            <p className="mt-1 text-xs text-muted-foreground">
+              Grupo Admin é fixo. Associe contas em Utilizadores; admins mantêm acesso total.
             </p>
           </div>
         </div>

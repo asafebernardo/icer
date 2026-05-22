@@ -259,7 +259,7 @@ export default function Agenda() {
         pageKey="agenda"
         tag="Calendário"
         title="Agenda"
-        description="A programação da igreja em calendário: cultos, estudos e encontros para acompanhar e participar."
+        description="Cultos, estudos e encontros."
       />
 
       <section className="py-10 lg:py-14">

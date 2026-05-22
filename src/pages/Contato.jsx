@@ -50,7 +50,7 @@ export default function Contato() {
         pageKey="contato"
         tag="Fale conosco"
         title="Entre em Contato"
-        description="Estamos aqui para ouvir você. Envie sua mensagem ou venha nos visitar."
+        description="Mensagem ou visita."
       />
 
       <section className="py-16 lg:py-20">

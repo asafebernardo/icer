@@ -10,6 +10,7 @@ import {
   Moon,
   User,
   Library,
+  Landmark,
   Search,
   Pencil,
   Settings,
@@ -60,7 +61,7 @@ export default function BottomNav() {
   const [adminDockOpen, setAdminDockOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
-  const { navigateToLogin, googleLoginAvailable } = useAuth();
+  const { googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const isLoggedIn = !!sessionUser;
   const isAdmin = isAdminUser(sessionUser);
@@ -277,6 +278,17 @@ export default function BottomNav() {
                 <span className="text-base">Recursos</span>
               </Link>
             </SheetClose>
+            {isAdmin ? (
+              <SheetClose asChild>
+                <Link
+                  to="/Historia"
+                  className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50"
+                >
+                  <Landmark className="w-5 h-5 text-foreground/70" />
+                  <span className="text-base">História</span>
+                </Link>
+              </SheetClose>
+            ) : null}
             <button
               type="button"
               onClick={() => {
@@ -324,10 +336,7 @@ export default function BottomNav() {
                 <GoogleSignInButton
                   className="w-full justify-center"
                   size="default"
-                  onClick={() => {
-                    setOpen(false);
-                    navigateToLogin();
-                  }}
+                  onClick={() => setOpen(false)}
                 />
               </div>
             ) : null}

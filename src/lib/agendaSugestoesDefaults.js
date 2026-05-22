@@ -47,31 +47,26 @@ export const AGENDA_SUGESTOES_KEYS = [
 export const AGENDA_SUGESTOES_FIELD_META = {
   titulo: {
     title: "Títulos sugeridos",
-    description:
-      "Aparecem ao criar ou editar eventos e no agendamento em massa. Por cada título pode definir a cor da barra do cartão e imagens de fundo do cartão (uma ou várias). Quando o evento não tem imagem própria, essas imagens aparecem como fundo nos cartões do site.",
+    description: "Sugestões nos formulários; cor da barra e fundo do cartão por título.",
   },
   preletor: {
     title: "Preletores",
-    description:
-      "Nomes sugeridos nos formulários. Por cada nome pode carregar uma foto de perfil (aparece nos cartões do site quando o evento usa esse preletor).",
+    description: "Nomes sugeridos; foto opcional por nome.",
   },
   pastor: {
     title: "Presbíteros",
-    description:
-      "Mesma lista para o campo Presbítero nos formulários de evento e para o padrão por data em massa. Por cada nome pode carregar uma foto de perfil.",
+    description: "Nomes sugeridos; foto opcional por nome.",
   },
   categoria: {
     title: "Categorias (identificadores)",
-    description:
-      "Valores internos (slug) usados pelo sistema. Se alterar ou remover, confirme que correspondem às categorias dos eventos já gravados.",
+    description: "Slugs internos — alinhe com eventos já gravados.",
   },
   local: {
     title: "Locais do evento",
-    description: "Opções sugeridas ao definir o local de cada evento.",
+    description: "Sugestões de local.",
   },
   horario: {
     title: "Horários",
-    description:
-      "Valores em formato 24 h (HH:mm), um por linha. São as únicas opções nos formulários de evento e de novo agendamento (não é possível escrever outro horário — altere a lista aqui).",
+    description: "HH:mm, um por linha — únicas opções nos formulários.",
   },
 };

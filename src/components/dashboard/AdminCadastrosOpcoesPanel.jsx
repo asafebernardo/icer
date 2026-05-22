@@ -452,12 +452,8 @@ export default function AdminCadastrosOpcoesPanel() {
             <h2 className="font-display text-xl font-semibold text-foreground">
               Cadastros e sugestões (eventos)
             </h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Defina as listas usadas nos formulários de evento e no agendamento em massa /
-              rotinas: títulos, horários, preletores e presbíteros (foto opcional por nome),
-              categorias e locais.
-              Em cada bloco pode editar linhas, ordenar de A a Z e guardar no servidor para todos os
-              utilizadores.
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Listas dos formulários de eventos; edite, ordene A–Z e guarde no servidor.
             </p>
           </div>
         </div>
@@ -477,7 +473,7 @@ export default function AdminCadastrosOpcoesPanel() {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="font-semibold text-foreground">{meta.title}</h3>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {meta.description}
                 </p>
               </div>

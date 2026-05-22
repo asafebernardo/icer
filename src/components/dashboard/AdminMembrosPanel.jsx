@@ -9,7 +9,6 @@ import { ptBR } from "date-fns/locale";
 import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -42,7 +41,6 @@ import {
   RefreshCw,
   Shield,
   UserCog,
-  KeyRound,
   ScrollText,
   Trash2,
   User as UserIcon,
@@ -61,10 +59,8 @@ import {
 } from "@/lib/auditLogLabels";
 import { formatAdminUserDeleteError } from "@/lib/adminUserDeleteMessages";
 import UserAvatar from "@/components/shared/UserAvatar";
-import PasswordRevealInput from "@/components/shared/PasswordRevealInput";
 import EmptyState from "@/components/shared/EmptyState";
 import {
-  validateAccountPassword,
   passwordPolicyErrorMessagePt,
   isAccountPasswordPolicyCode,
 } from "@/lib/passwordPolicy";
@@ -130,20 +126,16 @@ async function fetchUserAuditLog(userId) {
 }
 
 /**
- * Lista de membros + ações (modo servidor: criar conta, grupo, atividade, palavra-passe, etc.).
+ * Lista de membros + ações (modo servidor: conta Google, grupo, atividade, etc.).
  * @param {{ adminUser: object; serverControlsEnabled: boolean }} props
  */
 export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) {
   const { user: sessionUser } = useAuth();
   const qc = useQueryClient();
   const [togglingDisabled, setTogglingDisabled] = useState({});
-  const [fullName, setFullName] = useState("");
   const [allowedEmailDraft, setAllowedEmailDraft] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [createMsg, setCreateMsg] = useState(null);
-  const [resetId, setResetId] = useState(null);
-  const [resetPass, setResetPass] = useState("");
-  const [resetBusy, setResetBusy] = useState(false);
   const [panelMsg, setPanelMsg] = useState(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityUserId, setActivityUserId] = useState(null);
@@ -261,10 +253,7 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
         method: "POST",
         credentials: "include",
         headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          email,
-          full_name: fullName.trim() || undefined,
-        }),
+        body: JSON.stringify({ email }),
       });
       const t = await r.text();
       let data = {};
@@ -276,7 +265,6 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
       if (!r.ok) {
         throw new Error(mapGoogleAccountError(data.message) || r.statusText);
       }
-      setFullName("");
       setAllowedEmailDraft("");
       setCreateMsg({
         type: "ok",
@@ -325,48 +313,6 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
       });
     } finally {
       setCreateBusy(false);
-    }
-  };
-
-  const handleResetPassword = async (id) => {
-    const resetCheck = validateAccountPassword(resetPass);
-    if (!resetCheck.ok) {
-      setPanelMsg({
-        type: "err",
-        text: passwordPolicyErrorMessagePt(resetCheck.code),
-      });
-      return;
-    }
-    setResetBusy(true);
-    setPanelMsg(null);
-    try {
-      const r = await fetch(`/api/admin/users/${id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: await withCsrfHeaderAsync({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ password: resetPass }),
-      });
-      const t = await r.text();
-      let data = {};
-      try {
-        data = t ? JSON.parse(t) : {};
-      } catch {
-        data = { message: t };
-      }
-      if (!r.ok) {
-        throw new Error(mapPanelApiErrorMessage(data.message) || r.statusText);
-      }
-      setResetId(null);
-      setResetPass("");
-      toast.success("Palavra-passe atualizada.");
-      await refetch();
-    } catch (e) {
-      setPanelMsg({
-        type: "err",
-        text: e?.message || "Falha ao atualizar palavra-passe.",
-      });
-    } finally {
-      setResetBusy(false);
     }
   };
 
@@ -421,7 +367,7 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
           <p className="mt-2">
             Com <code className="rounded bg-muted px-1 text-xs">VITE_USE_SERVER_AUTH=true</code>{" "}
             inicie sessão com uma conta da base para adicionar contas Google, ver atividade,
-            redefinir palavra-passe (contas antigas) e gerir grupos de permissão por utilizador.
+            gerir grupos de permissão por utilizador.
           </p>
         </div>
       ) : null}
@@ -438,24 +384,10 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
             </div>
             <div>
               <h2 className="text-lg font-semibold text-foreground">Nova conta Google</h2>
-              <p className="text-sm text-muted-foreground">
-                Adicione o Gmail do utilizador. A conta é criada na base e autorizada para login
-                com Google (sem palavra-passe no site).
+              <p className="text-xs text-muted-foreground">
+                Gmail autorizado para login Google.
               </p>
             </div>
-          </div>
-          <div className="mb-4 max-w-md space-y-2">
-            <Label htmlFor="mbr-srv-name">Nome (opcional)</Label>
-            <Input
-              id="mbr-srv-name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Nome a mostrar no site"
-              disabled={createBusy}
-            />
-            <p className="text-xs text-muted-foreground">
-              Se deixar vazio, usa a parte antes do @ do e-mail.
-            </p>
           </div>
           <GoogleAllowedEmailsEditor
             id="mbr-google-allowed"
@@ -467,7 +399,7 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
             onRemoveEmail={handleRemoveAllowedEmail}
             disabled={createBusy}
             label="E-mails autorizados (login Google)"
-            hint="Digite ou cole e-mails e prima Enter. Remover da lista impede novo login Google; a conta permanece na lista abaixo."
+            hint="E-mail + Enter. Remover bloqueia novo login Google."
           />
           {createMsg ? (
             <p
@@ -483,16 +415,16 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: serverControlsEnabled ? 0.05 : 0 }}
-        className="rounded-2xl border border-border bg-card p-6"
+        className="rounded-2xl border border-border bg-card p-4 sm:p-5"
       >
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10">
-              <Users className="h-5 w-5 text-accent" />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10">
+              <Users className="h-4 w-4 text-accent" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-foreground">Membros cadastrados</h2>
-              <p className="text-sm text-muted-foreground">
+              <h2 className="text-base font-semibold text-foreground">Membros cadastrados</h2>
+              <p className="text-xs text-muted-foreground">
                 {users.length} utilizador(es)
                 {serverControlsEnabled
                   ? " · contas na base de dados do site"
@@ -531,9 +463,9 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
         ) : null}
 
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-14 rounded-xl" />
+              <Skeleton key={i} className="h-11 rounded-lg" />
             ))}
           </div>
         ) : users.length === 0 ? (
@@ -544,7 +476,7 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
             compact
           />
         ) : serverControlsEnabled ? (
-          <div className="space-y-3">
+          <div className="overflow-hidden rounded-lg border border-border divide-y divide-border">
             {users.map((u) => {
               const isSelf =
                 sessionUser?.id != null && Number(sessionUser.id) === Number(u.id);
@@ -556,241 +488,106 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
               return (
                 <div
                   key={u.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-start sm:justify-between"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-card px-2.5 py-2 sm:gap-x-3 sm:px-3 sm:py-2"
                 >
-                  <div className="flex min-w-0 flex-1 gap-3">
-                    <UserAvatar user={u} className="h-10 w-10 shrink-0" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate font-medium text-foreground">
-                          {u.full_name || "—"}
+                  <UserAvatar user={u} className="h-8 w-8 shrink-0" />
+                  <div className="min-w-0 flex-1 basis-[10rem]">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {u.full_name || "—"}
+                      </span>
+                      {isAdminRole ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">
+                          <Shield className="h-2.5 w-2.5" />
+                          Admin
                         </span>
-                        {isAdminRole ? (
-                          <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-primary">
-                            <Shield className="h-3 w-3" />
-                            Admin
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                            <UserCog className="h-3 w-3" />
-                            {u.role || "Conta"}
-                          </span>
-                        )}
-                        {u.login_via_google === true ? (
-                          <span className="flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                            <Mail className="h-3 w-3" />
-                            Google
-                          </span>
-                        ) : null}
-                        {u.disabled === true ? (
-                          <span className="text-[11px] text-destructive">Desativado</span>
-                        ) : null}
-                      </div>
-                      <p className="truncate text-sm text-muted-foreground">{u.email}</p>
-                      <div className="max-w-md space-y-1.5">
-                        <Label
-                          htmlFor={`pg-select-${u.id}`}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Grupo de permissões
-                        </Label>
-                        <Select
-                          value={groupValue}
-                          disabled={
-                            groupsLoading ||
-                            !!groupsError ||
-                            (updateUserGroupMut.isPending &&
-                              updateUserGroupMut.variables?.id === u.id)
-                          }
-                          onValueChange={(v) => {
-                            const next = v === "none" ? null : Number.parseInt(v, 10);
-                            if (
-                              (u.permission_group_id == null || u.permission_group_id === "") &&
-                              v === "none"
-                            ) {
-                              return;
-                            }
-                            if (
-                              u.permission_group_id != null &&
-                              String(u.permission_group_id) === v
-                            ) {
-                              return;
-                            }
-                            updateUserGroupMut.mutate({ id: u.id, permission_group_id: next });
-                          }}
-                        >
-                          <SelectTrigger id={`pg-select-${u.id}`} className="h-9 w-full sm:max-w-xs">
-                            <SelectValue placeholder="Sem grupo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sem grupo</SelectItem>
-                            {sortedGroups.map((g) => (
-                              <SelectItem key={g.id} value={String(g.id)}>
-                                {g.name} (#{g.id})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {isAdminRole ? (
-                          <p className="text-[11px] leading-snug text-muted-foreground">
-                            Administradores têm acesso total; o grupo mantém-se para evoluções
-                            futuras da conta.
-                          </p>
-                        ) : (
-                          <p className="text-[11px] leading-snug text-muted-foreground">
-                            Com grupo definido, as permissões de menu vêm sobretudo do grupo.
-                          </p>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Criado: {formatTs(u.created_at)} · Atualizado: {formatTs(u.updated_at)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-                    {resetId === u.id ? (
-                      <div className="flex w-full flex-col gap-2 sm:w-64">
-                        <PasswordRevealInput
-                          placeholder="Nova palavra-passe"
-                          value={resetPass}
-                          onChange={(e) => setResetPass(e.target.value)}
-                          autoComplete="new-password"
-                        />
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => void handleResetPassword(u.id)} disabled={resetBusy}>
-                            <KeyRound className="mr-1 h-4 w-4" />
-                            Salvar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setResetId(null);
-                              setResetPass("");
-                            }}
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="w-full sm:w-auto"
-                          onClick={() => {
-                            setActivityUserId(u.id);
-                            setActivityUserLabel(u.full_name || u.email || `ID ${u.id}`);
-                            setActivityOpen(true);
-                          }}
-                        >
-                          <ScrollText className="mr-1 h-4 w-4" />
-                          Ver atividade
-                        </Button>
-                        {u.login_via_google !== true ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto"
-                            onClick={() => {
-                              setResetId(u.id);
-                              setResetPass("");
-                            }}
-                          >
-                            <KeyRound className="mr-1 h-4 w-4" />
-                            Redefinir palavra-passe
-                          </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          disabled={u.id === adminUser?.id || togglingDisabled[u.id] === true}
-                          onClick={() => void handleToggleDisabled(u)}
-                        >
-                          {togglingDisabled[u.id] ? (
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                          ) : u.disabled === true ? (
-                            "Reativar"
-                          ) : (
-                            "Desativar"
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 sm:w-auto"
-                          disabled={isSelf}
-                          title={
-                            isSelf ? "Não pode eliminar a sua própria sessão aqui" : "Eliminar conta"
-                          }
-                          onClick={() =>
-                            setDeleteTarget({
-                              id: u.id,
-                              label: u.full_name || u.email || `ID ${u.id}`,
-                            })
-                          }
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" />
-                          Eliminar conta
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {users.map((u) => {
-              const name = String(u.full_name || "").trim();
-              const email = String(u.email || "").trim();
-              const line1 = name || email || "—";
-              const line2 = name && email ? email : null;
-              return (
-                <div
-                  key={u.id}
-                  className="flex flex-col items-stretch gap-3 rounded-xl bg-muted/50 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                >
-                  <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center">
-                    <UserAvatar user={u} className="h-9 w-9 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm font-medium text-foreground sm:truncate">
-                        {line1}
-                      </p>
-                      {line2 ? (
-                        <p className="mt-0.5 break-all text-xs text-muted-foreground sm:truncate">
-                          {line2}
-                        </p>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <UserCog className="h-2.5 w-2.5" />
+                          {u.role || "Conta"}
+                        </span>
+                      )}
+                      {u.login_via_google === true ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                          <Mail className="h-2.5 w-2.5" />
+                          Google
+                        </span>
                       ) : null}
                       {u.disabled === true ? (
-                        <p className="mt-0.5 text-[11px] text-destructive">Desativado</p>
+                        <span className="text-[10px] font-medium text-destructive">Off</span>
                       ) : null}
                     </div>
+                    <p className="truncate text-xs text-muted-foreground">{u.email}</p>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border/50 pt-3 sm:border-t-0 sm:pt-0">
-                    <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-primary">
-                      <Shield className="h-3 w-3" />
-                      Admin
-                    </span>
+                  <Select
+                    value={groupValue}
+                    disabled={
+                      groupsLoading ||
+                      !!groupsError ||
+                      (updateUserGroupMut.isPending &&
+                        updateUserGroupMut.variables?.id === u.id)
+                    }
+                    onValueChange={(v) => {
+                      const next = v === "none" ? null : Number.parseInt(v, 10);
+                      if (
+                        (u.permission_group_id == null || u.permission_group_id === "") &&
+                        v === "none"
+                      ) {
+                        return;
+                      }
+                      if (
+                        u.permission_group_id != null &&
+                        String(u.permission_group_id) === v
+                      ) {
+                        return;
+                      }
+                      updateUserGroupMut.mutate({ id: u.id, permission_group_id: next });
+                    }}
+                  >
+                    <SelectTrigger
+                      id={`pg-select-${u.id}`}
+                      className="h-8 w-full min-w-[9.5rem] max-w-[11.5rem] text-xs"
+                      aria-label={`Grupo de ${u.full_name || u.email}`}
+                    >
+                      <SelectValue placeholder="Grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem grupo</SelectItem>
+                      {sortedGroups.map((g) => (
+                        <SelectItem key={g.id} value={String(g.id)}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex shrink-0 items-center gap-0.5">
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      title="Ver atividade"
+                      onClick={() => {
+                        setActivityUserId(u.id);
+                        setActivityUserLabel(u.full_name || u.email || `ID ${u.id}`);
+                        setActivityOpen(true);
+                      }}
+                    >
+                      <ScrollText className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
                       disabled={u.id === adminUser?.id || togglingDisabled[u.id] === true}
-                      onClick={() => void handleToggleDisabled(u)}
-                      className="h-8"
                       title={u.disabled === true ? "Reativar" : "Desativar"}
+                      onClick={() => void handleToggleDisabled(u)}
                     >
                       {togglingDisabled[u.id] ? (
                         <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : u.disabled === true ? (
-                        "Reativar"
                       ) : (
-                        "Desativar"
+                        <UserIcon className="h-4 w-4" />
                       )}
                     </Button>
                     <Button
@@ -798,14 +595,80 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      disabled={u.id === adminUser?.id}
+                      disabled={isSelf}
+                      title={
+                        isSelf ? "Não pode eliminar a sua própria sessão" : "Eliminar conta"
+                      }
+                      onClick={() =>
+                        setDeleteTarget({
+                          id: u.id,
+                          label: u.full_name || u.email || `ID ${u.id}`,
+                        })
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border divide-y divide-border">
+            {users.map((u) => {
+              const name = String(u.full_name || "").trim();
+              const email = String(u.email || "").trim();
+              const line1 = name || email || "—";
+              const line2 = name && email ? email : null;
+              const isSelf = u.id === adminUser?.id;
+              return (
+                <div
+                  key={u.id}
+                  className="flex flex-wrap items-center gap-2 bg-card px-2.5 py-2 sm:px-3"
+                >
+                  <UserAvatar user={u} className="h-8 w-8 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{line1}</p>
+                    {line2 ? (
+                      <p className="truncate text-xs text-muted-foreground">{line2}</p>
+                    ) : null}
+                    {u.disabled === true ? (
+                      <p className="text-[10px] text-destructive">Desativado</p>
+                    ) : null}
+                  </div>
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-primary">
+                    <Shield className="h-2.5 w-2.5" />
+                    Admin
+                  </span>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={isSelf || togglingDisabled[u.id] === true}
+                      title={u.disabled === true ? "Reativar" : "Desativar"}
+                      onClick={() => void handleToggleDisabled(u)}
+                    >
+                      {togglingDisabled[u.id] ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserIcon className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      disabled={isSelf}
+                      title="Remover"
                       onClick={() =>
                         setDeleteTarget({
                           id: u.id,
                           label: u.full_name || u.email || u.id,
                         })
                       }
-                      title="Remover"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

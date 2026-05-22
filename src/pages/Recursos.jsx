@@ -23,7 +23,7 @@ export default function Recursos() {
         pageKey="recursos"
         tag="Edificação"
         title="Recursos"
-        description="Materiais de apoio e endereços selecionados para estudo, leitura e referência espiritual."
+        description="Materiais e links úteis."
       />
       <section className="py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

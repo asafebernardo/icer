@@ -33,9 +33,19 @@ import {
 import SafeImg from "@/components/shared/SafeImg";
 import MediaKindCornerBadge from "@/components/shared/MediaKindCornerBadge";
 import SlideMediaCaption from "@/components/posts/SlideMediaCaption";
+import { ANEXO_ORDER_MOSAIC_CELL } from "@/components/posts/AnexoOrderMosaicDnd";
 import { usePresentationBackgroundAudio } from "@/components/posts/usePresentationBackgroundAudio";
 import { getSlideCaptionLabel } from "@/lib/posts";
 import { cn } from "@/lib/utils";
+
+const GALLERY_MOSAIC_WRAP_STYLE = {
+  ["--anexo-mosaic-cell"]: ANEXO_ORDER_MOSAIC_CELL,
+};
+const GALLERY_MOSAIC_CELL_STYLE = {
+  flex: `0 0 ${ANEXO_ORDER_MOSAIC_CELL}`,
+  width: ANEXO_ORDER_MOSAIC_CELL,
+  maxWidth: ANEXO_ORDER_MOSAIC_CELL,
+};
 
 function isVisualMime(mime) {
   return (
@@ -190,6 +200,8 @@ export default function PostImagesBlock({
   audioAmbienteAtivo = true,
   /** Só a aba grelha de miniaturas (ex.: editor — etapa multimídia). */
   galleryOnly = false,
+  /** Aba inicial: "galeria" | "apresentacao" (ex.: página pública do post). */
+  initialTab,
 }) {
   const slides = useMemo(() => {
     if (Array.isArray(slidesProp) && slidesProp.length) {
@@ -222,9 +234,11 @@ export default function PostImagesBlock({
   const [delaySec, setDelaySec] = useState(() =>
     Math.min(60, Math.max(2, Number(intervalSec) || 5)),
   );
-  const [activeTab, setActiveTab] = useState(
-    () => (galleryOnly ? "galeria" : "apresentacao"),
-  );
+  const [activeTab, setActiveTab] = useState(() => {
+    if (galleryOnly) return "galeria";
+    if (initialTab === "galeria") return "galeria";
+    return "apresentacao";
+  });
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [youtubeSoundOn, setYoutubeSoundOn] = useState(false);
 
@@ -703,7 +717,8 @@ export default function PostImagesBlock({
                   <div
                     ref={dropProvided.innerRef}
                     {...dropProvided.droppableProps}
-                    className="flex flex-nowrap gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch]"
+                    className="flex w-full min-w-0 flex-wrap content-start gap-2 pb-2"
+                    style={GALLERY_MOSAIC_WRAP_STYLE}
                   >
                     {slides.map((slide, i) => (
                       <Draggable
@@ -715,7 +730,8 @@ export default function PostImagesBlock({
                           <div
                             ref={dragProvided.innerRef}
                             {...dragProvided.draggableProps}
-                            className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border bg-muted/30 outline-none transition-[box-shadow,ring,opacity] sm:h-28 sm:w-28 md:h-32 md:w-32 ${
+                            style={GALLERY_MOSAIC_CELL_STYLE}
+                            className={`relative aspect-square min-w-0 overflow-hidden rounded-xl border bg-muted/30 outline-none transition-[box-shadow,ring,opacity] ${
                               snapshot.isDragging
                                 ? "z-10 opacity-90 shadow-lg ring-2 ring-accent"
                                 : ""
@@ -792,12 +808,16 @@ export default function PostImagesBlock({
               </Droppable>
             </DragDropContext>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            <div
+              className="flex w-full min-w-0 flex-wrap content-start gap-2 pb-2"
+              style={GALLERY_MOSAIC_WRAP_STYLE}
+            >
               {slides.map((slide, i) =>
                 starCtl ? (
                   <div
                     key={draggableIdForSlide(slide, i)}
-                    className={`relative aspect-square overflow-hidden rounded-xl border bg-muted/30 transition-[box-shadow,ring] ${
+                    style={GALLERY_MOSAIC_CELL_STYLE}
+                    className={`relative aspect-square min-w-0 overflow-hidden rounded-xl border bg-muted/30 transition-[box-shadow,ring] ${
                       i === safeIndex
                         ? "ring-2 ring-accent shadow-md"
                         : "border-border"
@@ -855,7 +875,8 @@ export default function PostImagesBlock({
                 ) : (
                   <div
                     key={draggableIdForSlide(slide, i)}
-                    className={`relative aspect-square overflow-hidden rounded-xl border bg-muted/30 transition-[box-shadow,ring] ${
+                    style={GALLERY_MOSAIC_CELL_STYLE}
+                    className={`relative aspect-square min-w-0 overflow-hidden rounded-xl border bg-muted/30 transition-[box-shadow,ring] ${
                       i === safeIndex
                         ? "ring-2 ring-accent shadow-md"
                         : "border-border"
@@ -910,14 +931,18 @@ export default function PostImagesBlock({
           {galleryDragEnabled || starCtl ? (
             <p className="mt-3 text-xs text-muted-foreground">
               {galleryDragEnabled
-                ? "Ordem da esquerda para a direita. Arraste pelo ícone ⋮⋮; clique para ampliar."
-                : null}
+                ? "Mosaico em grelha — ordem da esquerda para a direita e linha a linha. Arraste pelo ícone ⋮⋮; clique para ampliar."
+                : "Mosaico em grelha — clique numa miniatura para ampliar."}
               {galleryDragEnabled && starCtl ? " " : null}
               {starCtl
                 ? "Estrela: miniatura na lista (foto ou vídeo). Sem estrela, usa a 1.ª imagem; vídeo só com estrela."
                 : null}
             </p>
-          ) : null}
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Mosaico em grelha — clique numa miniatura para ampliar.
+            </p>
+          )}
         </TabsContent>
       </Tabs>
 

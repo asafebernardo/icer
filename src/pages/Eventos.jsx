@@ -589,7 +589,7 @@ export default function Eventos() {
         pageKey="eventos"
         tag="Programação"
         title="Eventos"
-        description="Detalhes dos encontros da igreja: datas, horários, locais e programação para consultar e participar."
+        description="Datas, horários e locais dos encontros."
       />
 
       <section className="py-10 lg:py-14">

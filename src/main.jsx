@@ -9,8 +9,10 @@ import {
 import { applySiteColorPalette } from "@/lib/colorPalettes";
 import { getUserColorPalette } from "@/lib/userColorPalette";
 import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
+import { captureLoginIntentFromBrowserUrl } from "@/lib/loginIntent";
 
 purgeLegacyDemoStorage();
+captureLoginIntentFromBrowserUrl();
 
 // Tema (claro/escuro) é por navegador.
 const savedTheme = localStorage.getItem("church-theme");

@@ -71,7 +71,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
-  const { navigateToLogin, googleLoginAvailable } = useAuth();
+  const { googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const setThemeMode = (next) => {
     const isDark = theme === "dark";
@@ -187,6 +187,21 @@ export default function Navbar() {
                 </Link>
               );
             })}
+            {isAdmin ? (
+              <Link
+                to="/Historia"
+                aria-current={
+                  location.pathname === "/Historia" ? "page" : undefined
+                }
+                className={`nav-link-pill ${
+                  location.pathname === "/Historia"
+                    ? "bg-primary text-primary-foreground shadow-soft"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                História
+              </Link>
+            ) : null}
           </div>
 
           {/* Ações direita */}
@@ -388,6 +403,22 @@ export default function Navbar() {
                           </Link>
                         );
                       })}
+                      {isAdmin ? (
+                        <Link
+                          to="/Historia"
+                          onClick={() => setOpen(false)}
+                          aria-current={
+                            location.pathname === "/Historia" ? "page" : undefined
+                          }
+                          className={`min-h-[44px] flex items-center px-4 py-2.5 text-[14px] font-medium rounded-xl transition-all duration-200 ${
+                            location.pathname === "/Historia"
+                              ? "bg-primary text-primary-foreground shadow-soft"
+                              : "text-foreground/80 hover:text-foreground hover:bg-muted/50"
+                          }`}
+                        >
+                          História
+                        </Link>
+                      ) : null}
                       <div className="mt-2 border-t border-border pt-2">
                         {isLoggedIn ? (
                           <div className="min-w-0">
@@ -497,10 +528,7 @@ export default function Navbar() {
                             <GoogleSignInButton
                               className="w-full min-h-[44px] justify-center"
                               size="default"
-                              onClick={() => {
-                                setOpen(false);
-                                navigateToLogin();
-                              }}
+                              onClick={() => setOpen(false)}
                             />
                           </div>
                         ) : null}

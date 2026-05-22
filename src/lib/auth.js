@@ -55,6 +55,7 @@ const PAGE_KEY_TO_MENU = {
   contato: MENU.HOME,
   login: MENU.HOME,
   admin: MENU.DASHBOARD,
+  historia: MENU.DASHBOARD,
 };
 
 export { isServerAuthEnabled };
@@ -163,7 +164,7 @@ export function logout() {
   clearServerMenuEffective();
   clearSessionUser();
   if (typeof window !== "undefined") {
-    window.location.assign("/Home");
+    window.location.assign("/");
   }
 }
 

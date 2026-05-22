@@ -5,13 +5,12 @@ import NativeTitleLifetime from "@/components/layout/NativeTitleLifetime";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
 import {
-  BrowserRouter as Router,
   Route,
   Routes,
   Navigate,
   useLocation,
-  useNavigate,
 } from "react-router-dom";
+import AppRouter from "@/lib/AppRouter";
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { EditModeProvider } from "@/lib/EditModeContext";
@@ -34,9 +33,18 @@ import Postagens from "./pages/Postagens";
 import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
+import Login from "./pages/Login";
+import Historia from "./pages/Historia";
+import AdminRoute from "./components/AdminRoute";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
+import {
+  hasLoginIntent,
+  isLoginPath,
+  setLoginIntent,
+  clearLoginIntent,
+} from "@/lib/loginIntent";
 
-// Rotas privadas — inicia login Google e envia para Início (efeito evita loop no render)
+// Rotas privadas — redireciona para /login se não houver sessão
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, navigateToLogin } =
     useAuth();
@@ -62,26 +70,30 @@ const PrivateRoute = ({ children }) => {
   return children;
 };
 
+function RootRedirect() {
+  const browserPath =
+    typeof window !== "undefined" ? window.location.pathname : "";
+  if (isLoginPath(browserPath) || hasLoginIntent()) {
+    return <Navigate to="/login" replace />;
+  }
+  return <Navigate to="/Home" replace />;
+}
+
 function TrackLastVisitedPath() {
   const location = useLocation();
   useEffect(() => {
-    const p = location.pathname + location.search;
-    if (p !== "/login" && p !== "/Login") {
-      sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
+    if (isLoginPath(location.pathname)) {
+      setLoginIntent();
+      return;
     }
+    if (location.pathname === "/") {
+      return;
+    }
+    clearLoginIntent();
+    const p = location.pathname + location.search;
+    sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
   }, [location.pathname, location.search]);
   return null;
-}
-
-/** Links antigos para /login: inicia OAuth Google e vai para Início. */
-function LoginPathRedirect() {
-  const { navigateToLogin } = useAuth();
-  const navigate = useNavigate();
-  useEffect(() => {
-    navigate("/Home", { replace: true });
-    navigateToLogin();
-  }, [navigateToLogin, navigate]);
-  return <RouteSkeleton />;
 }
 
 const AppRoutes = () => {
@@ -107,10 +119,10 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/Home" replace />} />
+      <Route path="/" element={<RootRedirect />} />
 
-      <Route path="/login" element={<LoginPathRedirect />} />
-      <Route path="/Login" element={<LoginPathRedirect />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/Login" element={<Navigate to="/login" replace />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
 
       <Route element={<Layout />}>
@@ -161,6 +173,14 @@ const AppRoutes = () => {
         />
         <Route path="Postagens" element={<Postagens />} />
         <Route path="Post/:id" element={<PostPage />} />
+        <Route
+          path="Historia"
+          element={
+            <AdminRoute>
+              <Historia />
+            </AdminRoute>
+          }
+        />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />
@@ -171,7 +191,7 @@ const AppRoutes = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClientInstance}>
-      <Router>
+      <AppRouter>
         <AuthProvider>
           <ThemeProvider>
             <EditModeProvider>
@@ -186,7 +206,7 @@ function App() {
             </EditModeProvider>
           </ThemeProvider>
         </AuthProvider>
-      </Router>
+      </AppRouter>
     </QueryClientProvider>
   );
 }

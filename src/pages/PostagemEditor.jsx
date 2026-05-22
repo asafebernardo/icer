@@ -566,10 +566,6 @@ export default function PostagemEditor() {
     );
   }, [visualMediaUrlsForDias, usarGaleriaPorDia]);
 
-  useEffect(() => {
-    if (step !== 3) setPoolAssignPreviewUrl(null);
-  }, [step]);
-
   const setFieldHintAnchor = useCallback((key) => (el) => {
     if (el) fieldHintAnchorRefs.current[key] = el;
     else delete fieldHintAnchorRefs.current[key];

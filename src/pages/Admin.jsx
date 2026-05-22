@@ -7,7 +7,6 @@ import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
 import AdminMembrosPanel from "@/components/dashboard/AdminMembrosPanel";
 import { isAdminUser, getUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
-import UserAvatar from "@/components/shared/UserAvatar";
 
 function GateAdmin() {
   return (
@@ -73,21 +72,11 @@ export default function Admin() {
       <PageHeader
         tag="Administração"
         title="Painel administrativo"
-        description="Perfil, utilizadores, grupos de permissão, site, Google, servidor, segurança e restantes opções."
+        description="Gestão do site e contas."
         pageKey="admin"
       />
 
       <div className="mx-auto max-w-5xl p-4 sm:p-6">
-        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4 text-sm">
-          <UserAvatar user={user} className="h-10 w-10" />
-          <div>
-            <span className="text-muted-foreground">Sessão:</span>{" "}
-            <span className="font-medium text-foreground">{user.full_name || user.email}</span>
-            <span className="text-muted-foreground"> · </span>
-            <span className="text-foreground">{user.email}</span>
-          </div>
-        </div>
-
         <AdminSettingsShell
           tabMembrosSlot={
             <AdminMembrosPanel adminUser={user} serverControlsEnabled={serverControlsEnabled} />

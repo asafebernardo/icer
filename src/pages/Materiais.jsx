@@ -22,7 +22,7 @@ export default function Materiais() {
         pageKey="recursos"
         tag="Recursos"
         title="Materiais"
-        description="Acesse e baixe materiais, documentos e recursos da nossa igreja."
+        description="Materiais para download."
       />
 
       <section className="py-16 lg:py-20">

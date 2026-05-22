@@ -229,7 +229,7 @@ export default function Postagens() {
         pageKey="postagens"
         tag="Comunidade"
         title="Postagens"
-        description="Notícias, avisos e reflexões da comunidade para acompanhar a vida da igreja."
+        description="Notícias e avisos da comunidade."
       />
 
       <section className="py-16 max-w-5xl mx-auto px-4">

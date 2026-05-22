@@ -103,11 +103,8 @@ export default function AdminAgendaSimpleGridSection() {
           <h3 className="font-display text-lg font-semibold text-foreground">
             Agenda simples (modal)
           </h3>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Textos das colunas da tabela mensal e dias em que cultos e estudos (oração) aparecem
-            nessas colunas. Se nenhum dia estiver marcado para cultos ou para oração, aplicam-se{" "}
-            <span className="font-medium text-foreground">todos os dias da semana</span>.
-            Eventos fora do dia escolhido vão para «Outras».
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Colunas da tabela mensal e dias de cultos/oração; vazio = todos os dias.
           </p>
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   FileText,
   CalendarPlus,
+  Landmark,
 } from "lucide-react";
 
 import {
@@ -79,9 +80,13 @@ export default function CommandPalette({ open, onOpenChange }) {
     (!isMobileSearchLayout || mobileSearch.trim().length > 0);
 
   const cmdkNavRoutes = useMemo(() => {
-    if (!isMobileSearchLayout) return NAV_ROUTES;
-    return NAV_ROUTES.filter((r) => !MOBILE_BOTTOM_NAV_PATHS.has(r.path));
-  }, [isMobileSearchLayout]);
+    const adminOnly = isAdmin
+      ? [{ label: "História", path: "/Historia", icon: Landmark }]
+      : [];
+    const base = [...NAV_ROUTES, ...adminOnly];
+    if (!isMobileSearchLayout) return base;
+    return base.filter((r) => !MOBILE_BOTTOM_NAV_PATHS.has(r.path));
+  }, [isMobileSearchLayout, isAdmin]);
 
   const { data: postsData } = useQuery({
     queryKey: ["cmdk", "posts"],
