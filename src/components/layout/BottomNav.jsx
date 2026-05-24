@@ -24,6 +24,7 @@ import {
   Server,
   Sparkles,
   FileStack,
+  LogIn,
 } from "lucide-react";
 import {
   Sheet,
@@ -40,6 +41,7 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { logout as authLogout, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { setLoginIntent } from "@/lib/loginIntent";
 import { cn } from "@/lib/utils";
 import AdminNavLinks from "@/components/admin/AdminNavLinks";
 import {
@@ -331,15 +333,31 @@ export default function BottomNav() {
                   <span className="text-base">Sair</span>
                 </button>
               </>
-            ) : googleLoginAvailable ? (
-              <div className="px-5 py-4">
-                <GoogleSignInButton
-                  className="w-full justify-center"
-                  size="default"
-                  onClick={() => setOpen(false)}
-                />
-              </div>
-            ) : null}
+            ) : (
+              <>
+                {isServerAuthEnabled() ? (
+                  <SheetClose asChild>
+                    <Link
+                      to="/login"
+                      onClick={() => setLoginIntent()}
+                      className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50"
+                    >
+                      <LogIn className="w-5 h-5 text-foreground/70" />
+                      <span className="text-base">Entrar</span>
+                    </Link>
+                  </SheetClose>
+                ) : null}
+                {googleLoginAvailable ? (
+                  <div className="px-5 py-4">
+                    <GoogleSignInButton
+                      className="w-full justify-center"
+                      size="default"
+                      onClick={() => setOpen(false)}
+                    />
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>

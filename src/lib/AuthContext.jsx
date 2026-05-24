@@ -37,6 +37,7 @@ import {
   syncGoogleLoginHintFromServer,
 } from "@/lib/googleLoginHint";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
+import { setLoginIntent } from "@/lib/loginIntent";
 
 const AuthContext = createContext(null);
 
@@ -63,6 +64,8 @@ export function AuthProvider({ children }) {
   const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
   const [rememberedGoogleEmail, setRememberedGoogleEmail] = useState("");
   const googleReauthPendingRef = useRef(false);
+  /** Ignora respostas 401 de validações iniciadas antes de um login/logout recente. */
+  const sessionValidationGenRef = useRef(0);
 
   const checkUserAuth = useCallback(() => {
     setUser(getUser());
@@ -83,9 +86,11 @@ export function AuthProvider({ children }) {
       await validateServerSessionRef.current;
       return;
     }
+    const genAtStart = sessionValidationGenRef.current;
     const run = (async () => {
       try {
         const r = await fetch("/api/auth/me", { credentials: "include" });
+        if (sessionValidationGenRef.current !== genAtStart) return;
         if (r.ok) {
           const u = await r.json();
           persistSessionUser({
@@ -110,7 +115,9 @@ export function AuthProvider({ children }) {
       } catch {
         /* rede / servidor offline — não limpar sessão local */
       } finally {
-        checkUserAuth();
+        if (sessionValidationGenRef.current === genAtStart) {
+          checkUserAuth();
+        }
       }
     })();
     validateServerSessionRef.current = run;
@@ -223,6 +230,7 @@ export function AuthProvider({ children }) {
     if (gl === "ok") {
       stripGoogleParams();
       void (async () => {
+        sessionValidationGenRef.current += 1;
         await validateServerSession();
         const u = getUser();
         if (u?.email) setGoogleLoginHint(u.email);
@@ -283,7 +291,10 @@ export function AuthProvider({ children }) {
           syncGoogleLoginHintFromServer(j.remembered_email);
           setRememberedGoogleEmail(j.remembered_email);
         }
-        if (j.auth_url) window.location.assign(j.auth_url);
+        if (j.auth_url) {
+          sessionValidationGenRef.current += 1;
+          window.location.assign(j.auth_url);
+        }
       } catch (err) {
         toast.error(err?.message || "Não foi possível iniciar o login com Google.");
       } finally {
@@ -300,6 +311,7 @@ export function AuthProvider({ children }) {
   }, [startGoogleLogin]);
 
   const login = useCallback(async (email, senha) => {
+    sessionValidationGenRef.current += 1;
     const result = await authLogin(email, senha);
     if (!result.ok) return result;
     setUser(getUser());
@@ -329,6 +341,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = () => {
+    sessionValidationGenRef.current += 1;
     authLogout();
     setUser(null);
     if (typeof window !== "undefined") {
@@ -349,6 +362,7 @@ export function AuthProvider({ children }) {
     if (location.pathname === "/login" || location.pathname === "/Login") {
       return;
     }
+    setLoginIntent();
     navigate("/login", { replace: true });
   }, [navigate, location.pathname, location.search]);
 

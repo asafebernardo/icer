@@ -771,7 +771,7 @@ export function createApplication(db, options = {}) {
 
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
-    setSessionCookie(res, token);
+    setSessionCookie(res, token, ttlMinutes * 60);
     ensureCsrfCookie(req, res);
     await recordAudit(db, {
       userId: row.id,
@@ -1107,7 +1107,7 @@ export function createApplication(db, options = {}) {
 
     const ttlMinutes = await getSessionTtlMinutes();
     const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
-    setSessionCookie(res, token);
+    setSessionCookie(res, token, ttlMinutes * 60);
     setGoogleLoginHintCookie(res, email);
     ensureCsrfCookie(req, res);
     await recordAudit(db, {

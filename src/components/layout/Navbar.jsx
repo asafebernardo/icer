@@ -32,6 +32,7 @@ import {
   FileStack,
   Pencil,
   Search,
+  LogIn,
 } from "lucide-react";
 import { useTheme } from "@/lib/ThemeContext";
 import { useEditMode } from "@/lib/EditModeContext";
@@ -44,6 +45,7 @@ import {
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { setLoginIntent } from "@/lib/loginIntent";
 import { useAuth } from "@/lib/AuthContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import SiteLogoMark, {
@@ -523,15 +525,32 @@ export default function Navbar() {
                               <LogOut className="w-4 h-4 shrink-0" /> <span className="truncate">Sair</span>
                             </button>
                           </div>
-                        ) : googleLoginAvailable ? (
-                          <div className="px-4 py-2">
-                            <GoogleSignInButton
-                              className="w-full min-h-[44px] justify-center"
-                              size="default"
-                              onClick={() => setOpen(false)}
-                            />
-                          </div>
-                        ) : null}
+                        ) : (
+                          <>
+                            {isServerAuthEnabled() ? (
+                              <Link
+                                to="/login"
+                                onClick={() => {
+                                  setLoginIntent();
+                                  setOpen(false);
+                                }}
+                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-foreground hover:bg-muted/50"
+                              >
+                                <LogIn className="h-4 w-4 shrink-0" aria-hidden />
+                                <span>Entrar</span>
+                              </Link>
+                            ) : null}
+                            {googleLoginAvailable ? (
+                              <div className="px-4 py-2">
+                                <GoogleSignInButton
+                                  className="w-full min-h-[44px] justify-center"
+                                  size="default"
+                                  onClick={() => setOpen(false)}
+                                />
+                              </div>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </nav>
                   </div>

@@ -34,11 +34,19 @@ export function readCookieSecureFlag() {
   return true;
 }
 
-export function sessionCookieOptions() {
-  return {
+export function sessionCookieOptions(maxAgeSeconds) {
+  const opts = {
     httpOnly: true,
     sameSite: "lax",
     secure: readCookieSecureFlag(),
     path: "/",
   };
+  if (
+    maxAgeSeconds != null &&
+    Number.isFinite(Number(maxAgeSeconds)) &&
+    Number(maxAgeSeconds) > 0
+  ) {
+    opts.maxAge = Math.floor(Number(maxAgeSeconds));
+  }
+  return opts;
 }

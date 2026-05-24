@@ -20,8 +20,8 @@ export async function verifyPassword(hash, plain) {
   }
 }
 
-export function setSessionCookie(res, token) {
-  res.cookie(COOKIE_NAME, token, sessionCookieOptions());
+export function setSessionCookie(res, token, maxAgeSeconds) {
+  res.cookie(COOKIE_NAME, token, sessionCookieOptions(maxAgeSeconds));
 }
 
 export function clearSessionCookie(res) {
