@@ -1,24 +1,24 @@
 # ICER
 
-Frontend Vite + React. Com API ICER (`VITE_USE_SERVER_AUTH=true`), **media** (imagens, PDF, vídeo) fica em **`server/uploads/`** no servidor; **MongoDB** guarda só os registos e URLs.
+Vite + React frontend. When using the ICER API (`VITE_USE_SERVER_AUTH=true`), media files (images, PDFs, videos) are stored in **`server/uploads/`** on the server, while **MongoDB** stores only the records and file URLs.
 
-## Desenvolvimento
+## Development
 
-1. Copie `env.example` para `.env` e ajuste (inclua **`MONGODB_URI`** e, se quiser, `MONGODB_DB_NAME`).
-2. Com autenticação no servidor (`VITE_USE_SERVER_AUTH=true`):
-   - **Um terminal:** `npm run dev:all` — sobe o **Express** (API + MongoDB) e o **Vite** ao mesmo tempo.
-   - **Ou dois terminais:** `npm run dev:server` e `npm run dev`.
+1. Copy `env.example` to `.env` and configure it (including **`MONGODB_URI`** and optionally `MONGODB_DB_NAME`).
+2. With server authentication enabled (`VITE_USE_SERVER_AUTH=true`):
+   - **Single terminal:** `npm run dev:all` — starts both **Express** (API + MongoDB) and **Vite** simultaneously.
+   - **Or two terminals:** run `npm run dev:server` and `npm run dev`.
 
-Nota: `npm run dev` sozinho **só** inicia o frontend; a API precisa de MongoDB acessível na `MONGODB_URI` quando corre `dev:server` ou `dev:all`.
+Note: running `npm run dev` alone starts only the frontend. The API requires an accessible MongoDB instance configured in `MONGODB_URI` when running `dev:server` or `dev:all`.
 
-## Produção
+## Production
 
-Ver **[GUIA-HOSPEDAGEM.md](./GUIA-HOSPEDAGEM.md)** (proxy `/api`, SPA fallback, systemd, checklist).
+See **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** (API proxy `/api`, SPA fallback, systemd, deployment checklist).
 
 ## Scripts
 
-- `npm run dev` — só Vite (frontend)
-- `npm run dev:all` — Vite + API Node (MongoDB + media em `server/uploads/`)
-- `npm run dev:server` / `npm run start:server` — só API Node
-- `npm run build` — `dist/` estático
-- `npm run test:server` — testes de integração da API (`mongodb-memory-server`, `supertest`)
+- `npm run dev` — Vite frontend only
+- `npm run dev:all` — Vite + Node API (MongoDB + media storage in `server/uploads/`)
+- `npm run dev:server` / `npm run start:server` — Node API only
+- `npm run build` — generates static `dist/`
+- `npm run test:server` — API integration tests (`mongodb-memory-server`, `supertest`)
