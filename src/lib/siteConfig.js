@@ -10,22 +10,22 @@ const SERVER_CACHE_KEY = "icer_site_config_server_cache";
 export const DEFAULT_SITE_FAVICON = "/favicon.svg";
 
 /** Logo da navbar/rodapé quando `logoUrl` está vazio — ficheiro estático em `public/`. */
-export const DEFAULT_SITE_LOGO_URL = "/logo-default.png";
+export const DEFAULT_SITE_LOGO_URL = "/logo-default.webp";
 
 /** Fundo em mosaico da área de postagens (lista + página do post) quando não há imagem personalizada. */
-export const DEFAULT_POSTAGENS_PAGE_BACKGROUND = "/posts-pattern-bg.png";
+export const DEFAULT_POSTAGENS_PAGE_BACKGROUND = "/posts-pattern-bg.webp";
 
 /** Fundo em mosaico da página Recursos quando não há imagem personalizada. */
-export const DEFAULT_RECURSOS_PAGE_BACKGROUND = "/recursos-pattern-bg.png";
+export const DEFAULT_RECURSOS_PAGE_BACKGROUND = "/recursos-pattern-bg.webp";
 
 /** Fundo em mosaico da página Agenda quando não há imagem personalizada. */
-export const DEFAULT_AGENDA_PAGE_BACKGROUND = "/agenda-pattern-bg.png";
+export const DEFAULT_AGENDA_PAGE_BACKGROUND = "/agenda-pattern-bg.webp";
 
 /** Fundo em mosaico da página Eventos quando não há imagem personalizada. */
-export const DEFAULT_EVENTOS_PAGE_BACKGROUND = "/eventos-pattern-bg.png";
+export const DEFAULT_EVENTOS_PAGE_BACKGROUND = "/eventos-pattern-bg.webp";
 
 /** Fundo em mosaico do painel admin (/Admin) quando não há imagem personalizada. */
-export const DEFAULT_ADMIN_PAGE_BACKGROUND = "/admin-pattern-bg.png";
+export const DEFAULT_ADMIN_PAGE_BACKGROUND = "/admin-pattern-bg.webp";
 
 /**
  * Textos do rodapé (contacto e horários). Usados como fallback em `Footer` e

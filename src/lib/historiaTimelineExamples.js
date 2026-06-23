@@ -27,12 +27,12 @@ export const HISTORIA_TIMELINE_EXAMPLE = [
     ],
     images: [
       {
-        src: "/logo-default.png",
+        src: "/logo-default.webp",
         alt: "Símbolo da comunidade nos primeiros anos",
         caption: "Identidade visual que acompanhou os primeiros encontros.",
       },
       {
-        src: "/site-background-mountains.png",
+        src: "/site-background-mountains.webp",
         alt: "Paisagem da região de Chapecó",
         caption: "A região onde a igreja nasceu e cresceu.",
       },
@@ -52,7 +52,7 @@ export const HISTORIA_TIMELINE_EXAMPLE = [
     ],
     images: [
       {
-        src: "/recursos-pattern-bg.png",
+        src: "/recursos-pattern-bg.webp",
         alt: "Textura decorativa do salão",
         caption: "Ambiente acolhedor do salão provisório.",
       },
@@ -72,17 +72,17 @@ export const HISTORIA_TIMELINE_EXAMPLE = [
     ],
     images: [
       {
-        src: "/site-background-mountains.png",
+        src: "/site-background-mountains.webp",
         alt: "Vista exterior do templo",
         caption: "Fachada principal após a inauguração.",
       },
       {
-        src: "/images/post-categories/acao-de-gracas.jpg",
+        src: "/images/post-categories/acao-de-gracas.webp",
         alt: "Culto de ação de graças",
         caption: "Celebração de gratidão pela nova sede.",
       },
       {
-        src: "/agenda-pattern-bg.png",
+        src: "/agenda-pattern-bg.webp",
         alt: "Interior do auditório",
         caption: "Auditório preparado para cultos e conferências.",
       },
@@ -102,12 +102,12 @@ export const HISTORIA_TIMELINE_EXAMPLE = [
     ],
     images: [
       {
-        src: "/eventos-pattern-bg.png",
+        src: "/eventos-pattern-bg.webp",
         alt: "Encontro de jovens",
         caption: "Momento de louvor num encontro de jovens.",
       },
       {
-        src: "/posts-pattern-bg.png",
+        src: "/posts-pattern-bg.webp",
         alt: "Conferência regional",
         caption: "Participantes de várias cidades na região.",
       },
@@ -127,12 +127,12 @@ export const HISTORIA_TIMELINE_EXAMPLE = [
     ],
     images: [
       {
-        src: "/logo-default.png",
+        src: "/logo-default.webp",
         alt: "Logo actual da ICER Chapecó",
         caption: "Identidade visual actual da igreja.",
       },
       {
-        src: "/admin-pattern-bg.png",
+        src: "/admin-pattern-bg.webp",
         alt: "Equipa e voluntários",
         caption: "Serviço conjunto de irmãos em diferentes áreas.",
       },

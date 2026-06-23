@@ -16,17 +16,11 @@ import {
 } from "@/hooks/usePostCategoryCounts";
 import { cn } from "@/lib/utils";
 
-function CategoryTileSkeleton() {
-  return (
-    <div className="post-category-tile post-category-tile--skeleton h-[200px] rounded-[20px] sm:h-[210px]" />
-  );
-}
-
 export default function PostsCategoryMosaic({
   showDrafts = false,
   tagFilter = "all",
 }) {
-  const { counts, visibleCategories, isLoading } = usePostCategoryCounts({
+  const { counts, visibleCategories, isLoading: countsLoading } = usePostCategoryCounts({
     showDrafts,
   });
 
@@ -40,16 +34,6 @@ export default function PostsCategoryMosaic({
   const emptyLabel =
     POST_MOSAIC_TAG_GROUPS.find((g) => g.id === tagFilter)?.label ?? tagFilter;
 
-  if (isLoading) {
-    return (
-      <div className="posts-category-grid">
-        {Array.from({ length: 15 }).map((_, i) => (
-          <CategoryTileSkeleton key={i} />
-        ))}
-      </div>
-    );
-  }
-
   if (filteredCategories.length === 0) {
     return (
       <EmptyState
@@ -62,11 +46,12 @@ export default function PostsCategoryMosaic({
 
   return (
     <div className="posts-category-grid">
-      {filteredCategories.map((key) => {
+      {filteredCategories.map((key, index) => {
         const label = POST_FEED_SECTION_LABELS[key];
         const image = POST_CATEGORIA_MOSAIC_THUMBS[key];
         const count = counts[key] ?? 0;
         const mosaicTag = POST_CATEGORIA_MOSAIC_TAG[key];
+        const countLabel = countsLoading ? "…" : formatPostCount(count);
 
         return (
           <Link
@@ -94,6 +79,9 @@ export default function PostsCategoryMosaic({
                 src={image}
                 alt=""
                 className="post-category-tile__img"
+                loading={index < 4 ? "eager" : "lazy"}
+                fetchPriority={index < 2 ? "high" : "low"}
+                decoding="async"
               />
               <div className="post-category-tile__overlay" />
               <div className="post-category-tile__vignette" />
@@ -101,7 +89,7 @@ export default function PostsCategoryMosaic({
 
             <div className="post-category-tile__content">
               <h2 className="post-category-tile__title">{label}</h2>
-              <p className="post-category-tile__meta">{formatPostCount(count)}</p>
+              <p className="post-category-tile__meta">{countLabel}</p>
             </div>
 
             <div className="post-category-tile__shine" aria-hidden />

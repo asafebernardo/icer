@@ -8,18 +8,18 @@ import RouteSkeleton from "@/components/shared/RouteSkeleton";
  * Restringe conteúdo a administradores (validação só no cliente — a API deve validar sempre).
  */
 export default function AdminRoute({ children }) {
-  const { user, isLoadingAuth, authChecked, navigateToLogin } = useAuth();
+  const { user, isLoadingAuth, authChecked, isValidatingSession, navigateToLogin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!authChecked || isLoadingAuth) return;
+    if (!authChecked || isLoadingAuth || isValidatingSession) return;
     if (!user) {
       navigate("/Home", { replace: true });
       navigateToLogin();
     }
-  }, [authChecked, isLoadingAuth, user, navigateToLogin, navigate]);
+  }, [authChecked, isLoadingAuth, isValidatingSession, user, navigateToLogin, navigate]);
 
-  if (!authChecked || isLoadingAuth) {
+  if (!authChecked || isLoadingAuth || isValidatingSession) {
     return <RouteSkeleton />;
   }
 

@@ -2,6 +2,15 @@
 
 ### Features
 
+* hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
+
+### Bug Fixes
+
+* correções gerais de sessão e performance mobile ([4d8d7a5](https://github.com/asafebernardo/icer/commit/4d8d7a5bf1a1d9e24b42f3bd1cb7caf813a4e537))
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-06-23)
+
+### Features
+
 * hub de postagens por categoria, timeline História e tema visual v3.5 ([230cac6](https://github.com/asafebernardo/icer/commit/230cac63f81a358b99219c74fa6f7738b4b1f37f))
 ## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-06-23)
 

@@ -68,6 +68,8 @@ export function AuthProvider({ children }) {
   const googleReauthPendingRef = useRef(false);
   /** Ignora respostas 401 de validações iniciadas antes de um login/logout recente. */
   const sessionValidationGenRef = useRef(0);
+  const lastSessionOkAtRef = useRef(0);
+  const [isValidatingSession, setIsValidatingSession] = useState(false);
 
   const checkUserAuth = useCallback(() => {
     setUser(getUser());
@@ -97,10 +99,27 @@ export function AuthProvider({ children }) {
   }, []);
 
   const fetchSessionUser = useCallback(async () => {
-    const r = await fetch("/api/auth/me", { credentials: "include" });
+    const r = await fetch("/api/auth/me", {
+      credentials: "include",
+      cache: "no-store",
+    });
     if (!r.ok) return null;
     return r.json();
   }, []);
+
+  const fetchSessionUserWithRetry = useCallback(async () => {
+    const delays = [0, 120, 400];
+    for (let i = 0; i < delays.length; i += 1) {
+      if (delays[i] > 0) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, delays[i]);
+        });
+      }
+      const u = await fetchSessionUser();
+      if (u) return u;
+    }
+    return null;
+  }, [fetchSessionUser]);
 
   const validateServerSession = useCallback(async () => {
     if (!isServerAuthEnabled()) {
@@ -112,26 +131,31 @@ export function AuthProvider({ children }) {
       return;
     }
     const genAtStart = sessionValidationGenRef.current;
+    setIsValidatingSession(true);
     const run = (async () => {
       try {
         await fetchRuntimeEnv();
-        let u = await fetchSessionUser();
+        let u = await fetchSessionUserWithRetry();
         if (sessionValidationGenRef.current !== genAtStart) return;
 
         if (!u && getRuntimeEnvSync().isHomolog && !homologBootstrapAttemptedRef.current) {
           homologBootstrapAttemptedRef.current = true;
           const booted = await tryHomologDevLogin();
           if (booted && sessionValidationGenRef.current === genAtStart) {
-            u = await fetchSessionUser();
+            u = await fetchSessionUserWithRetry();
           }
         }
 
         if (u) {
+          lastSessionOkAtRef.current = Date.now();
           await applySessionUser(u);
         } else if (sessionValidationGenRef.current === genAtStart) {
           const cur = getUser();
           const isHomolog = getRuntimeEnvSync().isHomolog;
-          if (cur && !isDemoAdminSession(cur) && !isHomolog) {
+          const recentlyOk =
+            lastSessionOkAtRef.current > 0 &&
+            Date.now() - lastSessionOkAtRef.current < 60_000;
+          if (cur && !isDemoAdminSession(cur) && !isHomolog && !recentlyOk) {
             toast.info("A sua sessão expirou. Inicie sessão novamente.");
             clearSessionUser();
             setServerMenuEffective(null);
@@ -141,6 +165,7 @@ export function AuthProvider({ children }) {
         /* rede / servidor offline — não limpar sessão local */
       } finally {
         if (sessionValidationGenRef.current === genAtStart) {
+          setIsValidatingSession(false);
           checkUserAuth();
         }
       }
@@ -151,7 +176,7 @@ export function AuthProvider({ children }) {
     } finally {
       validateServerSessionRef.current = null;
     }
-  }, [checkUserAuth, applySessionUser, fetchSessionUser]);
+  }, [checkUserAuth, applySessionUser, fetchSessionUserWithRetry]);
 
   useEffect(() => {
     if (!shouldUseRemotePublicWorkspace()) return;
@@ -194,11 +219,6 @@ export function AuthProvider({ children }) {
       document.removeEventListener("visibilitychange", schedule);
     };
   }, [validateServerSession]);
-
-  useEffect(() => {
-    if (!isServerAuthEnabled()) return;
-    void validateServerSession();
-  }, [location.pathname, validateServerSession]);
 
   useEffect(() => {
     if (!isServerAuthEnabled()) {
@@ -340,6 +360,7 @@ export function AuthProvider({ children }) {
     homologBootstrapAttemptedRef.current = false;
     const result = await authLogin(email, senha);
     if (!result.ok) return result;
+    lastSessionOkAtRef.current = Date.now();
     setUser(getUser());
     if (isServerAuthEnabled()) {
       void queryClientInstance
@@ -402,6 +423,7 @@ export function AuthProvider({ children }) {
         authChecked,
         authError: null,
         isLoadingPublicSettings: false,
+        isValidatingSession,
         navigateToLogin,
         startGoogleLogin,
         useAnotherGoogleAccount,

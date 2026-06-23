@@ -10,6 +10,11 @@ import { z } from "zod";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { httpAccessLogger, log, color } from "./log.js";
 import { fetchGithubBranchReleases, DEFAULT_ICER_GITHUB_REPO_RAW, parseGithubRepo } from "./githubBranchReleases.js";
+import {
+  isConvertibleRasterMime,
+  replaceFileWithWebp,
+  replaceNameExtensionToWebp,
+} from "./imageWebp.js";
 
 let _sharp = null;
 async function getSharp() {
@@ -1200,6 +1205,8 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/auth/me", (req, res) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    res.setHeader("Vary", "Cookie");
     if (!req.user) {
       res.status(401).json({ message: "auth_required" });
       return;
@@ -1208,6 +1215,8 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/auth/menu-effective", requireAuth, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    res.setHeader("Vary", "Cookie");
     res.json(await effectiveMenuPermissions(db, req.user));
   });
 
@@ -2974,6 +2983,30 @@ export function createApplication(db, options = {}) {
         return;
       }
     }
+
+    let storagePath = f.path;
+    let fileMime = f.mimetype || "application/octet-stream";
+    let fileSize = f.size;
+    let originalName = f.originalname;
+
+    if (isConvertibleRasterMime(fileMime, originalName)) {
+      const sharp = await getSharp();
+      if (sharp) {
+        try {
+          storagePath = await replaceFileWithWebp(sharp, f.path);
+          fileMime = "image/webp";
+          fileSize = fs.statSync(storagePath).size;
+          originalName = replaceNameExtensionToWebp(originalName);
+        } catch (err) {
+          log.warn(
+            `${color.brightYellow("[files]")} falha ao converter upload para WebP: ${color.dim(
+              String(err?.message || err),
+            )}`,
+          );
+        }
+      }
+    }
+
     const now = nowIso();
     const fid = await nextSeq(db, "files");
     /** Ficheiros do site: leitura pública (imagens em posts, PDFs em materiais, etc.). */
@@ -2982,10 +3015,10 @@ export function createApplication(db, options = {}) {
     await db.collection("files").insertOne({
       id: fid,
       owner_user_id: req.user.id,
-      original_name: f.originalname,
-      mime: f.mimetype || "application/octet-stream",
-      size: f.size,
-      storage_path: f.path,
+      original_name: originalName,
+      mime: fileMime,
+      size: fileSize,
+      storage_path: storagePath,
       created_at: now,
       public: publicRead,
     });
@@ -2995,9 +3028,9 @@ export function createApplication(db, options = {}) {
       action: "file.upload",
       details: {
         file_id: fid,
-        name: f.originalname,
-        mime: f.mimetype || "",
-        size: f.size,
+        name: originalName,
+        mime: fileMime,
+        size: fileSize,
       },
       ip: clientIp(req),
       ...auditCtx(req),

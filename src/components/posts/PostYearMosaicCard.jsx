@@ -39,7 +39,14 @@ export default function PostYearMosaicCard({
       >
         <div className="post-category-tile__media" aria-hidden>
           {thumb ? (
-            <SafeImg src={thumb} alt="" className="post-category-tile__img" />
+              <SafeImg
+                src={thumb}
+                alt=""
+                className="post-category-tile__img"
+                loading="lazy"
+                fetchPriority="low"
+                sizes="(max-width: 767px) 50vw, 33vw"
+              />
           ) : (
             <div className="post-year-tile__placeholder">
               {isEvento ? (

@@ -51,20 +51,26 @@ function RedirectLegacyPostagensEdit() {
 
 // Rotas privadas — redireciona para /login se não houver sessão
 const PrivateRoute = ({ children }) => {
-  const { isAuthenticated, isLoadingAuth, isLoadingPublicSettings, navigateToLogin } =
-    useAuth();
+  const {
+    isAuthenticated,
+    isLoadingAuth,
+    isLoadingPublicSettings,
+    isValidatingSession,
+    navigateToLogin,
+  } = useAuth();
 
   useEffect(() => {
-    if (isLoadingAuth || isLoadingPublicSettings) return;
+    if (isLoadingAuth || isLoadingPublicSettings || isValidatingSession) return;
     if (!isAuthenticated) navigateToLogin();
   }, [
     isAuthenticated,
     isLoadingAuth,
     isLoadingPublicSettings,
+    isValidatingSession,
     navigateToLogin,
   ]);
 
-  if (isLoadingAuth || isLoadingPublicSettings) {
+  if (isLoadingAuth || isLoadingPublicSettings || isValidatingSession) {
     return <RouteSkeleton />;
   }
 

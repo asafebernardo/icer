@@ -1,5 +1,5 @@
 /** Imagem de fundo institucional (montanhas / névoa). */
-export const SITE_BACKGROUND_URL = "/site-background-mountains.png";
+export const SITE_BACKGROUND_URL = "/site-background-mountains.webp";
 
 const BG_IMAGE_FILTER = "brightness(0.45) blur(14px) saturate(0.75)";
 

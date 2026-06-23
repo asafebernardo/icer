@@ -22,16 +22,16 @@ export const DEFAULT_POST_CATEGORIES = [
 
 /** Imagens cinematográficas do mosaico /Posts. */
 export const DEFAULT_POST_CATEGORIA_MOSAIC_THUMBS = {
-  culto_dominical: "/images/post-categories/culto-dominical.jpg",
-  ceia: "/images/post-categories/ceia.jpg",
-  oracao: "/images/post-categories/oracao.jpg",
-  batismo: "/images/post-categories/batismo.jpg",
-  acao_de_gracas: "/images/post-categories/acao-de-gracas.jpg",
-  encontro_de_casais: "/images/post-categories/encontro-de-casais.jpg",
-  dia_das_maes: "/images/post-categories/dia-das-maes.jpg",
-  dia_das_pais: "/images/post-categories/dia-dos-pais.jpg",
-  natal: "/images/post-categories/natal.jpg",
-  pascoa: "/images/post-categories/pascoa.jpg",
+  culto_dominical: "/images/post-categories/culto-dominical.webp",
+  ceia: "/images/post-categories/ceia.webp",
+  oracao: "/images/post-categories/oracao.webp",
+  batismo: "/images/post-categories/batismo.webp",
+  acao_de_gracas: "/images/post-categories/acao-de-gracas.webp",
+  encontro_de_casais: "/images/post-categories/encontro-de-casais.webp",
+  dia_das_maes: "/images/post-categories/dia-das-maes.webp",
+  dia_das_pais: "/images/post-categories/dia-dos-pais.webp",
+  natal: "/images/post-categories/natal.webp",
+  pascoa: "/images/post-categories/pascoa.webp",
   conferencias:
     "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=450&fit=crop&q=85",
   clube_biblico:

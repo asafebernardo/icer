@@ -2,4 +2,4 @@
 export const CORRUPT_IMAGE_FALLBACK_BG = "#000000";
 
 /** Imagem padrão quando uma imagem está corrompida ou não existe. */
-export const CORRUPT_IMAGE_FALLBACK_IMAGE = "/image-error-placeholder.png";
+export const CORRUPT_IMAGE_FALLBACK_IMAGE = "/image-error-placeholder.webp";
