@@ -2,8 +2,7 @@ import { test, expect } from "@playwright/test";
 
 const PUBLIC_PAGES = [
   "/Home",
-  "/Postagens",
-  "/Recursos",
+  "/Posts",
   "/Agenda",
   "/Eventos",
   "/Eventos/rotinas",
@@ -42,6 +41,12 @@ test.describe("Páginas públicas", () => {
     await expect(
       page.getByRole("link", { name: "Início", exact: true }).first(),
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("Recursos redireciona para a secção na Home", async ({ page }) => {
+    await page.goto("/Recursos");
+    await expect(page).toHaveURL(/\/Home#recursos$/);
+    await expect(page.locator("#recursos")).toBeVisible({ timeout: 15_000 });
   });
 
   test("404 para rota inexistente", async ({ page }) => {

@@ -78,7 +78,7 @@ export default function Login() {
 
   if (isLoadingAuth) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-transparent">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
       </div>
     );
@@ -86,7 +86,7 @@ export default function Login() {
 
   if (isAuthenticated) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-transparent px-4 text-center">
         <p className="text-sm text-muted-foreground">
           Já tem sessão iniciada. Para entrar com outra conta, saia primeiro.
         </p>
@@ -111,7 +111,7 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-transparent">
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-12">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <Link to="/Home" className="inline-flex flex-col items-center gap-2">
@@ -127,7 +127,7 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-soft sm:p-8">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-premium sm:p-8">
           {serverAuth ? (
             <form onSubmit={submit} className="space-y-4">
               <div className="space-y-2">

@@ -34,7 +34,7 @@ const BUILTIN_ADMIN_GROUP_SLUG = "icer-builtin-admin";
 /** Alinhado ao servidor (`defaultGroupPermissions` + UI de menus). */
 const MENU_MATRIX = [
   { key: "home", label: "Início" },
-  { key: "postagens", label: "Postagens" },
+  { key: "postagens", label: "Posts" },
   { key: "recursos", label: "Recursos" },
   { key: "materiais_tab", label: "Recursos · materiais" },
   { key: "agenda", label: "Agenda" },

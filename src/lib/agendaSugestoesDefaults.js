@@ -47,26 +47,32 @@ export const AGENDA_SUGESTOES_KEYS = [
 export const AGENDA_SUGESTOES_FIELD_META = {
   titulo: {
     title: "Títulos sugeridos",
+    tabLabel: "Títulos",
     description: "Sugestões nos formulários; cor da barra e fundo do cartão por título.",
   },
   preletor: {
     title: "Preletores",
+    tabLabel: "Preletores",
     description: "Nomes sugeridos; foto opcional por nome.",
   },
   pastor: {
     title: "Presbíteros",
+    tabLabel: "Presbíteros",
     description: "Nomes sugeridos; foto opcional por nome.",
   },
   categoria: {
     title: "Categorias (identificadores)",
+    tabLabel: "Categorias",
     description: "Slugs internos — alinhe com eventos já gravados.",
   },
   local: {
     title: "Locais do evento",
+    tabLabel: "Locais",
     description: "Sugestões de local.",
   },
   horario: {
     title: "Horários",
+    tabLabel: "Horários",
     description: "HH:mm, um por linha — únicas opções nos formulários.",
   },
 };

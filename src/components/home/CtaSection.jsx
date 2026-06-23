@@ -34,15 +34,15 @@ export default function CtaSection() {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <Link to="/Agenda">
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 rounded-xl px-8 h-12 text-base font-semibold"
-              >
-                Ver Agenda
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 rounded-xl px-8 h-12 text-base font-semibold"
+              onClick={() => window.dispatchEvent(new Event("icer-open-agenda"))}
+            >
+              Ver Agenda
+            </Button>
           </div>
         </motion.div>
       </div>

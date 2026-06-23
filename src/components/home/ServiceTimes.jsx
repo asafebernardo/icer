@@ -329,7 +329,7 @@ export default function ServiceTimes() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {displayCards.map((service, index) => {
             const urls = cardImageUrls(service);
             const hasImages = urls.length > 0;
@@ -344,7 +344,7 @@ export default function ServiceTimes() {
                 transition={{ delay: index * 0.05, duration: 0.45 }}
                 className={`relative flex w-full overflow-hidden rounded-sm border shadow-card flex-col ${
                   isHighlight
-                    ? "sm:col-span-2 min-h-[min(360px,44vh)] sm:min-h-[min(420px,48vh)] ring-2 ring-accent/70 border-accent/40"
+                    ? "sm:col-span-2 lg:col-span-3 min-h-[min(360px,44vh)] sm:min-h-[min(420px,48vh)] ring-2 ring-accent/70 border-accent/40"
                     : "min-h-[min(280px,34vh)] sm:min-h-[min(300px,36vh)] border-border/80"
                 }`}
               >

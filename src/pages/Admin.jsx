@@ -2,20 +2,45 @@
 
 import { Lock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import PageHeader from "../components/shared/PageHeader";
+import HistoriaHubHeader from "@/components/historia/HistoriaHubHeader";
 import AdminSettingsShell from "@/components/admin/AdminSettingsShell";
 import AdminMembrosPanel from "@/components/dashboard/AdminMembrosPanel";
-import { isAdminUser, getUser } from "@/lib/auth";
-import { isServerAuthEnabled } from "@/lib/serverAuth";
+import { FEED_MAX_W } from "@/components/posts/PostsPageHero";
+import { getUser } from "@/lib/auth";
+import useAdminNavAccess from "@/hooks/useAdminNavAccess";
+import { cn } from "@/lib/utils";
+
+const ADMIN_HEADER = {
+  tag: "Administração",
+  title: "Painel administrativo",
+  description: "Gestão do site e contas.",
+};
+
+function AdminHubShell({ children }) {
+  return (
+    <div className="posts-hub min-h-screen">
+      <div className="posts-hub__atmosphere" aria-hidden />
+      <section
+        className={cn(
+          "posts-hub__shell container-page relative mx-auto w-full px-4 py-8 sm:px-6 sm:py-10",
+          FEED_MAX_W,
+        )}
+      >
+        <HistoriaHubHeader {...ADMIN_HEADER} />
+        <div className="mt-6 sm:mt-8">{children}</div>
+      </section>
+    </div>
+  );
+}
 
 function GateAdmin() {
   return (
-    <div className="min-h-[60vh] flex items-center justify-center px-4">
-      <div className="max-w-md w-full text-center">
-        <div className="w-20 h-20 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
-          <Lock className="w-10 h-10 text-destructive" />
+    <div className="flex min-h-[40vh] items-center justify-center px-4">
+      <div className="w-full max-w-md text-center">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-destructive/10">
+          <Lock className="h-10 w-10 text-destructive" />
         </div>
-        <h2 className="font-display text-2xl font-bold text-foreground mb-3">
+        <h2 className="mb-3 font-display text-2xl font-bold text-foreground">
           Acesso restrito
         </h2>
         <p className="text-muted-foreground">
@@ -28,6 +53,7 @@ function GateAdmin() {
 
 export default function Admin() {
   const [user, setUser] = useState(undefined);
+  const { canUseAdminTabs: serverControlsEnabled } = useAdminNavAccess(user);
 
   useEffect(() => {
     const sync = () => setUser(getUser());
@@ -42,47 +68,36 @@ export default function Admin() {
 
   if (user === undefined) {
     return (
-      <div>
-        <PageHeader tag="Admin" title="Painel administrativo" pageKey="admin" />
-        <div className="mx-auto max-w-5xl space-y-4 px-4 py-20">
+      <AdminHubShell>
+        <div className="space-y-4">
           {Array(3)
             .fill(0)
             .map((_, i) => (
               <Skeleton key={i} className="h-20 rounded-2xl" />
             ))}
         </div>
-      </div>
+      </AdminHubShell>
     );
   }
 
   if (!user || user.role !== "admin") {
     return (
-      <div>
-        <PageHeader tag="Admin" title="Painel administrativo" pageKey="admin" />
+      <AdminHubShell>
         <GateAdmin />
-      </div>
+      </AdminHubShell>
     );
   }
 
-  const serverControlsEnabled =
-    isAdminUser(user) && isServerAuthEnabled() && user?._authSource === "server";
-
   return (
-    <div>
-      <PageHeader
-        tag="Administração"
-        title="Painel administrativo"
-        description="Gestão do site e contas."
-        pageKey="admin"
+    <AdminHubShell>
+      <AdminSettingsShell
+        tabMembrosSlot={
+          <AdminMembrosPanel
+            adminUser={user}
+            serverControlsEnabled={serverControlsEnabled}
+          />
+        }
       />
-
-      <div className="mx-auto max-w-5xl p-4 sm:p-6">
-        <AdminSettingsShell
-          tabMembrosSlot={
-            <AdminMembrosPanel adminUser={user} serverControlsEnabled={serverControlsEnabled} />
-          }
-        />
-      </div>
-    </div>
+    </AdminHubShell>
   );
 }

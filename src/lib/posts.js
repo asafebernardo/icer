@@ -172,6 +172,16 @@ export function normalizeDiasGaleria(raw) {
   }));
 }
 
+/** Ano numérico da data de publicação (`data_publicacao` / `created_date`), ou `null`. */
+export function getPostPublicationYear(post) {
+  const raw = String(
+    post?.data_publicacao ?? post?.created_date ?? "",
+  ).trim();
+  if (!raw) return null;
+  const y = Number.parseInt(raw.slice(0, 4), 10);
+  return Number.isFinite(y) && y >= 1900 && y <= 2100 ? y : null;
+}
+
 export function normalizePost(post) {
   const imagens_urls = Array.isArray(post?.imagens_urls)
     ? post.imagens_urls.filter(Boolean)
@@ -309,6 +319,14 @@ export function getPostCardThumbnailUrl(post) {
     }
   }
   return null;
+}
+
+/**
+ * Miniatura do feed — só mídia enviada pelo autor (sem fallback da categoria).
+ * @param {object | null | undefined} post
+ */
+export function getPostFeedThumbnailUrl(post) {
+  return getPostCardThumbnailUrl(post);
 }
 
 /**

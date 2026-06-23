@@ -7,7 +7,6 @@ import {
   isLoginPath,
   setLoginIntent,
 } from "@/lib/loginIntent";
-import { maskBrowserUrl } from "@/lib/maskBrowserUrl";
 
 /** Garante que /login ou intenção guardada abrem a página de login. */
 function SyncLoginRoute() {
@@ -32,15 +31,6 @@ function SyncLoginRoute() {
   return null;
 }
 
-/** Mantém a barra de endereço só com o domínio (exceto /login e /accept-invite). */
-function MaskBrowserUrl() {
-  const location = useLocation();
-  useEffect(() => {
-    maskBrowserUrl(location.pathname);
-  }, [location.pathname, location.search, location.hash, location.key]);
-  return null;
-}
-
 if (typeof window !== "undefined") {
   captureLoginIntentFromBrowserUrl();
 }
@@ -49,7 +39,6 @@ export default function AppRouter({ children }) {
   return (
     <BrowserRouter>
       <SyncLoginRoute />
-      <MaskBrowserUrl />
       {children}
     </BrowserRouter>
   );

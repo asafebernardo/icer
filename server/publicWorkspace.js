@@ -1,4 +1,8 @@
 import { nowIso } from "./security.js";
+import {
+  DEFAULT_POST_CATEGORIES,
+  sanitizePostCategorias,
+} from "./postCategoryDefaults.js";
 
 const KEY = "public_workspace_v1";
 
@@ -225,6 +229,7 @@ export async function getPublicWorkspace(db) {
   return {
     agenda_sugestoes: sanitizeAgendaSugestoes(v.agenda_sugestoes),
     agenda_simple_grid: sanitizeAgendaSimpleGrid(v.agenda_simple_grid),
+    post_categorias: sanitizePostCategorias(v.post_categorias),
     dashboard_site_menus: sanitizeDashboardMenus(v.dashboard_site_menus),
     member_menu_palettes: sanitizeMemberMenuPalettes(v.member_menu_palettes),
     evento_destaque_dismissed_ids: sanitizeDismissedIds(v.evento_destaque_dismissed_ids),
@@ -246,6 +251,9 @@ export async function mergePublicWorkspaceAdmin(db, patch) {
   }
   if ("agenda_simple_grid" in patch) {
     next.agenda_simple_grid = sanitizeAgendaSimpleGrid(patch.agenda_simple_grid);
+  }
+  if ("post_categorias" in patch) {
+    next.post_categorias = sanitizePostCategorias(patch.post_categorias);
   }
   if ("dashboard_site_menus" in patch) {
     next.dashboard_site_menus = sanitizeDashboardMenus(patch.dashboard_site_menus);

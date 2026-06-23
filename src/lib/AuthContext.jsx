@@ -38,6 +38,8 @@ import {
 } from "@/lib/googleLoginHint";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 import { setLoginIntent } from "@/lib/loginIntent";
+import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
+import { tryHomologDevLogin } from "@/lib/homologDevLogin";
 
 const AuthContext = createContext(null);
 
@@ -77,6 +79,29 @@ export function AuthProvider({ children }) {
   }, []);
 
   const validateServerSessionRef = useRef(null);
+  const homologBootstrapAttemptedRef = useRef(false);
+
+  const applySessionUser = useCallback(async (u) => {
+    persistSessionUser({
+      id: u.id,
+      email: u.email,
+      full_name: u.full_name,
+      role: u.role,
+      funcao: u.funcao ?? "",
+      avatar_url: u.avatar_url ? String(u.avatar_url) : "",
+      _authSource: "server",
+    });
+    setServerMenuEffective(null);
+    const { ensureCsrfCookieClient } = await import("@/lib/csrf");
+    await ensureCsrfCookieClient();
+  }, []);
+
+  const fetchSessionUser = useCallback(async () => {
+    const r = await fetch("/api/auth/me", { credentials: "include" });
+    if (!r.ok) return null;
+    return r.json();
+  }, []);
+
   const validateServerSession = useCallback(async () => {
     if (!isServerAuthEnabled()) {
       checkUserAuth();
@@ -89,25 +114,25 @@ export function AuthProvider({ children }) {
     const genAtStart = sessionValidationGenRef.current;
     const run = (async () => {
       try {
-        const r = await fetch("/api/auth/me", { credentials: "include" });
+        await fetchRuntimeEnv();
+        let u = await fetchSessionUser();
         if (sessionValidationGenRef.current !== genAtStart) return;
-        if (r.ok) {
-          const u = await r.json();
-          persistSessionUser({
-            id: u.id,
-            email: u.email,
-            full_name: u.full_name,
-            role: u.role,
-            funcao: u.funcao ?? "",
-            avatar_url: u.avatar_url ? String(u.avatar_url) : "",
-            _authSource: "server",
-          });
-          setServerMenuEffective(null);
-          const { ensureCsrfCookieClient } = await import("@/lib/csrf");
-          await ensureCsrfCookieClient();
-        } else if (r.status === 401) {
+
+        if (!u && getRuntimeEnvSync().isHomolog && !homologBootstrapAttemptedRef.current) {
+          homologBootstrapAttemptedRef.current = true;
+          const booted = await tryHomologDevLogin();
+          if (booted && sessionValidationGenRef.current === genAtStart) {
+            u = await fetchSessionUser();
+          }
+        }
+
+        if (u) {
+          await applySessionUser(u);
+        } else if (sessionValidationGenRef.current === genAtStart) {
           const cur = getUser();
-          if (cur && !isDemoAdminSession(cur)) {
+          const isHomolog = getRuntimeEnvSync().isHomolog;
+          if (cur && !isDemoAdminSession(cur) && !isHomolog) {
+            toast.info("A sua sessão expirou. Inicie sessão novamente.");
             clearSessionUser();
             setServerMenuEffective(null);
           }
@@ -126,7 +151,7 @@ export function AuthProvider({ children }) {
     } finally {
       validateServerSessionRef.current = null;
     }
-  }, [checkUserAuth]);
+  }, [checkUserAuth, applySessionUser, fetchSessionUser]);
 
   useEffect(() => {
     if (!shouldUseRemotePublicWorkspace()) return;
@@ -312,6 +337,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, senha) => {
     sessionValidationGenRef.current += 1;
+    homologBootstrapAttemptedRef.current = false;
     const result = await authLogin(email, senha);
     if (!result.ok) return result;
     setUser(getUser());
@@ -342,6 +368,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     sessionValidationGenRef.current += 1;
+    homologBootstrapAttemptedRef.current = false;
     authLogout();
     setUser(null);
     if (typeof window !== "undefined") {

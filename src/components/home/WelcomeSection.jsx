@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { motion } from "framer-motion";
-import { Heart, Pencil, ImageIcon } from "lucide-react";
+import { Heart, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,6 @@ import {
   savePublicSiteConfigAdmin,
   setSiteConfig,
 } from "@/lib/siteConfig";
-import { IMAGE_UPLOAD_RECOMMENDATION, imageFileToStorableUrl } from "@/lib/uploadImage";
 import { MENU } from "@/lib/auth";
 import useCanEdit from "@/lib/useCanEdit";
 import { toast } from "sonner";
@@ -41,6 +40,7 @@ import {
   DEFAULT_WELCOME_P2,
   DEFAULT_VERSE_TEXT,
   DEFAULT_VERSE_REF,
+  DEFAULT_VERSE_IMAGE_URL,
   DEFAULT_HISTORY_VALUE,
   DEFAULT_HISTORY_LABEL,
   SECTION_BG_KEYS,
@@ -57,7 +57,6 @@ function loadHomeCopyFromConfig() {
     welcomeP2: cfg.welcomeParagraph2 ?? DEFAULT_WELCOME_P2,
     verseText: cfg.verseText ?? DEFAULT_VERSE_TEXT,
     verseRef: cfg.verseRef ?? DEFAULT_VERSE_REF,
-    verseImageUrl: cfg.verseImageUrl ?? "",
     historyYearsValue: cfg.historyYearsValue ?? DEFAULT_HISTORY_VALUE,
     historyYearsLabel: cfg.historyYearsLabel ?? DEFAULT_HISTORY_LABEL,
   };
@@ -65,7 +64,6 @@ function loadHomeCopyFromConfig() {
 
 export default function WelcomeSection() {
   const [sectionBgUrl, setSectionBgUrl] = useState("");
-  const [bgImage, setBgImage] = useState("");
   const canEditHome = useCanEdit(MENU.HOME);
   const reduceMotion = usePrefersReducedMotion();
   const [welcomeTag, setWelcomeTag] = useState(DEFAULT_WELCOME_TAG);
@@ -77,7 +75,6 @@ export default function WelcomeSection() {
   const [welcomeP2, setWelcomeP2] = useState(DEFAULT_WELCOME_P2);
   const [verseText, setVerseText] = useState(DEFAULT_VERSE_TEXT);
   const [verseRef, setVerseRef] = useState(DEFAULT_VERSE_REF);
-  const [verseImageUrl, setVerseImageUrl] = useState("");
   const [historyYearsValue, setHistoryYearsValue] = useState(
     DEFAULT_HISTORY_VALUE,
   );
@@ -86,7 +83,6 @@ export default function WelcomeSection() {
   );
   const [homeEditorOpen, setHomeEditorOpen] = useState(false);
   const [homeDraft, setHomeDraft] = useState(null);
-  const verseImgInputRef = useRef(null);
 
   const applyHomeCopy = useCallback((copy) => {
     setWelcomeTag(copy.welcomeTag);
@@ -96,14 +92,12 @@ export default function WelcomeSection() {
     setWelcomeP2(copy.welcomeP2);
     setVerseText(copy.verseText);
     setVerseRef(copy.verseRef);
-    setVerseImageUrl(copy.verseImageUrl || "");
     setHistoryYearsValue(copy.historyYearsValue);
     setHistoryYearsLabel(copy.historyYearsLabel);
   }, []);
 
   useEffect(() => {
     const cfg = getSiteConfig();
-    if (cfg.welcomeBg) setBgImage(cfg.welcomeBg);
     setSectionBgUrl(String(cfg[SECTION_BG_KEYS.welcome] || "").trim());
     applyHomeCopy(loadHomeCopyFromConfig());
   }, [applyHomeCopy]);
@@ -112,7 +106,6 @@ export default function WelcomeSection() {
     const sync = () => {
       applyHomeCopy(loadHomeCopyFromConfig());
       const c = getSiteConfig();
-      if (c.welcomeBg) setBgImage(c.welcomeBg);
       setSectionBgUrl(String(c[SECTION_BG_KEYS.welcome] || "").trim());
     };
     window.addEventListener("icer-site-config", sync);
@@ -135,7 +128,6 @@ export default function WelcomeSection() {
       welcomeParagraph2: homeDraft.welcomeP2.trim() || DEFAULT_WELCOME_P2,
       verseText: homeDraft.verseText.trim() || DEFAULT_VERSE_TEXT,
       verseRef: homeDraft.verseRef.trim() || DEFAULT_VERSE_REF,
-      verseImageUrl: homeDraft.verseImageUrl?.trim() || "",
       historyYearsValue:
         homeDraft.historyYearsValue.trim() || DEFAULT_HISTORY_VALUE,
       historyYearsLabel:
@@ -168,7 +160,6 @@ export default function WelcomeSection() {
       welcomeP2: next.welcomeParagraph2,
       verseText: next.verseText,
       verseRef: next.verseRef,
-      verseImageUrl: next.verseImageUrl,
       historyYearsValue: next.historyYearsValue,
       historyYearsLabel: next.historyYearsLabel,
     });
@@ -246,93 +237,37 @@ export default function WelcomeSection() {
             className="relative flex min-h-0 w-full min-w-0 flex-col lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:h-full"
           >
             <div className="relative z-0 flex min-h-[min(360px,58vh)] w-full flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-muted/10 shadow-card lg:min-h-0">
-              {verseImageUrl ? (
-                <>
-                  <SafeImg
-                    src={verseImageUrl}
-                    alt=""
-                    className="absolute inset-0 z-0 h-full w-full object-cover object-center"
-                    loading="eager"
-                    decoding="async"
-                  />
-                  <div className={imageScrimFlat} aria-hidden />
-                  <div className={imageScrimBottom} aria-hidden />
-                  <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-8 pb-28 pt-10 sm:px-10 sm:pb-32 sm:pt-12">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/25 bg-white/10 backdrop-blur-sm sm:h-20 sm:w-20">
-                      <Heart className="h-8 w-8 text-white drop-shadow sm:h-10 sm:w-10" />
-                    </div>
-                    <div className="flex w-full max-w-md flex-col items-center gap-3 text-center sm:max-w-lg">
-                      <p className="font-display text-lg font-semibold leading-snug text-white sm:text-xl md:text-2xl [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
-                        {verseText}
-                      </p>
-                      <p className="text-sm text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]">
-                        {verseRef}
-                      </p>
-                    </div>
-                    {canEditHome && (
-                      <button
-                        type="button"
-                        onClick={openHomeEditor}
-                        className="absolute right-3 top-3 z-30 rounded-lg bg-white/10 p-2 text-white/80 transition-colors hover:bg-white/20 hover:text-white"
-                        title="Editar versículo, imagem e textos"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {bgImage ? (
-                    <>
-                      <div
-                        className="absolute inset-0 z-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${bgImage})` }}
-                      />
-                      <div className={imageScrimFlat} aria-hidden />
-                      <div className={imageScrimBottom} aria-hidden />
-                    </>
-                  ) : (
-                    <div
-                      className="absolute inset-0 z-0 bg-gradient-to-br from-primary via-accent to-primary"
-                      aria-hidden
-                    />
-                  )}
-
-                  <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-8 pb-28 pt-10 sm:px-10 sm:pb-32 sm:pt-12">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/25 bg-white/10 backdrop-blur-sm sm:h-20 sm:w-20">
-                      <Heart className="h-8 w-8 text-white drop-shadow sm:h-10 sm:w-10" />
-                    </div>
-
-                    <div className="flex w-full max-w-md flex-col items-center gap-3 text-center sm:max-w-lg">
-                      <p className="font-display text-lg font-semibold leading-snug text-white sm:text-xl md:text-2xl [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
-                        {verseText}
-                      </p>
-                      <p className="text-sm text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]">
-                        {verseRef}
-                      </p>
-                    </div>
-
-                    {canEditHome && (
-                      <button
-                        type="button"
-                        onClick={openHomeEditor}
-                        className="absolute right-3 top-3 z-30 rounded-lg bg-white/10 p-2 text-white/80 transition-colors hover:bg-white/20 hover:text-white"
-                        title="Editar versículo, imagem e textos"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-              <div className="absolute bottom-4 right-4 z-20 max-w-[11rem] rounded-xl border border-white/25 bg-accent/95 p-4 text-left text-accent-foreground shadow-lg backdrop-blur-sm sm:bottom-5 sm:right-5 sm:p-5 lg:bottom-6 lg:right-6">
-                <p className="font-display text-2xl font-bold leading-tight sm:text-3xl">
-                  {historyYearsValue}
-                </p>
-                <p className="mt-1 text-xs font-medium leading-snug sm:text-sm">
-                  {historyYearsLabel}
-                </p>
+              <SafeImg
+                src={DEFAULT_VERSE_IMAGE_URL}
+                alt=""
+                className="absolute inset-0 z-0 h-full w-full object-cover object-center"
+                loading="eager"
+                decoding="async"
+              />
+              <div className={imageScrimFlat} aria-hidden />
+              <div className={imageScrimBottom} aria-hidden />
+              <div className="relative z-10 flex w-full flex-1 flex-col items-center justify-center gap-6 px-8 pb-10 pt-10 sm:px-10 sm:pb-12 sm:pt-12">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/25 bg-white/10 backdrop-blur-sm sm:h-20 sm:w-20">
+                  <Heart className="h-8 w-8 text-white drop-shadow sm:h-10 sm:w-10" />
+                </div>
+                <div className="flex w-full max-w-md flex-col items-center gap-3 text-center sm:max-w-lg">
+                  <p className="font-display text-lg font-semibold leading-snug text-white sm:text-xl md:text-2xl [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
+                    {verseText}
+                  </p>
+                  <p className="text-sm text-white/90 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]">
+                    {verseRef}
+                  </p>
+                </div>
+                {canEditHome && (
+                  <button
+                    type="button"
+                    onClick={openHomeEditor}
+                    className="absolute right-3 top-3 z-30 rounded-lg bg-white/10 p-2 text-white/80 transition-colors hover:bg-white/20 hover:text-white"
+                    title="Editar versículo e textos"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>
@@ -351,8 +286,8 @@ export default function WelcomeSection() {
           <DialogHeader className="shrink-0 space-y-1 border-b border-border px-5 py-4 text-left sm:px-6">
             <DialogTitle>Textos da secção Bem-vindo</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Parágrafos à esquerda; cartão do versículo (e selo de história) à
-              direita. A imagem do versículo é opcional.
+              Parágrafos à esquerda; cartão do versículo à direita. O selo de
+              história aparece no hero do topo.
             </p>
           </DialogHeader>
           {homeDraft && (
@@ -441,70 +376,6 @@ export default function WelcomeSection() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Versículo
                   </p>
-                  <div className="space-y-2">
-                    <Label>Imagem de fundo (opcional)</Label>
-                    <input
-                      ref={verseImgInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/*"
-                      className="hidden"
-                      title={IMAGE_UPLOAD_RECOMMENDATION}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        void (async () => {
-                          try {
-                            const url = await imageFileToStorableUrl(f);
-                            if (url) {
-                              setHomeDraft((d) =>
-                                d ? { ...d, verseImageUrl: url } : d,
-                              );
-                            }
-                          } catch (err) {
-                            console.warn(err);
-                          }
-                        })();
-                        e.target.value = "";
-                      }}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => verseImgInputRef.current?.click()}
-                        title={`Editar — Imagem do versículo. ${IMAGE_UPLOAD_RECOMMENDATION}`}
-                      >
-                        <ImageIcon className="mr-2 h-4 w-4" />
-                        Escolher imagem
-                      </Button>
-                      {homeDraft.verseImageUrl ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setHomeDraft((d) =>
-                              d ? { ...d, verseImageUrl: "" } : d,
-                            )
-                          }
-                        >
-                          Remover imagem
-                        </Button>
-                      ) : null}
-                    </div>
-                    {homeDraft.verseImageUrl ? (
-                      <div className="relative max-h-44 overflow-hidden rounded-md border">
-                        <SafeImg
-                          src={homeDraft.verseImageUrl}
-                          alt=""
-                          className="h-44 w-full object-cover"
-                        />
-                        <div className={imageScrimFlat} aria-hidden />
-                        <div className={imageScrimBottom} aria-hidden />
-                      </div>
-                    ) : null}
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="wd-vtext">Texto do versículo</Label>
                     <Textarea

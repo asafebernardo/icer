@@ -68,6 +68,7 @@ import EditorAnexoSlidesPreviewDialog, {
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
+import { useEditMode } from "@/lib/EditModeContext";
 import { uploadIntegrationFile } from "@/lib/uploadImage";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
@@ -99,6 +100,7 @@ const POST_EDITOR_STEPS = [
   { id: 4, title: "Ordem" },
   { id: 5, title: "Pré-visualização" },
 ];
+
 
 /** ISO ou valor gravado → `YYYY-MM-DD` para `<input type="date">` */
 function isoToDateInputValue(iso) {
@@ -266,6 +268,7 @@ export default function PostagemEditor() {
   }, [location.pathname, checkUserAuth]);
 
   const sessionUser = authUser ?? getUser();
+  const { enabled: editMode } = useEditMode();
   const canCreate = canMenuAction(sessionUser, MENU.POSTAGENS, "create");
   const canEdit = canMenuAction(sessionUser, MENU.POSTAGENS, "edit");
   const autorEmail = sessionUser?.email || "";
@@ -273,16 +276,16 @@ export default function PostagemEditor() {
   const isEditMode = Number.isFinite(postId) && postId > 0;
 
   useEffect(() => {
-    if (invalidEditId) navigate("/Postagens", { replace: true });
+    if (invalidEditId) navigate("/Posts", { replace: true });
   }, [invalidEditId, navigate]);
 
   useEffect(() => {
     if (!isEditMode && !canCreate) {
-      navigate("/Postagens", { replace: true });
+      navigate("/Posts", { replace: true });
       return;
     }
     if (isEditMode && !canEdit) {
-      navigate("/Postagens", { replace: true });
+      navigate("/Posts", { replace: true });
     }
   }, [isEditMode, canCreate, canEdit, navigate]);
 
@@ -342,10 +345,10 @@ export default function PostagemEditor() {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       if (variables.status === "draft") {
         toast.success("Rascunho guardado.");
-        navigate(`/Postagens/editar/${data.id}`);
+        navigate(`/Posts/editar/${data.id}`);
       } else {
         toast.success("Post publicado com sucesso.");
-        navigate("/Postagens");
+        navigate("/Posts");
       }
     },
   });
@@ -381,7 +384,7 @@ export default function PostagemEditor() {
         toast.success("Rascunho guardado.");
       } else {
         toast.success("Post salvo com sucesso.");
-        navigate("/Postagens");
+        navigate("/Posts");
       }
     },
   });
@@ -508,7 +511,7 @@ export default function PostagemEditor() {
     Object.values(fieldHintTimersRef.current).forEach((t) => clearTimeout(t));
     fieldHintTimersRef.current = {};
     setStep(1);
-  }, []);
+  }, [isEditMode]);
 
   useEffect(() => {
     if (!isEditMode) reset();
@@ -731,7 +734,7 @@ export default function PostagemEditor() {
         const file = imageFiles[i];
         const mime = String(file?.type || "");
         if (!mime.startsWith("image/")) {
-          throw new Error("Em postagens, só é permitido enviar imagens.");
+          throw new Error("Em posts, só é permitido enviar imagens.");
         }
         const { file_url } = await uploadIntegrationFile(file, {
           purpose: "post_media",
@@ -1147,7 +1150,7 @@ export default function PostagemEditor() {
             {loadPostErrorObj?.message || "Erro ao carregar o post."}
           </p>
           <Button variant="outline" asChild>
-            <Link to="/Postagens">Voltar às postagens</Link>
+            <Link to="/Posts">Voltar aos Posts</Link>
           </Button>
         </section>
       </div>
@@ -1166,21 +1169,22 @@ export default function PostagemEditor() {
 
       <section className="mx-auto max-w-7xl px-3 pb-28 pt-2 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8">
         <div className="mb-6">
-          <Button variant="ghost" className="gap-2 -ml-2" asChild>
-            <Link to="/Postagens">
+          <Button variant="ghost" className="gap-2 -ml-2 w-fit" asChild>
+            <Link to="/Posts">
               <ChevronLeft className="h-4 w-4 shrink-0" />
-              Voltar às postagens
+              Voltar aos Posts
             </Link>
           </Button>
         </div>
 
         <div className="space-y-4 py-2">
-          {error && (
+          {error ? (
             <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
               {error}
             </p>
-          )}
+          ) : null}
 
+          {step >= 1 ? (
           <nav
             aria-label="Etapas do formulário"
             className="-mx-4 mb-3 border-b border-border/70 bg-muted/20 px-3 py-2 sm:mx-0 sm:mb-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
@@ -1227,6 +1231,7 @@ export default function PostagemEditor() {
               ))}
             </ol>
           </nav>
+          ) : null}
 
           <div
             className={cn("space-y-4", step !== 1 && "hidden")}
@@ -2721,7 +2726,7 @@ export default function PostagemEditor() {
                       <Globe className="h-4 w-4" aria-hidden /> Pública
                     </span>
                     <span className="mt-1 block text-xs text-muted-foreground">
-                      Aparece na lista de postagens e fica acessível a qualquer
+                      Aparece na lista de Posts e fica acessível a qualquer
                       pessoa.
                     </span>
                   </span>
@@ -2829,6 +2834,7 @@ export default function PostagemEditor() {
             </article>
           </div>
 
+        {step >= 1 ? (
         <div className="mt-10 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
             {step > 1 ? (
@@ -2850,7 +2856,7 @@ export default function PostagemEditor() {
               type="button"
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() => navigate("/Postagens")}
+              onClick={() => navigate("/Posts")}
             >
               Cancelar
             </Button>
@@ -2918,6 +2924,7 @@ export default function PostagemEditor() {
             ) : null}
           </div>
         </div>
+        ) : null}
 
         <EditorAnexoSlidesPreviewDialog
           slides={anexoPreviewSlides}

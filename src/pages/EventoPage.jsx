@@ -144,7 +144,7 @@ export default function EventoPage() {
               onClick={() => {
                 if (editing) {
                   setEditing(false);
-                  navigate("/Eventos?todos=1");
+                  navigate("/Posts/categoria/eventos?tab=eventos");
                 } else {
                   setEditing(true);
                 }
@@ -195,10 +195,10 @@ export default function EventoPage() {
             evento={evento}
             onCancel={() => {
               setEditing(false);
-              navigate("/Eventos?todos=1");
+              navigate("/Posts/categoria/eventos?tab=eventos");
             }}
             onSaved={() => setEditing(false)}
-            onDeleted={() => navigate("/Eventos?todos=1")}
+            onDeleted={() => navigate("/Posts/categoria/eventos?tab=eventos")}
           />
         ) : null}
 

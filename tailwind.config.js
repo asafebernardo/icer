@@ -8,6 +8,10 @@ module.exports = {
         soft: "0 1px 2px hsl(var(--foreground) / 0.04), 0 8px 24px -6px hsl(var(--foreground) / 0.08)",
         card: "0 2px 8px -2px hsl(var(--foreground) / 0.06), 0 12px 40px -12px hsl(var(--foreground) / 0.1)",
         nav: "0 1px 0 hsl(var(--foreground) / 0.06), 0 12px 32px -12px hsl(var(--foreground) / 0.08)",
+        glow: "0 0 32px -8px hsl(var(--accent) / 0.28)",
+        "glow-sm": "0 0 20px -10px hsl(var(--accent) / 0.2)",
+        premium:
+          "0 0 0 1px hsl(var(--border) / 0.55), 0 4px 24px -8px hsl(217 59% 4% / 0.7), 0 0 48px -20px hsl(var(--accent) / 0.1)",
       },
       fontFamily: {
         sans: [
@@ -40,6 +44,7 @@ module.exports = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",

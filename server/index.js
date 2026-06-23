@@ -13,6 +13,12 @@ import {
 } from "./permissionGroupDefaults.js";
 import { log, color } from "./log.js";
 import { isHomologEnvironment, envBoolTrue } from "./envFlags.js";
+import {
+  getHomologSeedAccounts,
+  isHomologSeedEmail,
+  isHomologSeedEnabled,
+} from "./homologSeed.js";
+import { migratePostCategories } from "./postCategoryMigration.js";
 
 const root = process.cwd();
 dotenv.config({ path: path.join(root, ".env") });
@@ -71,12 +77,9 @@ async function ensureUserSeed(p) {
     return;
   }
   const existing = await db.collection("users").findOne({ email }, { projection: { id: 1 } });
-  const isEnvSeed =
-    email === String(process.env.ICER_ADMIN_EMAIL || "").toLowerCase().trim() ||
-    email === String(process.env.ICER_USER_EMAIL || "").toLowerCase().trim();
-  // Para as contas seed do `.env`, manter a palavra-passe sempre sincronizada
-  // (facilita recuperação/acesso mesmo se o utilizador já existir).
-  if (!isEnvSeed) {
+  const isHomologSeed = isHomologSeedEmail(email);
+  // Contas seed de homologação: palavra-passe sempre sincronizada com o código/.env.
+  if (!isHomologSeed) {
     const policy = validateAccountPassword(password);
     if (!policy.ok) {
       log.warn(
@@ -150,24 +153,35 @@ async function ensureBuiltinAdminPermissionGroup() {
 }
 
 async function ensureSeedUsers() {
-  await ensureUserSeed({
-    label: "admin",
-    email: process.env.ICER_ADMIN_EMAIL,
-    full_name: process.env.ICER_ADMIN_FULL_NAME,
-    password: process.env.ICER_ADMIN_PASSWORD,
-    role: "admin",
-  });
-  await ensureUserSeed({
-    label: "admin (segunda conta)",
-    email: process.env.ICER_USER_EMAIL,
-    full_name: process.env.ICER_USER_FULL_NAME,
-    password: process.env.ICER_USER_PASSWORD,
-    role: "admin",
-  });
+  if (!isHomologSeedEnabled()) {
+    log.info(
+      color.dim(
+        "Contas seed de homologação inactivas (defina ICER_HOMOLOG=true para activar).",
+      ),
+    );
+    return;
+  }
+  log.info(
+    color.dim(
+      "Contas seed de homologação activas (ICER_HOMOLOG=true) — credenciais predefinidas no código.",
+    ),
+  );
+  for (const account of getHomologSeedAccounts()) {
+    await ensureUserSeed(account);
+  }
 }
 
 await migrateAllUsersToAdminRole();
 await ensureSeedUsers();
+if (readBoolEnv("ICER_RUN_POST_CATEGORY_MIGRATION", true)) {
+  await migratePostCategories(db);
+} else {
+  log.info(
+    color.dim(
+      "Migração de categorias de posts ignorada (ICER_RUN_POST_CATEGORY_MIGRATION=false).",
+    ),
+  );
+}
 await ensureBuiltinAdminPermissionGroup();
 
 const enableUpstreamProxy = Boolean(

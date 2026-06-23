@@ -12,8 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Menu,
-  Sun,
-  Moon,
   X,
   User,
   LogOut,
@@ -21,7 +19,6 @@ import {
   Settings,
   Users,
   Shield,
-  History,
   Globe,
   ShieldAlert,
   ScrollText,
@@ -31,10 +28,8 @@ import {
   Sparkles,
   FileStack,
   Pencil,
-  Search,
   LogIn,
 } from "lucide-react";
-import { useTheme } from "@/lib/ThemeContext";
 import { useEditMode } from "@/lib/EditModeContext";
 import useCanEdit from "@/lib/useCanEdit";
 import {
@@ -47,6 +42,7 @@ import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { setLoginIntent } from "@/lib/loginIntent";
 import { useAuth } from "@/lib/AuthContext";
+import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import SiteLogoMark, {
   useSiteLogoUrl,
@@ -62,30 +58,26 @@ import { cn } from "@/lib/utils";
 // Menus base (sempre visíveis)
 const BASE_LINKS = [
   { label: "Início", path: "/Home" },
-  { label: "Postagens", path: "/Postagens" },
-  { label: "Recursos", path: "/Recursos" },
-  { label: "Agenda", path: "/Agenda" },
-  { label: "Eventos", path: "/Eventos" },
+  { label: "Posts", path: "/Posts" },
 ];
 
 export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const { theme, toggle } = useTheme();
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
   const { googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
-  const setThemeMode = (next) => {
-    const isDark = theme === "dark";
-    if (next === "dark" && !isDark) toggle();
-    if (next === "light" && isDark) toggle();
-  };
 
   const isLoggedIn = !!sessionUser;
   const user = sessionUser;
   const canEditLogo = useCanEdit(MENU.HOME);
   const logoUrl = useSiteLogoUrl();
   const isAdmin = isAdminUser(sessionUser);
+  const {
+    canUseAdminTabs,
+    canNavigateAdminTabs,
+    showHomologLoginBlockedHints,
+  } = useAdminNavAccess(sessionUser);
   const accountAreaPath = isAdmin ? "/Admin" : "/Dashboard";
   const accountAreaLabel = isAdmin ? "Painel admin" : "Minha área";
 
@@ -106,7 +98,6 @@ export default function Navbar() {
       profile: Settings,
       "admin-users": Users,
       "permission-groups": Shield,
-      "site-updates": History,
       site: Globe,
       google: Sparkles,
       server: Server,
@@ -117,16 +108,11 @@ export default function Navbar() {
     }),
     [],
   );
-  const canUseAdminTabs =
-    isAdmin &&
-    isServerAuthEnabled() &&
-    sessionUser?._authSource === "server";
-
   const adminTabHref = (id) => (id === "profile" ? "/Admin" : `/Admin?tab=${id}`);
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 border-b border-border/60 bg-background shadow-nav transition-colors duration-300"
+      className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/90 shadow-nav backdrop-blur-xl transition-colors duration-300 supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_1px_0_hsl(var(--border)),0_12px_40px_-16px_hsl(217_59%_4%/0.9)]"
       aria-label="Navegação principal"
     >
       <div className="container-page">
@@ -208,39 +194,6 @@ export default function Navbar() {
 
           {/* Ações direita */}
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => window.dispatchEvent(new Event("icer-open-cmdk"))}
-              className={cn(
-                "shrink-0 rounded-lg text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                "inline-flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center p-0",
-                "lg:h-9 lg:min-h-[40px] lg:w-auto lg:min-w-0 lg:justify-start lg:gap-2 lg:px-2.5 lg:py-2",
-                "lg:border lg:border-border/60 lg:bg-muted/40 lg:text-xs lg:font-medium",
-              )}
-              aria-label="Procurar páginas, postagens e eventos"
-              title="Procurar"
-            >
-              <Search className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="hidden max-w-[8rem] truncate lg:inline">Procurar…</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggle}
-              className="rounded-lg text-muted-foreground hover:bg-muted/30 hover:text-foreground min-h-[44px] min-w-[44px]"
-              aria-label={
-                theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"
-              }
-            >
-              {theme === "dark" ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
-            </Button>
-
             {/* Logado: dropdown no nome | Deslogado: botão Login */}
             {isLoggedIn ? (
               <div className="hidden sm:flex items-center">
@@ -267,6 +220,8 @@ export default function Navbar() {
                         <AdminNavLinks
                           groups={adminNavGroups}
                           canUseAdminTabs={canUseAdminTabs}
+                          canNavigateAdminTabs={canNavigateAdminTabs}
+                          showHomologLoginBlockedHints={showHomologLoginBlockedHints}
                           icons={adminMenuIcons}
                           layout="dropdown"
                           getHref={adminTabHref}
@@ -348,45 +303,7 @@ export default function Navbar() {
                     <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-2">
                       Navegação
                     </p>
-                    <div className="px-4 pb-2">
-                      <div className="rounded-xl border border-border/70 bg-muted p-1 flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setThemeMode("light")}
-                          className={cn(
-                            "h-10 flex-1 rounded-lg justify-center gap-2 transition-colors",
-                            theme !== "dark"
-                              ? "bg-background text-foreground shadow-soft hover:bg-muted/20"
-                              : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
-                          )}
-                          aria-pressed={theme !== "dark"}
-                          aria-label="Ativar tema claro"
-                        >
-                          <Sun className="w-4 h-4" />
-                          <span>Tema claro</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setThemeMode("dark")}
-                          className={cn(
-                            "h-10 flex-1 rounded-lg justify-center gap-2 transition-colors",
-                            theme === "dark"
-                              ? "bg-background text-foreground shadow-soft hover:bg-muted/20"
-                              : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
-                          )}
-                          aria-pressed={theme === "dark"}
-                          aria-label="Ativar tema escuro"
-                        >
-                          <Moon className="w-4 h-4" />
-                          <span>Tema escuro</span>
-                        </Button>
-                      </div>
-                    </div>
-                    <nav className="flex flex-col gap-1 overflow-x-hidden" aria-label="Secções">
+                    <nav className="flex flex-col gap-1 overflow-x-hidden px-4" aria-label="Secções">
                       {BASE_LINKS.map((link) => {
                         const active = location.pathname === link.path;
                         return (
@@ -450,6 +367,8 @@ export default function Navbar() {
                                         <AdminNavLinks
                                           groups={[adminContaGroup]}
                                           canUseAdminTabs={canUseAdminTabs}
+                                          canNavigateAdminTabs={canNavigateAdminTabs}
+                                          showHomologLoginBlockedHints={showHomologLoginBlockedHints}
                                           icons={adminMenuIcons}
                                           layout="sheet"
                                           hideGroupTitles
@@ -469,6 +388,8 @@ export default function Navbar() {
                                         <AdminNavLinks
                                           groups={[adminAdministracaoGroup]}
                                           canUseAdminTabs={canUseAdminTabs}
+                                          canNavigateAdminTabs={canNavigateAdminTabs}
+                                          showHomologLoginBlockedHints={showHomologLoginBlockedHints}
                                           icons={adminMenuIcons}
                                           layout="sheet"
                                           hideGroupTitles

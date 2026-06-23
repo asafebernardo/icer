@@ -4,16 +4,18 @@ import PageHeader from "../components/shared/PageHeader";
 import MateriaisTab from "@/components/materiais/MateriaisTab";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { canRecursosMenuAction } from "@/lib/auth";
+import { useEditMode } from "@/lib/EditModeContext";
 
 export default function Materiais() {
   const user = useSyncedAuthUser();
+  const { enabled: editMode } = useEditMode();
   const perm = useMemo(
     () => ({
-      create: canRecursosMenuAction(user, "create"),
-      edit: canRecursosMenuAction(user, "edit"),
-      delete: canRecursosMenuAction(user, "delete"),
+      create: canRecursosMenuAction(user, "create") && editMode,
+      edit: canRecursosMenuAction(user, "edit") && editMode,
+      delete: canRecursosMenuAction(user, "delete") && editMode,
     }),
-    [user],
+    [user, editMode],
   );
 
   return (

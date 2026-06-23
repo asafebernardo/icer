@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CHANNEL_URL,
   DEFAULT_INSTAGRAM_URL,
 } from "@/lib/homeContentDefaults";
 
@@ -20,24 +19,13 @@ export function normalizeWhatsappUrl(raw) {
 }
 
 /**
- * URLs públicas para ícones no cabeçalho/rodapé.
- * `social*` tem prioridade quando preenchidos; valores vazios caem para `channelUrl` /
- * `instagramUrl` e depois para os defaults (comportamento da antiga secção da home).
+ * URLs públicas para ícones no rodapé (secção Contato).
+ * `social*` tem prioridade quando preenchidos; Instagram legado usa `instagramUrl` ou o default do site.
  */
 export function resolveSocialLinksFromConfig(cfg) {
   const c = cfg && typeof cfg === "object" ? cfg : {};
 
   const own = (k) => Object.prototype.hasOwnProperty.call(c, k);
-
-  let youtube = "";
-  if (own("socialYoutubeUrl")) {
-    const v = String(c.socialYoutubeUrl ?? "").trim();
-    if (v) youtube = normalizeHttpUrl(c.socialYoutubeUrl);
-  }
-  if (!youtube) {
-    const leg = String(c.channelUrl ?? "").trim();
-    youtube = leg ? normalizeHttpUrl(leg) : normalizeHttpUrl(DEFAULT_CHANNEL_URL);
-  }
 
   let instagram = "";
   if (own("socialInstagramUrl")) {
@@ -63,11 +51,11 @@ export function resolveSocialLinksFromConfig(cfg) {
       : "";
   }
 
-  return { youtube, instagram, facebook, whatsapp };
+  return { instagram, facebook, whatsapp };
 }
 
 /** Há pelo menos um ícone de rede para mostrar no rodapé. */
 export function hasAnyResolvedSocialLinks(cfg) {
   const r = resolveSocialLinksFromConfig(cfg);
-  return !!(r.youtube || r.instagram || r.facebook || r.whatsapp);
+  return !!(r.instagram || r.facebook || r.whatsapp);
 }

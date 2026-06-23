@@ -1,5 +1,7 @@
 /** Paletas HSL monocromáticas (formato Tailwind/shadcn: "H S% L%" sem hsl()). */
 
+import { applySiteTheme } from "@/lib/siteTheme";
+
 /** Base institucional — só usada para derivar variantes com baixa saturação. */
 const AZUL_LIGHT = {
   "--background": "220 22% 97%",
@@ -195,14 +197,9 @@ export const PALETTE_OPTIONS = [
 ];
 
 /**
- * Aplica variáveis CSS da paleta no documento (respeita .dark).
- * @param {string} paletteId
+ * Aplica variáveis CSS da paleta no documento.
+ * @param {string} [_paletteId] — ignorado; paleta fixa em `siteTheme.js`.
  */
-export function applySiteColorPalette(paletteId) {
-  const root = document.documentElement;
-  const set = PALETTES[paletteId] || PALETTES[DEFAULT_PALETTE_ID];
-  const vars = root.classList.contains("dark") ? set.dark : set.light;
-  for (const [prop, value] of Object.entries(vars)) {
-    root.style.setProperty(prop, value);
-  }
+export function applySiteColorPalette(_paletteId) {
+  applySiteTheme();
 }

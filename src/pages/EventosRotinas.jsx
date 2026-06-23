@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 const BULK_TEMPLATES_QK = ["bulk-schedule-templates"];
 
-export default function EventosRotinas() {
+export default function EventosRotinas({ embedded = false } = {}) {
   const queryClient = useQueryClient();
   const { user, navigateToLogin } = useAuth();
   const canCreate = canMenuAction(user, MENU.EVENTOS, "create");
@@ -25,23 +25,33 @@ export default function EventosRotinas() {
 
   return (
     <div>
-      <PageHeader
-        pageKey="eventos"
-        tag="Programação"
-        title="Rotinas"
-        description="Rotinas e agendamento em massa."
-      />
+      {!embedded ? (
+        <PageHeader
+          pageKey="eventos"
+          tag="Programação"
+          title="Rotinas"
+          description="Rotinas e agendamento em massa."
+        />
+      ) : null}
 
-      <section className="py-10 lg:py-14">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      <section className={embedded ? "py-0" : "py-10 lg:py-14"}>
+        <div
+          className={
+            embedded
+              ? "w-full space-y-10"
+              : "max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10"
+          }
+        >
+          {!embedded ? (
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" className="gap-2" asChild>
-              <Link to="/Eventos">
+              <Link to="/Posts/categoria/eventos?tab=configuracoes">
                 <ArrowLeft className="w-4 h-4" />
                 Voltar a Eventos
               </Link>
             </Button>
           </div>
+          ) : null}
 
           {!canCreate ? (
             <p className="text-sm text-muted-foreground rounded-xl border border-border bg-muted/40 px-4 py-3">

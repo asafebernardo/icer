@@ -39,7 +39,7 @@ export async function findFileReferences(db, fileId) {
       kind: "post",
       id: p.id,
       label: titulo ? `Postagem: ${titulo}` : `Postagem #${p.id}`,
-      href: `/Postagens/editar/${p.id}`,
+      href: `/Posts/editar/${p.id}`,
       meta: p.is_draft === true ? "rascunho" : null,
     });
   }
@@ -71,7 +71,7 @@ export async function findFileReferences(db, fileId) {
       kind: "material",
       id: m.id,
       label: titulo ? `Material: ${titulo}` : `Material #${m.id}`,
-      href: "/Recursos",
+      href: "/Home#recursos",
       meta: "Edição em Recursos / cadastros",
     });
   }
@@ -88,7 +88,7 @@ export async function findFileReferences(db, fileId) {
       id: f.id,
       label: titulo ? `Galeria: ${titulo}` : `Foto galeria #${f.id}`,
       href: "/Admin?tab=cadastros-opcoes",
-      meta: "Área Cadastros no admin",
+      meta: "Área Padrão no admin",
     });
   }
 

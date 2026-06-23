@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/api/client";
@@ -411,7 +411,7 @@ function EventoCard({
   );
 }
 
-export default function Eventos() {
+export default function Eventos({ embedded = false } = {}) {
   const { user, navigateToLogin } = useAuth();
   const { enabled: editMode } = useEditMode();
   const canCreateReal = canMenuAction(user, MENU.EVENTOS, "create");
@@ -451,9 +451,23 @@ export default function Eventos() {
   /** Links antigos ?todos=1 — remove o parâmetro sem mudar a vista (única vista). */
   useEffect(() => {
     if (searchParams.get("todos") === "1") {
-      setSearchParams({}, { replace: true });
+      const tab = searchParams.get("tab");
+      setSearchParams(tab ? { tab } : {}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  const clearNovoParam = useCallback(() => {
+    if (searchParams.get("novo") !== "1") return;
+    const tab = searchParams.get("tab");
+    setSearchParams(tab ? { tab } : {}, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (embedded && searchParams.get("novo") === "1" && canCreate) {
+      setEditEvento(null);
+      setShowForm(true);
+    }
+  }, [embedded, searchParams, canCreate]);
 
   const { data: eventos = [], isLoading } = useQuery({
     queryKey: ["eventos"],
@@ -585,30 +599,40 @@ export default function Eventos() {
 
   return (
     <div>
-      <PageHeader
-        pageKey="eventos"
-        tag="Programação"
-        title="Eventos"
-        description="Datas, horários e locais dos encontros."
-      />
+      {!embedded ? (
+        <PageHeader
+          pageKey="eventos"
+          tag="Programação"
+          title="Eventos"
+          description="Datas, horários e locais dos encontros."
+        />
+      ) : null}
 
-      <section className="py-10 lg:py-14">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {canCreate ? (
+      <section className={embedded ? "py-0" : "py-10 lg:py-14"}>
+        <div
+          className={
+            embedded
+              ? "w-full"
+              : "max-w-5xl mx-auto px-4 sm:px-6 lg:px-8"
+          }
+        >
+          {canCreate && !embedded ? (
             <div className="flex w-full flex-col gap-3 mb-6">
             <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:justify-end">
+                  {!embedded ? (
                   <Button
                     type="button"
                     className="gap-2 max-sm:min-h-[44px]"
                     aria-label="Rotinas"
                     asChild
                   >
-                    <Link to="/Eventos/rotinas">
+                    <Link to="/Posts/categoria/eventos?tab=configuracoes">
                       <History className="w-4 h-4 shrink-0" />
                       <span className="sm:hidden text-xs font-medium">Rotinas</span>
                       <span className="hidden sm:inline">Rotinas</span>
                     </Link>
                   </Button>
+                  ) : null}
                   <Button
                     type="button"
                     onClick={handleNew}
@@ -631,10 +655,12 @@ export default function Eventos() {
               onSaved={() => {
                 setShowForm(false);
                 setEditEvento(null);
+                clearNovoParam();
               }}
               onCancel={() => {
                 setShowForm(false);
                 setEditEvento(null);
+                clearNovoParam();
               }}
             />
           )}

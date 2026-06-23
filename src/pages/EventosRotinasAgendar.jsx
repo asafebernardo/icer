@@ -87,7 +87,7 @@ export default function EventosRotinasAgendar() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" className="gap-2" asChild>
-              <Link to="/Eventos/rotinas">
+              <Link to="/Posts/categoria/eventos?tab=configuracoes">
                 <ArrowLeft className="w-4 h-4" />
                 Voltar a Rotinas
               </Link>
@@ -128,10 +128,12 @@ export default function EventosRotinasAgendar() {
                 existingEventos={eventos}
                 onDone={invalidateAll}
                 initialSavedSchedule={enabledFetch && savedSchedule ? savedSchedule : null}
-                onWizardCancel={() => navigate("/Eventos/rotinas")}
+                onWizardCancel={() =>
+                  navigate("/Posts/categoria/eventos?tab=configuracoes")
+                }
                 onWizardFinished={() => {
                   invalidateAll();
-                  navigate("/Eventos/rotinas");
+                  navigate("/Posts/categoria/eventos?tab=configuracoes");
                 }}
               />
             </>

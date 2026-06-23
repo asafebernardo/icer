@@ -8,6 +8,7 @@
     "dev:all": "concurrently -n server,vite -c bgMagenta.bold,bgCyan.bold --prefix \"[{name}]\" \"npm run dev:server\" \"npm run dev\"",
     "dev:server": "node server/index.js",
     "clear-login-blocks": "node scripts/clear-login-blocks.mjs",
+    "migrate:post-categories": "node scripts/migrate-post-categories.mjs",
     "build": "vite build",
     "start": "node server/index.js",
     "start:server": "node server/index.js",

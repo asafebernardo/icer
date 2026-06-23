@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NativeTitleLifetime from "@/components/layout/NativeTitleLifetime";
+import SiteBackground from "@/components/layout/SiteBackground";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
 import {
@@ -9,6 +10,7 @@ import {
   Routes,
   Navigate,
   useLocation,
+  useParams,
 } from "react-router-dom";
 import AppRouter from "@/lib/AppRouter";
 import PageNotFound from "./lib/PageNotFound";
@@ -21,15 +23,13 @@ import Layout from "./components/layout/Layout";
 import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import { ThemeProvider } from "./lib/ThemeContext";
-import Recursos from "./pages/Recursos";
 import Agenda from "./pages/Agenda.jsx";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
-import Eventos from "./pages/Eventos";
-import EventosRotinas from "./pages/EventosRotinas";
 import EventosRotinasAgendar from "./pages/EventosRotinasAgendar";
 import Postagens from "./pages/Postagens";
+import PostsCategoriaPage from "./pages/PostsCategoriaPage";
 import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
@@ -43,6 +43,11 @@ import {
   setLoginIntent,
   clearLoginIntent,
 } from "@/lib/loginIntent";
+
+function RedirectLegacyPostagensEdit() {
+  const { id } = useParams();
+  return <Navigate to={`/Posts/editar/${id}`} replace />;
+}
 
 // Rotas privadas — redireciona para /login se não houver sessão
 const PrivateRoute = ({ children }) => {
@@ -127,10 +132,10 @@ const AppRoutes = () => {
 
       <Route element={<Layout />}>
         <Route path="Home" element={<Home />} />
-        <Route path="Recursos" element={<Recursos />} />
+        <Route path="Recursos" element={<Navigate to="/Home#recursos" replace />} />
         <Route
           path="LinksUteis"
-          element={<Navigate to="/Recursos" replace />}
+          element={<Navigate to="/Home#recursos" replace />}
         />
         <Route path="Agenda" element={<Agenda />} />
 
@@ -151,12 +156,24 @@ const AppRoutes = () => {
           }
         />
         <Route path="Evento/:id" element={<EventoPage />} />
-        <Route path="Eventos" element={<Eventos />} />
-        <Route path="Eventos/rotinas" element={<EventosRotinas />} />
+        <Route path="Eventos" element={<Navigate to="/Posts/categoria/eventos?tab=eventos" replace />} />
+        <Route
+          path="Eventos/rotinas"
+          element={<Navigate to="/Posts/categoria/eventos?tab=configuracoes" replace />}
+        />
         <Route path="Eventos/rotinas/agendar/:id" element={<EventosRotinasAgendar />} />
         <Route path="Eventos/rotinas/agendar" element={<EventosRotinasAgendar />} />
         <Route
-          path="Postagens/nova"
+          path="Posts/novo-evento"
+          element={
+            <Navigate
+              to="/Posts/categoria/eventos?tab=eventos&novo=1"
+              replace
+            />
+          }
+        />
+        <Route
+          path="Posts/nova"
           element={
             <PrivateRoute>
               <PostagemEditor />
@@ -164,14 +181,21 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="Postagens/editar/:id"
+          path="Posts/editar/:id"
           element={
             <PrivateRoute>
               <PostagemEditor />
             </PrivateRoute>
           }
         />
-        <Route path="Postagens" element={<Postagens />} />
+        <Route path="Posts/categoria/:categoria" element={<PostsCategoriaPage />} />
+        <Route path="Posts" element={<Postagens />} />
+        <Route path="Postagens/nova" element={<Navigate to="/Posts/nova" replace />} />
+        <Route
+          path="Postagens/editar/:id"
+          element={<RedirectLegacyPostagensEdit />}
+        />
+        <Route path="Postagens" element={<Navigate to="/Posts" replace />} />
         <Route path="Post/:id" element={<PostPage />} />
         <Route
           path="Historia"
@@ -196,6 +220,7 @@ function App() {
           <ThemeProvider>
             <EditModeProvider>
               <TooltipProvider delayDuration={300}>
+                <SiteBackground />
                 <NativeTitleLifetime />
                 <TrackLastVisitedPath />
                 <AppErrorBoundary>

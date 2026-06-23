@@ -3,20 +3,14 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Home as HomeIcon,
   Newspaper,
-  Calendar,
-  CalendarDays,
   MoreHorizontal,
-  Sun,
-  Moon,
   User,
-  Library,
   Landmark,
   Search,
   Pencil,
   Settings,
   Users,
   Shield,
-  History,
   Globe,
   ShieldAlert,
   ScrollText,
@@ -34,11 +28,11 @@ import {
   SheetDescription,
   SheetClose,
 } from "@/components/ui/sheet";
-import { useTheme } from "@/lib/ThemeContext";
 import { useEditMode } from "@/lib/EditModeContext";
 import { useAuth } from "@/lib/AuthContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
+import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import { logout as authLogout, isAdminUser } from "@/lib/auth";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
 import { setLoginIntent } from "@/lib/loginIntent";
@@ -51,9 +45,7 @@ import {
 
 const PRIMARY_ITEMS = [
   { label: "Início", path: "/Home", icon: HomeIcon },
-  { label: "Postagens", path: "/Postagens", icon: Newspaper },
-  { label: "Agenda", path: "/Agenda", icon: Calendar },
-  { label: "Eventos", path: "/Eventos", icon: CalendarDays },
+  { label: "Posts", path: "/Posts", icon: Newspaper },
 ];
 
 export default function BottomNav() {
@@ -61,14 +53,16 @@ export default function BottomNav() {
   const [open, setOpen] = useState(false);
   /** Menu expansível do painel admin na barra inferior (mobile). */
   const [adminDockOpen, setAdminDockOpen] = useState(false);
-  const { theme, toggle } = useTheme();
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
   const { googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
   const isLoggedIn = !!sessionUser;
   const isAdmin = isAdminUser(sessionUser);
-  const canUseAdminTabs =
-    isAdmin && isServerAuthEnabled() && sessionUser?._authSource === "server";
+  const {
+    canUseAdminTabs,
+    canNavigateAdminTabs,
+    showHomologLoginBlockedHints,
+  } = useAdminNavAccess(sessionUser);
   const adminNavGroups = useMemo(
     () => getAdminNavGroups(DEFAULT_EXTRA_ADMIN_NAV_ITEMS),
     [],
@@ -78,7 +72,6 @@ export default function BottomNav() {
       profile: Settings,
       "admin-users": Users,
       "permission-groups": Shield,
-      "site-updates": History,
       site: Globe,
       google: Sparkles,
       server: Server,
@@ -100,13 +93,13 @@ export default function BottomNav() {
     <>
       <nav
         aria-label="Navegação inferior"
-        className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/85"
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_-1px_0_hsl(var(--border)),0_-8px_32px_-12px_hsl(217_59%_4%/0.85)]"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul
           className={cn(
             "relative z-10 grid h-[64px]",
-            isAdmin ? "grid-cols-6" : "grid-cols-5",
+            isAdmin ? "grid-cols-4" : "grid-cols-3",
           )}
         >
           {PRIMARY_ITEMS.map((item) => {
@@ -210,6 +203,8 @@ export default function BottomNav() {
               <AdminNavLinks
                 groups={adminNavGroups}
                 canUseAdminTabs={canUseAdminTabs}
+                canNavigateAdminTabs={canNavigateAdminTabs}
+                showHomologLoginBlockedHints={showHomologLoginBlockedHints}
                 icons={adminMenuIcons}
                 layout="sheet"
                 getHref={adminTabHref}
@@ -271,15 +266,6 @@ export default function BottomNav() {
                 </span>
               </button>
             ) : null}
-            <SheetClose asChild>
-              <Link
-                to="/Recursos"
-                className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50"
-              >
-                <Library className="w-5 h-5 text-foreground/70" />
-                <span className="text-base">Recursos</span>
-              </Link>
-            </SheetClose>
             {isAdmin ? (
               <SheetClose asChild>
                 <Link
@@ -291,23 +277,6 @@ export default function BottomNav() {
                 </Link>
               </SheetClose>
             ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                toggle();
-                setOpen(false);
-              }}
-              className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50 text-left"
-            >
-              {theme === "dark" ? (
-                <Sun className="w-5 h-5 text-foreground/70" />
-              ) : (
-                <Moon className="w-5 h-5 text-foreground/70" />
-              )}
-              <span className="text-base">
-                {theme === "dark" ? "Tema claro" : "Tema escuro"}
-              </span>
-            </button>
             {isLoggedIn ? (
               <>
                 {!isAdmin ? (

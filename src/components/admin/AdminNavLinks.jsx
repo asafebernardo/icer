@@ -28,7 +28,7 @@ function NavIconWrap({ Icon, itemId, isActive, disabled }) {
   );
 }
 
-function NavLabel({ item }) {
+function NavLabel({ item, loginBlocked = false }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       <span className="truncate">{item.label}</span>
@@ -38,6 +38,13 @@ function NavLabel({ item }) {
           className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
         >
           Em breve
+        </Badge>
+      ) : loginBlocked ? (
+        <Badge
+          variant="outline"
+          className="shrink-0 border-amber-500/40 bg-amber-500/10 px-1.5 py-0 text-[10px] uppercase tracking-wide text-amber-950 dark:text-amber-50"
+        >
+          Login
         </Badge>
       ) : item.badge ? (
         <Badge
@@ -51,8 +58,18 @@ function NavLabel({ item }) {
   );
 }
 
-function itemDisabled(item, canUseAdminTabs) {
-  return Boolean(item?.requiresServerAuth && !canUseAdminTabs);
+function itemDisabled(item, canUseAdminTabs, canNavigateAdminTabs) {
+  if (!item?.requiresServerAuth) return false;
+  const canNav = canNavigateAdminTabs ?? canUseAdminTabs;
+  return !canNav;
+}
+
+function itemLoginBlocked(item, canUseAdminTabs, showHomologLoginBlockedHints) {
+  return Boolean(
+    showHomologLoginBlockedHints &&
+      item?.requiresServerAuth &&
+      !canUseAdminTabs,
+  );
 }
 
 /**
@@ -61,6 +78,8 @@ function itemDisabled(item, canUseAdminTabs) {
  *   groups: Array<{ id: string; label: string; items: Array<{ id: string; label: string; requiresServerAuth?: boolean; comingSoon?: boolean; badge?: string }> }>;
  *   activeTab?: string | null;
  *   canUseAdminTabs: boolean;
+ *   canNavigateAdminTabs?: boolean;
+ *   showHomologLoginBlockedHints?: boolean;
  *   icons?: Record<string, React.ComponentType<{ className?: string }>>;
  *   layout?: "sheet" | "dropdown";
  *   getHref?: (tabId: string) => string | null;
@@ -72,6 +91,8 @@ export default function AdminNavLinks({
   groups,
   activeTab = null,
   canUseAdminTabs,
+  canNavigateAdminTabs,
+  showHomologLoginBlockedHints = false,
   icons = {},
   layout = "sheet",
   getHref,
@@ -118,7 +139,12 @@ export default function AdminNavLinks({
         </span>
       );
     }
-    const disabled = itemDisabled(item, canUseAdminTabs);
+    const disabled = itemDisabled(item, canUseAdminTabs, canNavigateAdminTabs);
+    const loginBlocked = itemLoginBlocked(
+      item,
+      canUseAdminTabs,
+      showHomologLoginBlockedHints,
+    );
     const isActive = isItemActive(item.id);
     const href = getHref?.(item.id) ?? null;
 
@@ -128,10 +154,15 @@ export default function AdminNavLinks({
           key={item.id}
           to={href}
           onClick={() => onTabPick?.(item.id)}
+          title={
+            loginBlocked
+              ? "Homologação: aba visível; conteúdo exige sessão no servidor"
+              : undefined
+          }
           className={sheetItemClass(isActive, false)}
         >
           <NavIconWrap Icon={Icon} itemId={item.id} isActive={isActive} disabled={false} />
-          <NavLabel item={item} />
+          <NavLabel item={item} loginBlocked={loginBlocked} />
         </Link>
       );
     }
@@ -145,7 +176,7 @@ export default function AdminNavLinks({
           className={sheetItemClass(isActive, false)}
         >
           <NavIconWrap Icon={Icon} itemId={item.id} isActive={isActive} disabled={false} />
-          <NavLabel item={item} />
+          <NavLabel item={item} loginBlocked={loginBlocked} />
         </button>
       );
     }
@@ -177,7 +208,12 @@ export default function AdminNavLinks({
         </DropdownMenuItem>
       );
     }
-    const disabled = itemDisabled(item, canUseAdminTabs);
+    const disabled = itemDisabled(item, canUseAdminTabs, canNavigateAdminTabs);
+    const loginBlocked = itemLoginBlocked(
+      item,
+      canUseAdminTabs,
+      showHomologLoginBlockedHints,
+    );
     const href = getHref?.(item.id) ?? null;
 
     if (!disabled && href) {
@@ -186,10 +222,15 @@ export default function AdminNavLinks({
           <Link
             to={href}
             onClick={() => onTabPick?.(item.id)}
+            title={
+              loginBlocked
+                ? "Homologação: aba visível; conteúdo exige sessão no servidor"
+                : undefined
+            }
             className="flex min-w-0 w-full cursor-pointer items-center gap-2"
           >
             <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled={false} />
-            <NavLabel item={item} />
+            <NavLabel item={item} loginBlocked={loginBlocked} />
           </Link>
         </DropdownMenuItem>
       );
@@ -203,7 +244,7 @@ export default function AdminNavLinks({
           className="flex cursor-pointer items-center gap-2"
         >
           <NavIconWrap Icon={Icon} itemId={item.id} isActive={false} disabled={false} />
-          <NavLabel item={item} />
+          <NavLabel item={item} loginBlocked={loginBlocked} />
         </DropdownMenuItem>
       );
     }

@@ -190,6 +190,7 @@ export default function EventoFormPanel({
   onDeleted,
   onSaved,
   existingEventos = [],
+  layout = "modal",
 }) {
   const [form, setForm] = useState(empty);
   const [sugestoes, setSugestoes] = useState(() =>
@@ -209,17 +210,21 @@ export default function EventoFormPanel({
   const [step, setStep] = useState("dados"); // "dados" | "programacao"
   const [conflictError, setConflictError] = useState("");
 
+  const isPageLayout = layout === "page";
+  const isActive = isPageLayout || Boolean(open);
+
   const { data: publicWs } = useQuery({
     queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
     queryFn: fetchPublicWorkspaceJson,
-    enabled: open,
+    enabled: isActive,
     staleTime: 60_000,
   });
 
   const { data: fetchedEventos = [] } = useQuery({
     queryKey: ["eventos"],
     queryFn: listEventosMerged,
-    enabled: open && (!Array.isArray(existingEventos) || existingEventos.length === 0),
+    enabled:
+      isActive && (!Array.isArray(existingEventos) || existingEventos.length === 0),
     staleTime: 15_000,
   });
 
@@ -379,7 +384,7 @@ export default function EventoFormPanel({
       (Array.isArray(merged.programacao) && merged.programacao.length > 0);
     setForm(merged);
     setStep("dados");
-  }, [evento, open]);
+  }, [evento, isActive]);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const hasProgramacao = Boolean(form.tem_programacao);
@@ -621,7 +626,7 @@ export default function EventoFormPanel({
   );
 
   useEffect(() => {
-    if (!open) {
+    if (!isActive) {
       setConflictError("");
       return;
     }
@@ -632,38 +637,45 @@ export default function EventoFormPanel({
     setConflictError(
       "Já existe um evento cadastrado com a mesma data, horário e categoria. Ajuste antes de salvar.",
     );
-  }, [open, conflictInfo.hasConflict]);
+  }, [isActive, conflictInfo.hasConflict]);
 
   const handleDialogOpenChange = (next) => {
     if (!next) onCancel?.();
   };
 
-  return (
+  const titleText = evento ? "Editar evento" : "Novo evento";
+  const descriptionText =
+    "Preencha os dados abaixo e guarde. A agenda usa apenas a data para mostrar o evento no calendário.";
+
+  const formHeader = isPageLayout ? (
+    <div className="px-6 pt-6 pb-3 border-b border-border bg-muted/40 shrink-0 space-y-1.5">
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">
+        {titleText}
+      </h2>
+      <p className="text-sm text-muted-foreground">{descriptionText}</p>
+    </div>
+  ) : (
+    <DialogHeader className="px-6 pt-6 pb-3 border-b border-border bg-muted/40 shrink-0 text-left space-y-1.5">
+      <DialogTitle>{titleText}</DialogTitle>
+      <DialogDescription>{descriptionText}</DialogDescription>
+    </DialogHeader>
+  );
+
+  const formBody = (
     <>
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent
-        id="evento-form-panel"
-        className={cn(
-          "w-[calc(100%-1rem)] max-w-3xl p-0 gap-0 flex flex-col overflow-hidden sm:max-w-3xl [&>button.absolute]:hidden",
-          "max-h-[min(92vh,920px)] sm:max-h-[min(92vh,920px)]",
-          "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100",
-        )}
-      >
-        <DialogHeader className="px-6 pt-6 pb-3 border-b border-border bg-muted/40 shrink-0 text-left space-y-1.5">
-          <DialogTitle>
-            {evento ? "Editar evento" : "Novo evento"}
-          </DialogTitle>
-          <DialogDescription>
-            Preencha os dados abaixo e guarde. A agenda usa apenas a data para
-            mostrar o evento no calendário.
-          </DialogDescription>
-        </DialogHeader>
+        {formHeader}
         <div
           className={cn("h-1.5 w-full shrink-0", previewBarClass)}
           aria-hidden
         />
 
-      <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 max-h-[min(70vh,720px)] max-sm:max-h-[min(calc(92dvh-10rem),calc(100dvh-10rem))]">
+      <div
+        className={cn(
+          "p-6 space-y-4 overflow-y-auto flex-1 min-h-0",
+          !isPageLayout &&
+            "max-h-[min(70vh,720px)] max-sm:max-h-[min(calc(92dvh-10rem),calc(100dvh-10rem))]",
+        )}
+      >
         {/* Destaque na home (discreto, no topo) */}
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-2">
           <p className="text-sm font-semibold text-foreground">
@@ -1385,8 +1397,32 @@ export default function EventoFormPanel({
           </p>
         ) : null}
       </div>
-      </DialogContent>
-    </Dialog>
+    </>
+  );
+
+  return (
+    <>
+      {isPageLayout ? (
+        <div
+          id="evento-form-panel"
+          className="evento-form-page flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm"
+        >
+          {formBody}
+        </div>
+      ) : (
+        <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+          <DialogContent
+            id="evento-form-panel"
+            className={cn(
+              "w-[calc(100%-1rem)] max-w-3xl p-0 gap-0 flex flex-col overflow-hidden sm:max-w-3xl [&>button.absolute]:hidden",
+              "max-h-[min(92vh,920px)] sm:max-h-[min(92vh,920px)]",
+              "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:top-auto max-sm:left-0 max-sm:right-0 max-sm:w-full max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100",
+            )}
+          >
+            {formBody}
+          </DialogContent>
+        </Dialog>
+      )}
 
     <ConfirmDialog
       open={deleteConfirmOpen}

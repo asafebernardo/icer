@@ -68,6 +68,14 @@ export default defineConfig(({ mode }) => {
       ? apiProxyTimeoutMs
       : 300_000;
 
+  const homologEnvRaw = String(env.ICER_ENV || "").trim().toLowerCase();
+  const isHomologFromEnv =
+    env.ICER_HOMOLOG === "true" ||
+    env.ICER_HOMOLOG === "1" ||
+    env.ICER_HOMOLOG === "yes" ||
+    env.ICER_HOMOLOG === "on" ||
+    ["homolog", "homologacao", "homologação", "staging", "hml"].includes(homologEnvRaw);
+
   return {
     logLevel: "error",
     define: {
@@ -75,6 +83,7 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_ICER_GIT_SHA": JSON.stringify(icerGitSha || "unknown"),
       "import.meta.env.VITE_ICER_GIT_BRANCH": JSON.stringify(icerGitBranch || ""),
       "import.meta.env.VITE_ICER_BUILD_ID": JSON.stringify(icerBuildId),
+      "import.meta.env.VITE_ICER_HOMOLOG": JSON.stringify(isHomologFromEnv),
     },
     resolve: {
       alias: {

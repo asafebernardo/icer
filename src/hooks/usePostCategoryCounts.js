@@ -1,0 +1,58 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import {
+  POST_FEED_SECTION_ORDER,
+  resolvePostCategoria,
+  WORSHIP_POST_CATEGORY_KEYS,
+} from "@/lib/postCategories";
+import { belongsToNoticiasFeed } from "@/lib/noticiasFeed";
+import { listEventosMerged } from "@/lib/eventosQuery";
+import { usePostsList } from "@/hooks/usePostsList";
+
+/**
+ * Contagem de posts publicados por categoria (inclui exemplos quando aplicável).
+ */
+export function usePostCategoryCounts({ showDrafts = false } = {}) {
+  const { posts, isLoading: postsLoading } = usePostsList({ showDrafts });
+
+  const { data: eventos = [], isLoading: eventosLoading } = useQuery({
+    queryKey: ["eventos"],
+    queryFn: listEventosMerged,
+    staleTime: 30_000,
+  });
+
+  const counts = useMemo(() => {
+    const map = Object.fromEntries(
+      POST_FEED_SECTION_ORDER.map((key) => [key, 0]),
+    );
+    for (const post of posts) {
+      if (belongsToNoticiasFeed(post)) {
+        map.noticias = (map.noticias || 0) + 1;
+        continue;
+      }
+      const cat = resolvePostCategoria(post);
+      if (cat && map[cat] !== undefined && WORSHIP_POST_CATEGORY_KEYS.has(cat)) {
+        map[cat] = (map[cat] || 0) + 1;
+      } else {
+        map.noticias = (map.noticias || 0) + 1;
+      }
+    }
+    map.eventos = Array.isArray(eventos) ? eventos.length : 0;
+    return map;
+  }, [posts, eventos]);
+
+  const visibleCategories = POST_FEED_SECTION_ORDER;
+
+  return {
+    counts,
+    visibleCategories,
+    isLoading: postsLoading || eventosLoading,
+  };
+}
+
+/** @param {number} n */
+export function formatPostCount(n) {
+  if (n === 1) return "1 item";
+  return `${n} itens`;
+}

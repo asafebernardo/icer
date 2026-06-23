@@ -19,8 +19,6 @@ export const ADMIN_NAV_ITEM_ICON_TONE = {
     "bg-violet-500/20 text-violet-900 shadow-sm shadow-violet-500/10 dark:bg-violet-500/30 dark:text-violet-50",
   "permission-groups":
     "bg-indigo-500/20 text-indigo-900 shadow-sm shadow-indigo-500/10 dark:bg-indigo-500/30 dark:text-indigo-50",
-  "site-updates":
-    "bg-teal-500/20 text-teal-900 shadow-sm shadow-teal-500/10 dark:bg-teal-500/30 dark:text-teal-50",
 };
 
 /** Marcador ao lado do título do grupo (Conta / Administração). */
@@ -43,7 +41,6 @@ export const DEFAULT_EXTRA_ADMIN_NAV_ITEMS = [];
 const ADMINISTRACAO_BASE_ITEMS = [
   { id: "admin-users", label: "Utilizadores", requiresServerAuth: true },
   { id: "permission-groups", label: "Grupos de permissão", requiresServerAuth: true },
-  { id: "site-updates", label: "Atualizações", requiresServerAuth: false },
   { id: "site", label: "Site", requiresServerAuth: true },
   {
     id: "google",
@@ -54,7 +51,7 @@ const ADMINISTRACAO_BASE_ITEMS = [
   { id: "uploads", label: "Arquivos", requiresServerAuth: true },
   {
     id: "cadastros-opcoes",
-    label: "Cadastros",
+    label: "Padrão",
     requiresServerAuth: true,
   },
   { id: "login-blocks", label: "Bloqueios", requiresServerAuth: true },
@@ -73,7 +70,7 @@ export function getAdminNavGroups(extraAdminItems = DEFAULT_EXTRA_ADMIN_NAV_ITEM
     ...(item.badge ? { badge: item.badge } : {}),
     ...(item.comingSoon ? { comingSoon: true } : {}),
   }));
-  const fixedOrderIds = new Set(["admin-users", "permission-groups", "site-updates"]);
+  const fixedOrderIds = new Set(["admin-users", "permission-groups"]);
   const fixedHead = ADMINISTRACAO_BASE_ITEMS.filter((i) => fixedOrderIds.has(i.id));
   const restBase = ADMINISTRACAO_BASE_ITEMS.filter((i) => !fixedOrderIds.has(i.id));
   const administracaoItems = [
@@ -104,4 +101,44 @@ export function getAdminTabIds(extraAdminItems = DEFAULT_EXTRA_ADMIN_NAV_ITEMS) 
       g.items.filter((i) => !i.comingSoon).map((i) => i.id),
     ),
   );
+}
+
+/** Abas de administração que exigem sessão no servidor (MongoDB). */
+export function getLoginBlockedAdminNavItems(
+  extraAdminItems = DEFAULT_EXTRA_ADMIN_NAV_ITEMS,
+) {
+  return getAdminNavGroups(extraAdminItems).flatMap((g) =>
+    g.items.filter((item) => item.requiresServerAuth && !item.comingSoon),
+  );
+}
+
+/**
+ * @param {{
+ *   isAdmin?: boolean;
+ *   serverAuthEnabled?: boolean;
+ *   authSource?: string | null;
+ *   isHomolog?: boolean;
+ *   isLoggedIn?: boolean;
+ * }} p
+ */
+export function resolveAdminNavAccess(p = {}) {
+  const isAdmin = p.isAdmin === true;
+  const serverAuthEnabled = p.serverAuthEnabled === true;
+  const authSource = p.authSource ?? null;
+  const isHomolog = p.isHomolog === true;
+  const isLoggedIn = p.isLoggedIn === true;
+  const hasServerSession =
+    isAdmin && serverAuthEnabled && authSource === "server";
+  /** Homolog + admin autenticado: menus e painéis activos (dev/staging). */
+  const homologAdminSession =
+    isHomolog && isAdmin && isLoggedIn && serverAuthEnabled;
+  return {
+    isHomolog,
+    hasServerSession,
+    canUseAdminTabs: hasServerSession || homologAdminSession,
+    canNavigateAdminTabs:
+      isAdmin && (hasServerSession || isHomolog || isLoggedIn),
+    showHomologLoginBlockedHints:
+      isHomolog && isAdmin && isLoggedIn && !hasServerSession,
+  };
 }

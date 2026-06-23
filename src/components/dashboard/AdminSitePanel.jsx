@@ -21,10 +21,7 @@ import {
   ImagePlus,
   Lock,
   MapPin,
-  Palette,
   RefreshCw,
-  LayoutGrid,
-  Share2,
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,19 +35,8 @@ import {
   FOOTER_SITE_CONFIG_DEFAULTS,
 } from "@/lib/siteConfig";
 import SafeImg from "@/components/shared/SafeImg";
-import { PALETTE_OPTIONS, applySiteColorPalette } from "@/lib/colorPalettes";
-import { getUserColorPalette, setUserColorPalette } from "@/lib/userColorPalette";
 import { useAuth } from "@/lib/AuthContext";
 import { isServerAuthEnabled } from "@/lib/serverAuth";
-import {
-  DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
-  DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
-  DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
-  DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG,
-  DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE,
-  DEFAULT_HOME_YOUTUBE_CARD_TEXT,
-  DEFAULT_HOME_YOUTUBE_CARD_TITLE,
-} from "@/lib/homeContentDefaults";
 
 const HOME_VIEWS_PAGE_SIZE = 5;
 
@@ -90,11 +76,6 @@ export default function AdminSitePanel() {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState(() => getSiteConfig().logoUrl || "");
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [paletteId, setPaletteId] = useState(() => getUserColorPalette(undefined));
-
-  useEffect(() => {
-    setPaletteId(getUserColorPalette(user?.id));
-  }, [user?.id]);
   const [sessionTtl, setSessionTtl] = useState(120);
   const [loadingSessionTtl, setLoadingSessionTtl] = useState(true);
   const [savingSessionTtl, setSavingSessionTtl] = useState(false);
@@ -118,67 +99,7 @@ export default function AdminSitePanel() {
     enabled: isServerAuthEnabled() && user?._authSource === "server",
   });
 
-  const [socialYoutube, setSocialYoutube] = useState(() => {
-    const c = getSiteConfig();
-    return Object.prototype.hasOwnProperty.call(c, "socialYoutubeUrl")
-      ? String(c.socialYoutubeUrl ?? "")
-      : String(c.channelUrl ?? "");
-  });
-  const [socialInstagram, setSocialInstagram] = useState(() => {
-    const c = getSiteConfig();
-    return Object.prototype.hasOwnProperty.call(c, "socialInstagramUrl")
-      ? String(c.socialInstagramUrl ?? "")
-      : String(c.instagramUrl ?? "");
-  });
-  const [savingSocial, setSavingSocial] = useState(false);
-
   const cfgOwn = (c, k) => Object.prototype.hasOwnProperty.call(c, k);
-
-  const [homeYtTitle, setHomeYtTitle] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeYoutubeCardTitle")
-      ? String(c.homeYoutubeCardTitle ?? "").trim()
-      : DEFAULT_HOME_YOUTUBE_CARD_TITLE;
-  });
-  const [homeYtText, setHomeYtText] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeYoutubeCardText")
-      ? String(c.homeYoutubeCardText ?? "").trim()
-      : DEFAULT_HOME_YOUTUBE_CARD_TEXT;
-  });
-  const [homeIgTitle, setHomeIgTitle] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeInstagramCardTitle")
-      ? String(c.homeInstagramCardTitle ?? "").trim()
-      : DEFAULT_HOME_INSTAGRAM_CARD_TITLE;
-  });
-  const [homeIgText, setHomeIgText] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeInstagramCardText")
-      ? String(c.homeInstagramCardText ?? "").trim()
-      : DEFAULT_HOME_INSTAGRAM_CARD_TEXT;
-  });
-  const [savingHomeCards, setSavingHomeCards] = useState(false);
-  const [homeSocialSectionTag, setHomeSocialSectionTag] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeSocialCardsSectionTag")
-      ? String(c.homeSocialCardsSectionTag ?? "").trim()
-      : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG;
-  });
-  const [homeSocialSectionTitle, setHomeSocialSectionTitle] = useState(() => {
-    const c = getSiteConfig();
-    return cfgOwn(c, "homeSocialCardsSectionTitle")
-      ? String(c.homeSocialCardsSectionTitle ?? "").trim()
-      : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE;
-  });
-  const [homeSocialSectionSubtitle, setHomeSocialSectionSubtitle] = useState(
-    () => {
-      const c = getSiteConfig();
-      return cfgOwn(c, "homeSocialCardsSectionSubtitle")
-        ? String(c.homeSocialCardsSectionSubtitle ?? "").trim()
-        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE;
-    },
-  );
 
   const footerDef = FOOTER_SITE_CONFIG_DEFAULTS;
   const [footerEndereco, setFooterEndereco] = useState(() => {
@@ -225,59 +146,6 @@ export default function AdminSitePanel() {
   });
   const [savingFooter, setSavingFooter] = useState(false);
 
-  const loadHomeCardFieldsFromConfig = () => {
-    const c = getSiteConfig();
-    setHomeSocialSectionTag(
-      cfgOwn(c, "homeSocialCardsSectionTag")
-        ? String(c.homeSocialCardsSectionTag ?? "").trim()
-        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG,
-    );
-    setHomeSocialSectionTitle(
-      cfgOwn(c, "homeSocialCardsSectionTitle")
-        ? String(c.homeSocialCardsSectionTitle ?? "").trim()
-        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE,
-    );
-    setHomeSocialSectionSubtitle(
-      cfgOwn(c, "homeSocialCardsSectionSubtitle")
-        ? String(c.homeSocialCardsSectionSubtitle ?? "").trim()
-        : DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
-    );
-    setHomeYtTitle(
-      cfgOwn(c, "homeYoutubeCardTitle")
-        ? String(c.homeYoutubeCardTitle ?? "").trim()
-        : DEFAULT_HOME_YOUTUBE_CARD_TITLE,
-    );
-    setHomeYtText(
-      cfgOwn(c, "homeYoutubeCardText")
-        ? String(c.homeYoutubeCardText ?? "").trim()
-        : DEFAULT_HOME_YOUTUBE_CARD_TEXT,
-    );
-    setHomeIgTitle(
-      cfgOwn(c, "homeInstagramCardTitle")
-        ? String(c.homeInstagramCardTitle ?? "").trim()
-        : DEFAULT_HOME_INSTAGRAM_CARD_TITLE,
-    );
-    setHomeIgText(
-      cfgOwn(c, "homeInstagramCardText")
-        ? String(c.homeInstagramCardText ?? "").trim()
-        : DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
-    );
-  };
-
-  const loadSocialFieldsFromConfig = () => {
-    const c = getSiteConfig();
-    setSocialYoutube(
-      Object.prototype.hasOwnProperty.call(c, "socialYoutubeUrl")
-        ? String(c.socialYoutubeUrl ?? "")
-        : String(c.channelUrl ?? ""),
-    );
-    setSocialInstagram(
-      Object.prototype.hasOwnProperty.call(c, "socialInstagramUrl")
-        ? String(c.socialInstagramUrl ?? "")
-        : String(c.instagramUrl ?? ""),
-    );
-  };
-
   const loadFooterFieldsFromConfig = () => {
     const c = getSiteConfig();
     const d = FOOTER_SITE_CONFIG_DEFAULTS;
@@ -299,12 +167,8 @@ export default function AdminSitePanel() {
   };
 
   useEffect(() => {
-    loadSocialFieldsFromConfig();
-    loadHomeCardFieldsFromConfig();
     loadFooterFieldsFromConfig();
     const onCfg = () => {
-      loadSocialFieldsFromConfig();
-      loadHomeCardFieldsFromConfig();
       loadFooterFieldsFromConfig();
     };
     window.addEventListener("icer-site-config", onCfg);
@@ -334,22 +198,6 @@ export default function AdminSitePanel() {
     };
   }, []);
 
-  const saveSocialLinks = async () => {
-    setSavingSocial(true);
-    try {
-      await savePublicSiteConfigAdmin({
-        socialYoutubeUrl: socialYoutube.trim(),
-        socialInstagramUrl: socialInstagram.trim(),
-      });
-      await refreshPublicSiteConfig();
-      toast.success("Redes sociais atualizadas.");
-    } catch (e) {
-      toast.error(e?.message || "Não foi possível guardar as redes sociais.");
-    } finally {
-      setSavingSocial(false);
-    }
-  };
-
   const saveFooterTexts = async () => {
     setSavingFooter(true);
     try {
@@ -368,27 +216,6 @@ export default function AdminSitePanel() {
       toast.error(e?.message || "Não foi possível guardar o rodapé.");
     } finally {
       setSavingFooter(false);
-    }
-  };
-
-  const saveHomeSocialCards = async () => {
-    setSavingHomeCards(true);
-    try {
-      await savePublicSiteConfigAdmin({
-        homeSocialCardsSectionTag: homeSocialSectionTag.trim(),
-        homeSocialCardsSectionTitle: homeSocialSectionTitle.trim(),
-        homeSocialCardsSectionSubtitle: homeSocialSectionSubtitle.trim(),
-        homeYoutubeCardTitle: homeYtTitle.trim(),
-        homeYoutubeCardText: homeYtText.trim(),
-        homeInstagramCardTitle: homeIgTitle.trim(),
-        homeInstagramCardText: homeIgText.trim(),
-      });
-      await refreshPublicSiteConfig();
-      toast.success("Cartões da home atualizados.");
-    } catch (e) {
-      toast.error(e?.message || "Não foi possível guardar os cartões da home.");
-    } finally {
-      setSavingHomeCards(false);
     }
   };
 
@@ -499,59 +326,6 @@ export default function AdminSitePanel() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.03 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Share2 className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">Redes sociais</h2>
-            <p className="text-sm text-muted-foreground">
-              Ícones no rodapé. Os textos de contacto e horários do rodapé editam-se na secção
-              seguinte. Os cartões da página inicial (YouTube e Instagram) editam-se mais abaixo.
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="admin-social-yt">YouTube</Label>
-            <Input
-              id="admin-social-yt"
-              type="url"
-              placeholder="https://www.youtube.com/@…"
-              value={socialYoutube}
-              onChange={(e) => setSocialYoutube(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admin-social-ig">Instagram</Label>
-            <Input
-              id="admin-social-ig"
-              type="url"
-              placeholder="https://www.instagram.com/…"
-              value={socialInstagram}
-              onChange={(e) => setSocialInstagram(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            onClick={saveSocialLinks}
-            disabled={savingSocial}
-            className="gap-2"
-          >
-            {savingSocial ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-            Salvar
-          </Button>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.04 }}
         className="rounded-2xl border border-border bg-card p-6"
       >
@@ -562,8 +336,7 @@ export default function AdminSitePanel() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Rodapé (site público)</h2>
             <p className="text-sm text-muted-foreground">
-              Endereço (mapa e «Como chegar»), telefone, e-mail e os dois blocos de horários
-              visíveis no rodapé de todas as páginas.
+              Textos de contacto e horários visíveis no rodapé de todas as páginas.
             </p>
           </div>
         </div>
@@ -578,7 +351,7 @@ export default function AdminSitePanel() {
               placeholder={FOOTER_SITE_CONFIG_DEFAULTS.footerEndereco}
             />
             <p className="text-xs text-muted-foreground">
-              Se ficar vazio, o mapa e o botão «Como chegar» deixam de aparecer no rodapé.
+              Se ficar vazio, o endereço e o link para o Google Maps deixam de aparecer no rodapé.
             </p>
           </div>
           <div className="space-y-2">
@@ -659,145 +432,6 @@ export default function AdminSitePanel() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.045 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <LayoutGrid className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">
-              Cartões na página inicial
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Dois cartões com as cores de cada rede, logo após «Sobre nós». Deixe o
-              URL vazio para ocultar um cartão.
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 mb-8">
-          <div className="space-y-2">
-            <Label htmlFor="home-social-section-tag">Etiqueta (linha pequena acima)</Label>
-            <Input
-              id="home-social-section-tag"
-              value={homeSocialSectionTag}
-              onChange={(e) => setHomeSocialSectionTag(e.target.value)}
-              placeholder={DEFAULT_HOME_SOCIAL_CARDS_SECTION_TAG}
-            />
-            <p className="text-xs text-muted-foreground">
-              Como «Nossos cultos» na secção de horários.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="home-social-section-title">Título da secção</Label>
-            <Input
-              id="home-social-section-title"
-              value={homeSocialSectionTitle}
-              onChange={(e) => setHomeSocialSectionTitle(e.target.value)}
-              placeholder={DEFAULT_HOME_SOCIAL_CARDS_SECTION_TITLE}
-            />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="home-social-section-subtitle">Texto de apoio</Label>
-            <Textarea
-              id="home-social-section-subtitle"
-              rows={2}
-              value={homeSocialSectionSubtitle}
-              onChange={(e) => setHomeSocialSectionSubtitle(e.target.value)}
-              placeholder={DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE}
-            />
-            <p className="text-xs text-muted-foreground">
-              Parágrafo abaixo do traço colorido, como em horários de funcionamento.
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-8 lg:grid-cols-2">
-          <div className="space-y-4 rounded-xl border border-border/80 p-4 bg-muted/20">
-            <p className="text-sm font-semibold text-foreground">YouTube</p>
-            <div className="space-y-2">
-              <Label htmlFor="home-yt-title">Título</Label>
-              <Input
-                id="home-yt-title"
-                value={homeYtTitle}
-                onChange={(e) => setHomeYtTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="home-yt-text">Texto</Label>
-              <Textarea
-                id="home-yt-text"
-                rows={3}
-                value={homeYtText}
-                onChange={(e) => setHomeYtText(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="home-yt-url">Link</Label>
-              <Input
-                id="home-yt-url"
-                type="url"
-                placeholder="(usa o link definido em Redes sociais)"
-                value={socialYoutube}
-                disabled
-              />
-              <p className="text-xs text-muted-foreground">
-                O URL do ícone no rodapé vem de{" "}
-                <span className="font-medium text-foreground">Redes sociais</span> acima.
-              </p>
-            </div>
-          </div>
-          <div className="space-y-4 rounded-xl border border-border/80 p-4 bg-muted/20">
-            <p className="text-sm font-semibold text-foreground">Instagram</p>
-            <div className="space-y-2">
-              <Label htmlFor="home-ig-title">Título</Label>
-              <Input
-                id="home-ig-title"
-                value={homeIgTitle}
-                onChange={(e) => setHomeIgTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="home-ig-text">Texto</Label>
-              <Textarea
-                id="home-ig-text"
-                rows={3}
-                value={homeIgText}
-                onChange={(e) => setHomeIgText(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="home-ig-url">Link</Label>
-              <Input
-                id="home-ig-url"
-                type="url"
-                placeholder="(usa o link definido em Redes sociais)"
-                value={socialInstagram}
-                disabled
-              />
-              <p className="text-xs text-muted-foreground">
-                O URL do ícone no rodapé vem de{" "}
-                <span className="font-medium text-foreground">Redes sociais</span> acima.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            onClick={saveHomeSocialCards}
-            disabled={savingHomeCards}
-            className="gap-2"
-          >
-            {savingHomeCards ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
-            Salvar
-          </Button>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.06 }}
         className="bg-card border border-border rounded-2xl p-6"
       >
@@ -858,6 +492,10 @@ export default function AdminSitePanel() {
               <h2 className="font-semibold text-foreground text-lg">
                 Acessos na Home (por IP)
               </h2>
+              <p className="text-sm text-muted-foreground">
+                Registo de visitas à página inicial. O total público aparece no rodapé, abaixo dos
+                direitos reservados.
+              </p>
               <p className="text-sm text-muted-foreground">
                 Total:{" "}
                 <strong className="text-foreground">
@@ -1011,60 +649,6 @@ export default function AdminSitePanel() {
             })()}
           </>
         )}
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="bg-card border border-border rounded-2xl p-6"
-      >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Palette className="w-5 h-5 text-accent" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground text-lg">Cor da interface</h2>
-            <p className="text-sm text-muted-foreground">
-              Paletas monocromáticas só para a sua conta neste navegador (não altera o site público
-              para visitantes).
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {PALETTE_OPTIONS.map((p) => {
-            const selected = paletteId === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setUserColorPalette(user?.id, p.id);
-                  setPaletteId(p.id);
-                  applySiteColorPalette(p.id);
-                  toast.success("Preferência de cor guardada neste navegador.");
-                }}
-                className={`rounded-xl border-2 p-3 text-left transition-all hover:opacity-95 ${
-                  selected
-                    ? "border-accent shadow-md ring-2 ring-accent/30"
-                    : "border-border hover:border-muted-foreground/40"
-                }`}
-              >
-                <div
-                  className={`h-11 rounded-lg bg-gradient-to-br ${p.preview} mb-2 shadow-inner`}
-                  aria-hidden
-                />
-                <span className="text-sm font-medium text-foreground leading-tight block">
-                  {p.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          Cada utilizador pode escolher um tom neutro diferente; o tema claro/escuro continua no
-          ícone lua/sol da barra.
-        </p>
       </motion.div>
     </div>
   );

@@ -6,22 +6,18 @@ import {
   refreshPublicSiteConfig,
   syncDocumentBrandingFromSiteConfig,
 } from "@/lib/siteConfig";
-import { applySiteColorPalette } from "@/lib/colorPalettes";
-import { getUserColorPalette } from "@/lib/userColorPalette";
+import { applySiteTheme } from "@/lib/siteTheme";
 import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
 import { captureLoginIntentFromBrowserUrl } from "@/lib/loginIntent";
 
 purgeLegacyDemoStorage();
 captureLoginIntentFromBrowserUrl();
 
-// Tema (claro/escuro) é por navegador.
-const savedTheme = localStorage.getItem("church-theme");
-if (savedTheme === "dark") {
-  document.documentElement.classList.add("dark");
-}
+// Tema escuro institucional (#08111F …) — sempre ativo.
+document.documentElement.classList.add("dark");
 
 const initialCfg = getSiteConfig();
-applySiteColorPalette(getUserColorPalette(undefined));
+applySiteTheme();
 syncDocumentBrandingFromSiteConfig(initialCfg);
 
 // Carrega config pública do servidor (se existir) e re-hidrata UI.

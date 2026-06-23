@@ -16,7 +16,23 @@
     },
     "categoria": {
       "type": "string",
-      "enum": ["devocional", "aviso", "testemunho", "reflexao", "noticias"],
+      "enum": [
+        "culto_dominical",
+        "ceia",
+        "oracao",
+        "batismo",
+        "acao_de_gracas",
+        "encontro_de_casais",
+        "dia_das_maes",
+        "dia_das_pais",
+        "natal",
+        "pascoa",
+        "conferencias",
+        "clube_biblico",
+        "estudos_biblicos",
+        "eventos",
+        "noticias"
+      ],
       "description": "Categoria do post"
     },
     "imagem_url": {

@@ -1,7 +1,7 @@
-/** Mantém /login acessível após mascarar a URL para só o domínio. */
+/** Mantém /login acessível quando o utilizador abre o site por esse caminho. */
 export const LOGIN_INTENT_KEY = "icer_login_intent";
 
-/** Query secreta: `/?icer_admin_login=1` abre login mesmo com URL mascarada. */
+/** Query: `/?icer_admin_login=1` abre a página de login. */
 export const LOGIN_QUERY_FLAG = "icer_admin_login";
 
 export function setLoginIntent() {
@@ -41,7 +41,7 @@ function browserWantsLogin() {
   }
 }
 
-/** Chamado o mais cedo possível na carga (antes de mascarar a URL). */
+/** Chamado o mais cedo possível na carga da aplicação. */
 export function captureLoginIntentFromBrowserUrl() {
   if (browserWantsLogin()) {
     setLoginIntent();

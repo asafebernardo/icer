@@ -4,8 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Home as HomeIcon,
   Newspaper,
-  Calendar,
-  CalendarDays,
   Library,
   ScrollText,
   LayoutDashboard,
@@ -30,18 +28,14 @@ import { listEventosMerged } from "@/lib/eventosQuery";
 
 const NAV_ROUTES = [
   { label: "Início", path: "/Home", icon: HomeIcon },
-  { label: "Postagens", path: "/Postagens", icon: Newspaper },
-  { label: "Agenda", path: "/Agenda", icon: Calendar },
-  { label: "Eventos", path: "/Eventos", icon: CalendarDays },
-  { label: "Recursos", path: "/Recursos", icon: Library },
+  { label: "Posts", path: "/Posts", icon: Newspaper },
+  { label: "Recursos", path: "/Home#recursos", icon: Library },
 ];
 
 /** Rotas já cobertas pelos ícones da barra inferior (mobile). */
 const MOBILE_BOTTOM_NAV_PATHS = new Set([
   "/Home",
-  "/Postagens",
-  "/Agenda",
-  "/Eventos",
+  "/Posts",
 ]);
 
 const MOBILE_MAX = "(max-width: 639px)";
@@ -173,7 +167,7 @@ export default function CommandPalette({ open, onOpenChange }) {
         {posts.length > 0 ? (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Postagens">
+            <CommandGroup heading="Posts">
               {posts.slice(0, 25).map((p) => (
                 <CommandItem
                   key={`post-${p.id}`}

@@ -14,9 +14,10 @@ const tooltipSurfaceClass =
   "max-w-[min(16rem,calc(100vw-5rem))] border border-border/80 bg-card/98 px-3 py-2.5 text-left text-xs font-normal leading-relaxed text-foreground shadow-lg backdrop-blur-md";
 
 /**
- * Resumo de acessos à Home (antes no rodapé) — doc flutuante alinhado ao das redes sociais.
+ * Resumo de acessos à Home.
+ * @param {{ variant?: "dock" | "footer" }} props
  */
-export default function HomeViewsMetricsDock() {
+export default function HomeViewsMetricsDock({ variant = "dock" }) {
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -45,6 +46,15 @@ export default function HomeViewsMetricsDock() {
   if (n == null) return null;
 
   const formatted = n.toLocaleString("pt-BR");
+
+  if (variant === "footer") {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {formatted} acessos únicos à página inicial
+      </p>
+    );
+  }
+
   const digitCount = String(Math.trunc(Math.abs(n))).length;
   /** ~altura dos ícones do doc de redes (`h-[22px]`), ligeiramente menor com mais dígitos. */
   const sizeClass =
@@ -67,7 +77,8 @@ export default function HomeViewsMetricsDock() {
           </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent        side="left"
+      <TooltipContent
+        side="left"
         align="center"
         sideOffset={10}
         className={tooltipSurfaceClass}

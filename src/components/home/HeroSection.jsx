@@ -35,6 +35,8 @@ import useCanEdit from "@/lib/useCanEdit";
 import {
   DEFAULT_HERO_EYEBROW,
   DEFAULT_HERO_TITLE,
+  DEFAULT_HISTORY_VALUE,
+  DEFAULT_HISTORY_LABEL,
 } from "@/lib/homeContentDefaults";
 import { toast } from "sonner";
 
@@ -62,6 +64,8 @@ export default function HeroSection() {
   const reduceMotion = usePrefersReducedMotion();
   const [heroEyebrow, setHeroEyebrow] = useState(DEFAULT_HERO_EYEBROW);
   const [heroTitle, setHeroTitle] = useState(DEFAULT_HERO_TITLE);
+  const [historyYearsValue, setHistoryYearsValue] = useState(DEFAULT_HISTORY_VALUE);
+  const [historyYearsLabel, setHistoryYearsLabel] = useState(DEFAULT_HISTORY_LABEL);
   const [heroTextOpen, setHeroTextOpen] = useState(false);
   const [draftEyebrow, setDraftEyebrow] = useState("");
   const [draftHeroTitle, setDraftHeroTitle] = useState("");
@@ -119,6 +123,12 @@ export default function HeroSection() {
     const c = getSiteConfig();
     if (c.heroEyebrow != null && c.heroEyebrow !== "") setHeroEyebrow(c.heroEyebrow);
     if (c.heroTitle != null && c.heroTitle !== "") setHeroTitle(c.heroTitle);
+    if (c.historyYearsValue != null && c.historyYearsValue !== "") {
+      setHistoryYearsValue(c.historyYearsValue);
+    }
+    if (c.historyYearsLabel != null && c.historyYearsLabel !== "") {
+      setHistoryYearsLabel(c.historyYearsLabel);
+    }
   }, []);
 
   useEffect(() => {
@@ -126,6 +136,12 @@ export default function HeroSection() {
       const c = getSiteConfig();
       if (c.heroEyebrow != null && c.heroEyebrow !== "") setHeroEyebrow(c.heroEyebrow);
       if (c.heroTitle != null && c.heroTitle !== "") setHeroTitle(c.heroTitle);
+      if (c.historyYearsValue != null && c.historyYearsValue !== "") {
+        setHistoryYearsValue(c.historyYearsValue);
+      }
+      if (c.historyYearsLabel != null && c.historyYearsLabel !== "") {
+        setHistoryYearsLabel(c.historyYearsLabel);
+      }
     };
     window.addEventListener("icer-site-config", onCfg);
     return () => window.removeEventListener("icer-site-config", onCfg);
@@ -265,6 +281,15 @@ export default function HeroSection() {
               {heroTitle}
             </h1>
           </motion.div>
+
+          <div className="pointer-events-none absolute bottom-4 right-4 z-20 max-w-[11rem] rounded-xl border border-white/25 bg-accent/95 p-4 text-left text-accent-foreground shadow-lg backdrop-blur-sm sm:bottom-5 sm:right-5 sm:p-5 lg:bottom-6 lg:right-6">
+            <p className="font-display text-2xl font-bold leading-tight sm:text-3xl">
+              {historyYearsValue}
+            </p>
+            <p className="mt-1 text-xs font-medium leading-snug sm:text-sm">
+              {historyYearsLabel}
+            </p>
+          </div>
           </div>
         </div>
       </div>

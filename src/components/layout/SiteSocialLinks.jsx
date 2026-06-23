@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Facebook, Instagram, Youtube } from "lucide-react";
+import { Facebook, Instagram } from "lucide-react";
 import { getSiteConfig } from "@/lib/siteConfig";
 import { resolveSocialLinksFromConfig } from "@/lib/socialLinks";
 import {
   DEFAULT_HOME_INSTAGRAM_CARD_TEXT,
   DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
-  DEFAULT_HOME_YOUTUBE_CARD_TEXT,
 } from "@/lib/homeContentDefaults";
 import {
   Tooltip,
@@ -33,8 +32,6 @@ function dockDescriptionFor(cfg, key) {
     "homeSocialCardsSectionSubtitle",
     DEFAULT_HOME_SOCIAL_CARDS_SECTION_SUBTITLE,
   );
-  if (key === "yt")
-    return pickStr(c, "homeYoutubeCardText", DEFAULT_HOME_YOUTUBE_CARD_TEXT);
   if (key === "ig")
     return pickStr(c, "homeInstagramCardText", DEFAULT_HOME_INSTAGRAM_CARD_TEXT);
   if (key === "fb") return pickStr(c, "homeFacebookCardText", sectionDesc);
@@ -63,7 +60,6 @@ const dockBtnBase =
 
 /** Bolhas do doc: fundo da cor oficial + ícone branco. */
 const DOCK_BRAND_SURFACE = {
-  yt: "border-red-900/25 bg-[#FF0000] shadow-[0_6px_22px_rgba(255,0,0,0.55)]",
   ig: "border-white/25 bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#F77737] shadow-[0_6px_22px_rgba(225,48,108,0.5)]",
   fb: "border-blue-950/20 bg-[#0866FF] shadow-[0_6px_22px_rgba(8,102,255,0.5)]",
   wa: "border-emerald-950/20 bg-[#25D366] shadow-[0_6px_22px_rgba(37,211,102,0.55)]",
@@ -73,14 +69,13 @@ const dockIconClass = "h-[22px] w-[22px] shrink-0 drop-shadow-[0_1px_1px_rgba(0,
 
 /** Cores próximas das marcas (ícone = `currentColor`). */
 const BRAND_BTN_CLASS = {
-  yt: "text-[#FF0000] hover:text-[#CC0000] hover:bg-red-500/12",
   ig: "text-[#E4405F] hover:text-[#C13584] hover:bg-pink-500/10",
   fb: "text-[#0866FF] hover:text-[#0654CC] hover:bg-blue-500/10",
   wa: "text-[#25D366] hover:text-[#1DA851] hover:bg-emerald-500/12",
 };
 
 /**
- * @param {{ variant: "header" | "footer" | "dock" }} props
+ * @param {{ variant: "header" | "contact" | "dock" }} props
  */
 export default function SiteSocialLinks({ variant }) {
   const [siteCfg, setSiteCfg] = useState(() => getSiteConfig());
@@ -99,14 +94,6 @@ export default function SiteSocialLinks({ variant }) {
 
   const items = useMemo(() => {
     const out = [];
-    if (links.youtube)
-      out.push({
-        key: "yt",
-        href: links.youtube,
-        label: "YouTube",
-        Icon: Youtube,
-        brandClass: BRAND_BTN_CLASS.yt,
-      });
     if (links.instagram)
       out.push({
         key: "ig",
@@ -195,25 +182,28 @@ export default function SiteSocialLinks({ variant }) {
     );
   }
 
-  return (
-    <div className="space-y-3">
-      <h4 className="font-display text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-        Redes sociais
-      </h4>
-      <div className="flex flex-wrap gap-2">
-        {items.map(({ key, href, label, Icon, brandClass }) => (
-          <a
-            key={key}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={cn(linkBaseStructure, brandClass)}
-            aria-label={`Abrir ${label} (nova janela)`}
-          >
-            <Icon className={iconClass} />
-          </a>
+  if (variant === "contact") {
+    return (
+      <>
+        {items.map(({ key, href, label, Icon }) => (
+          <li key={key} className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
+            <Icon className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full truncate font-medium text-foreground/90 transition-colors hover:text-foreground"
+                title={label}
+              >
+                {label}
+              </a>
+            </div>
+          </li>
         ))}
-      </div>
-    </div>
-  );
+      </>
+    );
+  }
+
+  return null;
 }

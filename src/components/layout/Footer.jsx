@@ -1,26 +1,45 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Phone, Mail, Clock, Navigation } from "lucide-react";
+import { MapPin, Mail, Instagram } from "lucide-react";
 
 import { getSiteConfig, FOOTER_SITE_CONFIG_DEFAULTS } from "@/lib/siteConfig";
-import SiteLogoMark from "@/components/layout/SiteLogoMark";
-import SiteSocialLinks from "@/components/layout/SiteSocialLinks";
-import { hasAnyResolvedSocialLinks } from "@/lib/socialLinks";
+import {
+  normalizeWhatsappUrl,
+  resolveSocialLinksFromConfig,
+} from "@/lib/socialLinks";
 import { cn } from "@/lib/utils";
+
+function WhatsappIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
+const linkClass =
+  "text-[13px] leading-snug text-muted-foreground transition-colors hover:text-foreground";
+
+const iconClass = "mt-px h-3.5 w-3.5 shrink-0 text-muted-foreground/80";
+
+function ContactRow({ icon: Icon, children, className }) {
+  return (
+    <li className={cn("flex items-start gap-2", className)}>
+      <Icon className={iconClass} aria-hidden />
+      <div className="min-w-0 flex-1">{children}</div>
+    </li>
+  );
+}
 
 export default function Footer() {
   const [cfg, setCfg] = useState(() => ({
     ...FOOTER_SITE_CONFIG_DEFAULTS,
     ...getSiteConfig(),
   }));
-  const [showSocialCol, setShowSocialCol] = useState(() =>
-    hasAnyResolvedSocialLinks(getSiteConfig()),
-  );
 
   useEffect(() => {
     const sync = () => {
       setCfg({ ...FOOTER_SITE_CONFIG_DEFAULTS, ...getSiteConfig() });
-      setShowSocialCol(hasAnyResolvedSocialLinks(getSiteConfig()));
     };
     sync();
     window.addEventListener("icer-site-config", sync);
@@ -30,155 +49,127 @@ export default function Footer() {
   const value = (field) => String(cfg?.[field] ?? "").trim();
 
   const endereco = value("footerEndereco");
+  const telefone = value("footerTelefone");
+  const email = value("footerEmail");
   const encoded = endereco ? encodeURIComponent(endereco) : "";
+  const social = resolveSocialLinksFromConfig(cfg);
+  const whatsappHref = social.whatsapp || normalizeWhatsappUrl(telefone);
+  const instagramHref = social.instagram;
 
-  const gitBranch = String(import.meta.env.VITE_ICER_GIT_BRANCH || "").trim();
-
-  const sectionTitleClass =
-    "font-display text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground";
+  const horarios = [
+    {
+      dia: value("footerHorario1Dia"),
+      desc: value("footerHorario1Desc"),
+    },
+    {
+      dia: value("footerHorario2Dia"),
+      desc: value("footerHorario2Desc"),
+    },
+  ].filter((h) => h.dia || h.desc);
 
   return (
-    <footer className="relative border-t border-border bg-background text-foreground overflow-hidden">
-      <div
-        className="pointer-events-none absolute -top-24 right-0 h-96 w-96 rounded-full bg-accent/[0.07] blur-3xl dark:bg-accent/[0.05]"
-        aria-hidden
-      />
-      <div className="container-page relative py-10 lg:py-12">
+    <footer className="relative border-t border-border/80 bg-background text-foreground">
+      <div className="container-page relative py-6 sm:py-7">
         <section
-          className="grid grid-cols-1 gap-8 sm:gap-9 lg:grid-cols-12 lg:gap-x-8"
+          className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-x-10 lg:gap-x-14"
           aria-label="Informações do rodapé"
         >
-          <div className="flex min-w-0 flex-col gap-3 lg:col-span-3">
+          <div className="flex min-w-0 flex-col gap-4">
             <Link
               to="/Home"
-              className="group -m-1 flex max-w-sm items-start gap-3 rounded-xl p-1 outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="group -mx-1 inline-flex max-w-fit rounded-lg px-1 py-0.5 outline-none transition-colors hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <SiteLogoMark
-                imgClassName="h-9 w-auto max-h-10 max-w-[120px] shrink-0 rounded-md object-contain object-left transition-opacity group-hover:opacity-90 sm:max-w-[180px]"
-              />
-              <div className="min-w-0 pt-0.5">
-                <span className="font-display block text-lg font-semibold tracking-tight text-foreground">
-                  ICER Chapecó
-                </span>
-                <span className="mt-0.5 block text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Casa de Oração
-                </span>
-              </div>
+              <span className="font-display text-[15px] font-semibold leading-tight tracking-tight text-foreground transition-colors group-hover:text-foreground/90">
+                ICER Chapecó
+              </span>
             </Link>
-          </div>
 
-          <div
-            className={cn(
-              "flex min-w-0 flex-col gap-3",
-              showSocialCol ? "lg:col-span-5" : "lg:col-span-6",
-            )}
-          >
-            <h2 className={sectionTitleClass}>Contato</h2>
-            <ul className="flex min-w-0 flex-col gap-0 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/50 bg-card/40 text-sm text-muted-foreground">
+            <ul className="flex min-w-0 flex-col gap-2">
               {endereco ? (
-                <>
-                  <li className="bg-muted/15">
-                    <iframe
-                      title="Mapa da ICER Chapecó"
-                      src={`https://www.google.com/maps?q=${encoded}&output=embed`}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      className="block h-[100px] w-full sm:h-[108px]"
-                      style={{ border: 0 }}
-                      allowFullScreen
-                    />
-                  </li>
-                  <li className="flex min-w-0 items-start gap-2.5 px-3 py-2.5">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
-                    <div className="min-w-0 flex-1 break-words leading-relaxed">
-                      <span className="block w-full min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
-                        {value("footerEndereco")}
-                      </span>
-                    </div>
-                  </li>
-                  <li className="px-3 py-2.5">
+                <ContactRow icon={MapPin}>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${encoded}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(linkClass, "block break-words [overflow-wrap:anywhere]")}
+                    title="Abrir direções no Google Maps"
+                  >
+                    {endereco}
+                  </a>
+                </ContactRow>
+              ) : null}
+              {telefone ? (
+                <ContactRow icon={WhatsappIcon}>
+                  {whatsappHref ? (
                     <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${encoded}`}
+                      href={whatsappHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex w-fit items-center gap-2 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      className={cn(linkClass, "block truncate")}
+                      title="Conversar no WhatsApp"
                     >
-                      <Navigation className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      Como chegar
+                      {telefone}
                     </a>
-                  </li>
-                </>
+                  ) : (
+                    <span className={cn(linkClass, "block truncate")} title={telefone}>
+                      {telefone}
+                    </span>
+                  )}
+                </ContactRow>
               ) : null}
-              <li className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
-                <Phone className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
-                <div className="min-w-0 flex-1 overflow-hidden">
-                  <span
-                    className="block w-full truncate"
-                    title={value("footerTelefone") || undefined}
+              {email ? (
+                <ContactRow icon={Mail}>
+                  <a
+                    href={`mailto:${email}`}
+                    className={cn(linkClass, "block truncate")}
+                    title={email}
                   >
-                    {value("footerTelefone")}
-                  </span>
-                </div>
-              </li>
-              <li className="flex min-w-0 items-center gap-2.5 px-3 py-2.5">
-                <Mail className="h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
-                <div className="min-w-0 flex-1 overflow-hidden">
-                  <span
-                    className="block w-full truncate"
-                    title={value("footerEmail") || undefined}
+                    {email}
+                  </a>
+                </ContactRow>
+              ) : null}
+              {instagramHref ? (
+                <ContactRow icon={Instagram}>
+                  <a
+                    href={instagramHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(linkClass, "block truncate")}
+                    title="Instagram"
                   >
-                    {value("footerEmail")}
-                  </span>
-                </div>
-              </li>
+                    Instagram
+                  </a>
+                </ContactRow>
+              ) : null}
             </ul>
           </div>
 
-          <div
-            className={cn(
-              "flex min-w-0 flex-col gap-3",
-              showSocialCol ? "lg:col-span-2" : "lg:col-span-3",
-            )}
-          >
-            <h2 className={sectionTitleClass}>Horários</h2>
-            <ul className="flex min-w-0 flex-col gap-0 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/50 bg-card/40 px-3 py-1 text-sm text-muted-foreground">
-              <li className="flex min-w-0 gap-2.5 py-2.5">
-                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
-                <div className="min-w-0 flex-1 space-y-0.5 break-words [overflow-wrap:anywhere]">
-                  <p className="font-medium text-foreground">{value("footerHorario1Dia")}</p>
-                  <p className="leading-relaxed">{value("footerHorario1Desc")}</p>
-                </div>
-              </li>
-              <li className="flex min-w-0 gap-2.5 py-2.5">
-                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground/65" aria-hidden />
-                <div className="min-w-0 flex-1 space-y-0.5 break-words [overflow-wrap:anywhere]">
-                  <p className="font-medium text-foreground">{value("footerHorario2Dia")}</p>
-                  <p className="leading-relaxed">{value("footerHorario2Desc")}</p>
-                </div>
-              </li>
+          <div className="flex min-w-0 flex-col gap-2.5 sm:pt-0.5">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Horários
+            </h2>
+            <ul className="flex min-w-0 flex-col gap-2">
+              {horarios.map(({ dia, desc }) => (
+                <li
+                  key={`${dia}-${desc}`}
+                  className="text-[13px] leading-snug text-muted-foreground"
+                >
+                  <span className="font-medium text-foreground/90">{dia}</span>
+                  {dia && desc ? (
+                    <span className="text-muted-foreground/70"> · </span>
+                  ) : null}
+                  <span>{desc}</span>
+                </li>
+              ))}
             </ul>
           </div>
-
-          {showSocialCol ? (
-            <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
-              <SiteSocialLinks variant="footer" />
-            </div>
-          ) : null}
         </section>
 
-        <div className="mt-10 flex flex-col items-center gap-2 border-t border-border/80 pt-8 text-center sm:mt-11 sm:flex-row sm:justify-between sm:gap-4 sm:text-left">
-          <p className="text-xs text-muted-foreground">
+        <div className="mt-5 border-t border-border/60 pt-4 text-center">
+          <p className="text-[11px] text-muted-foreground/90">
             © {new Date().getFullYear()} ICER Chapecó. Todos os direitos reservados.
           </p>
         </div>
-        {gitBranch ? (
-          <p
-            className="mt-4 text-center text-[10px] font-mono tracking-wide text-muted-foreground/70"
-            title="Branch Git no momento do build"
-          >
-            Versão: {gitBranch}
-          </p>
-        ) : null}
       </div>
     </footer>
   );

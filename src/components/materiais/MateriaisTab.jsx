@@ -4,7 +4,6 @@ import { api } from "@/api/client";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   File,
@@ -14,8 +13,6 @@ import {
   Trash2,
   Download,
   ExternalLink,
-  Search,
-  X,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
 import {
@@ -38,6 +35,7 @@ import { MaterialForm } from "./MaterialForm";
 import { LinkCardIcon } from "@/components/useful-links/LinkCardIcon";
 import { UsefulLinkForm } from "@/components/useful-links/UsefulLinkForm";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const TIPO_LABELS = {
   pdf: "PDF",
@@ -52,9 +50,8 @@ const TIPO_LABELS = {
  * Lista unificada de materiais + links úteis em cards pequenos.
  * Mostra: ícone, título, tipo e ação (Baixar / Acessar).
  */
-export default function MateriaisTab({ perm }) {
+export default function MateriaisTab({ perm, embedded = false }) {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
@@ -174,28 +171,6 @@ export default function MateriaisTab({ perm }) {
     return out;
   }, [materiais, links]);
 
-  const normalizedSearch = useMemo(
-    () =>
-      String(search)
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toLowerCase()
-        .trim(),
-    [search],
-  );
-
-  const filtered = useMemo(() => {
-    if (!normalizedSearch) return items;
-    return items.filter((i) => {
-      const t = String(i.titulo)
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "")
-        .toLowerCase();
-      const tipo = String(i.typeLabel).toLowerCase();
-      return t.includes(normalizedSearch) || tipo.includes(normalizedSearch);
-    });
-  }, [items, normalizedSearch]);
-
   const renderIcon = (item) => {
     if (item.kind === "material") {
       const IconTipo = tipoIcons[item.typeKey] || File;
@@ -217,11 +192,18 @@ export default function MateriaisTab({ perm }) {
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
-        <h2 className="text-lg font-semibold text-foreground tracking-tight">
-          Materiais e links
-        </h2>
-        {(perm.create || perm.edit) ? (
+      {(perm.create || perm.edit) ? (
+        <div
+          className={cn(
+            "mb-6 flex flex-wrap items-center gap-2",
+            embedded ? "justify-end" : "flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+          )}
+        >
+          {!embedded ? (
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              Materiais e links
+            </h2>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {perm.create ? (
               <>
@@ -251,8 +233,8 @@ export default function MateriaisTab({ perm }) {
               </>
             ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {(perm.create || perm.edit) && (
         <Dialog
@@ -330,34 +312,6 @@ export default function MateriaisTab({ perm }) {
         </Dialog>
       )}
 
-      {/* Pesquisa por título ou tipo */}
-      <div className="mb-6">
-        <div className="relative max-w-md">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisar por título ou tipo…"
-            aria-label="Pesquisar"
-            className="pl-9 pr-9"
-          />
-          {search ? (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              aria-label="Limpar pesquisa"
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-ring"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          ) : null}
-        </div>
-      </div>
-
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Array(6)
@@ -374,35 +328,16 @@ export default function MateriaisTab({ perm }) {
               </div>
             ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState
-          icon={normalizedSearch ? Search : FolderOpen}
-          title={
-            normalizedSearch
-              ? `Sem resultados para "${search.trim()}"`
-              : "Nada por aqui ainda"
-          }
-          description={
-            normalizedSearch
-              ? "Tente outro termo ou remova a pesquisa."
-              : "Em breve novos materiais e links serão disponibilizados."
-          }
+          icon={FolderOpen}
+          title="Nada por aqui ainda"
+          description="Em breve novos materiais e links serão disponibilizados."
           compact
-          action={
-            normalizedSearch ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSearch("")}
-              >
-                Limpar pesquisa
-              </Button>
-            ) : null
-          }
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((item, index) => {
+          {items.map((item, index) => {
             const ActionIcon = item.actionIcon;
             return (
               <motion.div

@@ -38,9 +38,9 @@ export const FOOTER_SITE_CONFIG_DEFAULTS = {
   footerTelefone: "(49) 9952-7840",
   footerEmail: "icerchap@gmail.com",
   footerHorario1Dia: "Domingo",
-  footerHorario1Desc: "Culto — 9h e 19h",
+  footerHorario1Desc: "Culto às 9h e 19h",
   footerHorario2Dia: "Quarta-feira",
-  footerHorario2Desc: "Reunião de oração — 19h30",
+  footerHorario2Desc: "Reunião de oração às 19h30",
 };
 
 const FAVICON_LINK_ID = "icer-site-favicon";

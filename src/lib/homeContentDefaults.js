@@ -15,6 +15,7 @@ export const DEFAULT_WELCOME_P2 =
 export const DEFAULT_VERSE_TEXT =
   '"Porque Deus amou o mundo de tal maneira que deu seu Filho unigênito, para que todo aquele que nele crê, não pereça mas tenha a vida eterna"';
 export const DEFAULT_VERSE_REF = "— João 3:16";
+export const DEFAULT_VERSE_IMAGE_URL = "/images/verse-card-earth.png";
 
 export const DEFAULT_HISTORY_VALUE = "3+";
 export const DEFAULT_HISTORY_LABEL = "Anos de história";

@@ -52,6 +52,7 @@ function AgendaToolbar({
   hidePreletorToggle = false,
   /** Vista mensal no telemóvel: mês/setas já estão em `AgendaMensalMobile`. */
   hidePeriodRowOnMobile = false,
+  embedded = false,
 }: {
   view: AgendaView;
   setView: (v: AgendaView) => void;
@@ -64,17 +65,18 @@ function AgendaToolbar({
   canCreateEvento: boolean;
   hidePreletorToggle?: boolean;
   hidePeriodRowOnMobile?: boolean;
+  embedded?: boolean;
 }) {
   return (
     <>
-      {canCreateEvento ? (
+      {canCreateEvento && !embedded ? (
         <>
           <p className="mb-4 hidden max-w-2xl text-sm text-muted-foreground sm:block">
             A agenda só usa a{" "}
             <span className="font-medium text-foreground">data</span> de cada evento
             para posicioná-lo no calendário.{" "}
             <Link
-              to="/Eventos"
+              to="/Posts/categoria/eventos?tab=eventos"
               className="font-medium text-accent underline-offset-4 hover:underline"
             >
               Cadastre e edite eventos na página Eventos
@@ -85,7 +87,7 @@ function AgendaToolbar({
             <span className="font-medium text-foreground">Data</span> de cada evento na
             grelha.{" "}
             <Link
-              to="/Eventos"
+              to="/Posts/categoria/eventos?tab=eventos"
               className="font-medium text-accent underline-offset-2 hover:underline"
             >
               Editar em Eventos
@@ -194,7 +196,13 @@ function AgendaToolbar({
   );
 }
 
-export default function Agenda() {
+export default function Agenda({
+  embedded = false,
+  onClose,
+}: {
+  embedded?: boolean;
+  onClose?: () => void;
+} = {}) {
   const [view, setView] = useState<AgendaView>("mensal");
   const [simpleModalOpen, setSimpleModalOpen] = useState(false);
   const prevViewRef = useRef<AgendaView>("mensal");
@@ -240,6 +248,7 @@ export default function Agenda() {
   const handleEventClick = (evento: Evento) => {
     if (!evento?.id) return;
     setSimpleModalOpen(false);
+    onClose?.();
     navigate(`/Evento/${evento.id}`);
   };
 
@@ -255,15 +264,17 @@ export default function Agenda() {
 
   return (
     <div>
-      <PageHeader
-        pageKey="agenda"
-        tag="Calendário"
-        title="Agenda"
-        description="Cultos, estudos e encontros."
-      />
+      {!embedded ? (
+        <PageHeader
+          pageKey="agenda"
+          tag="Calendário"
+          title="Agenda"
+          description="Cultos, estudos e encontros."
+        />
+      ) : null}
 
-      <section className="py-10 lg:py-14">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className={embedded ? "py-4 sm:py-6" : "py-10 lg:py-14"}>
+        <div className={embedded ? "px-3 sm:px-4" : "max-w-6xl mx-auto px-4 sm:px-6 lg:px-8"}>
           <div className="sm:hidden">
             <AgendaToolbar
               view={view}
@@ -277,6 +288,7 @@ export default function Agenda() {
               canCreateEvento={canCreateEvento}
               hidePreletorToggle={view === "mensal"}
               hidePeriodRowOnMobile={view === "mensal"}
+              embedded={embedded}
             />
             {isLoading ? (
               <div className="h-72 rounded-2xl bg-muted animate-pulse" />
@@ -315,6 +327,7 @@ export default function Agenda() {
               showPreletorCards={showPreletorCards}
               setShowPreletorCards={setShowPreletorCards}
               canCreateEvento={canCreateEvento}
+              embedded={embedded}
             />
 
             {isLoading ? (
