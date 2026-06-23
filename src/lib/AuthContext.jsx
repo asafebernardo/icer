@@ -43,6 +43,9 @@ import { tryHomologDevLogin } from "@/lib/homologDevLogin";
 
 const AuthContext = createContext(null);
 
+/** Janela curta após login em que um 401 em `/api/auth/me` pode ser transitório. */
+const SESSION_LOGIN_GRACE_MS = 5_000;
+
 const GOOGLE_LOGIN_ERROR_MESSAGES = {
   oauth: "Não foi possível concluir o login com Google.",
   forbidden: "Este e-mail não está autorizado a usar o login Google.",
@@ -94,6 +97,7 @@ export function AuthProvider({ children }) {
       _authSource: "server",
     });
     setServerMenuEffective(null);
+    setUser(getUser());
     const { ensureCsrfCookieClient } = await import("@/lib/csrf");
     await ensureCsrfCookieClient();
   }, []);
@@ -154,7 +158,7 @@ export function AuthProvider({ children }) {
           const isHomolog = getRuntimeEnvSync().isHomolog;
           const recentlyOk =
             lastSessionOkAtRef.current > 0 &&
-            Date.now() - lastSessionOkAtRef.current < 60_000;
+            Date.now() - lastSessionOkAtRef.current < SESSION_LOGIN_GRACE_MS;
           if (cur && !isDemoAdminSession(cur) && !isHomolog && !recentlyOk) {
             toast.info("A sua sessão expirou. Inicie sessão novamente.");
             clearSessionUser();
@@ -164,8 +168,8 @@ export function AuthProvider({ children }) {
       } catch {
         /* rede / servidor offline — não limpar sessão local */
       } finally {
+        setIsValidatingSession(false);
         if (sessionValidationGenRef.current === genAtStart) {
-          setIsValidatingSession(false);
           checkUserAuth();
         }
       }
@@ -355,13 +359,47 @@ export function AuthProvider({ children }) {
     await startGoogleLogin({ pickAccount: true });
   }, [startGoogleLogin]);
 
+  const reconcileLocalSession = useCallback(async () => {
+    if (!isServerAuthEnabled()) {
+      checkUserAuth();
+      return { ok: !!getUser() };
+    }
+    const u = await fetchSessionUser();
+    if (u) {
+      lastSessionOkAtRef.current = Date.now();
+      await applySessionUser(u);
+      return { ok: true };
+    }
+    const cur = getUser();
+    if (cur) {
+      clearSessionUser();
+      setServerMenuEffective(null);
+      setUser(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("icer-user-session"));
+      }
+    }
+    return { ok: false };
+  }, [applySessionUser, fetchSessionUser, checkUserAuth]);
+
   const login = useCallback(async (email, senha) => {
     sessionValidationGenRef.current += 1;
     homologBootstrapAttemptedRef.current = false;
     const result = await authLogin(email, senha);
     if (!result.ok) return result;
+    const u = await fetchSessionUser();
+    if (!u) {
+      clearSessionUser();
+      setServerMenuEffective(null);
+      setUser(null);
+      return {
+        ok: false,
+        message:
+          "A sessão não ficou activa neste browser. Permita cookies e use sempre o mesmo endereço (localhost ou 127.0.0.1).",
+      };
+    }
     lastSessionOkAtRef.current = Date.now();
-    setUser(getUser());
+    await applySessionUser(u);
     if (isServerAuthEnabled()) {
       void queryClientInstance
         .fetchQuery({
@@ -376,7 +414,7 @@ export function AuthProvider({ children }) {
       window.dispatchEvent(new CustomEvent("icer-user-session"));
     }
     return { ok: true };
-  }, []);
+  }, [applySessionUser, fetchSessionUser]);
 
   const updateProfile = useCallback(async (fields) => {
     const next = await authUpdateUserProfile(fields);
@@ -431,6 +469,7 @@ export function AuthProvider({ children }) {
         googleLoginAvailable,
         rememberedGoogleEmail,
         checkUserAuth,
+        reconcileLocalSession,
         login,
         updateProfile,
         logout,

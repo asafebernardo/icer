@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, LogIn } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,8 +16,10 @@ import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 import {
   captureLoginIntentFromBrowserUrl,
   clearLoginIntent,
+  LOGIN_QUERY_FLAG,
   setLoginIntent,
 } from "@/lib/loginIntent";
+import { cn } from "@/lib/utils";
 
 function safeReturnPath() {
   const raw = sessionStorage.getItem(LAST_VISITED_PATH_KEY) || "/Home";
@@ -27,24 +29,47 @@ function safeReturnPath() {
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     login,
     logout,
     isAuthenticated,
     isLoadingAuth,
     googleLoginAvailable,
+    reconcileLocalSession,
   } = useAuth();
   const serverAuth = isServerAuthEnabled();
+  const legacyPasswordLogin =
+    searchParams.get(LOGIN_QUERY_FLAG) === "1";
+  const showPasswordForm =
+    serverAuth && (!googleLoginAvailable || legacyPasswordLogin);
+  const googleOnlyMobile = googleLoginAvailable && !legacyPasswordLogin;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [reconcilingSession, setReconcilingSession] = useState(false);
 
   useEffect(() => {
     captureLoginIntentFromBrowserUrl();
     setLoginIntent();
   }, []);
+
+  useEffect(() => {
+    if (!serverAuth || !isAuthenticated) {
+      setReconcilingSession(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setReconcilingSession(true);
+    void reconcileLocalSession().finally(() => {
+      if (!cancelled) setReconcilingSession(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverAuth, isAuthenticated, reconcileLocalSession]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -76,7 +101,7 @@ export default function Login() {
     }
   };
 
-  if (isLoadingAuth) {
+  if (isLoadingAuth || reconcilingSession) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-transparent">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
@@ -123,13 +148,30 @@ export default function Login() {
             </span>
           </Link>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Entrada com conta do servidor (e-mail e palavra-passe).
+            {googleOnlyMobile ? (
+              <>
+                <span className="sm:hidden">
+                  Entrada com a conta Google autorizada da ICER.
+                </span>
+                <span className="hidden sm:inline">
+                  Entrada com conta do servidor (e-mail e palavra-passe) ou Google.
+                </span>
+              </>
+            ) : (
+              "Entrada com conta do servidor (e-mail e palavra-passe)."
+            )}
           </p>
         </div>
 
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-premium sm:p-8">
-          {serverAuth ? (
-            <form onSubmit={submit} className="space-y-4">
+          {showPasswordForm ? (
+            <form
+              onSubmit={submit}
+              className={cn(
+                "space-y-4",
+                googleOnlyMobile && "hidden sm:block",
+              )}
+            >
               <div className="space-y-2">
                 <Label htmlFor="login-email">E-mail</Label>
                 <Input
@@ -171,7 +213,7 @@ export default function Login() {
                 {submitting ? "A entrar…" : "Entrar"}
               </Button>
             </form>
-          ) : (
+          ) : !serverAuth ? (
             <p className="text-sm text-muted-foreground">
               A autenticação no servidor está desativada neste ambiente. Ative{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">
@@ -179,21 +221,34 @@ export default function Login() {
               </code>{" "}
               no ficheiro de ambiente e reinicie o Vite.
             </p>
-          )}
+          ) : null}
 
           {googleLoginAvailable ? (
             <>
-              <div className="relative my-6">
-                <Separator />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                  ou
-                </span>
-              </div>
+              {showPasswordForm ? (
+                <div
+                  className={cn(
+                    "relative my-6",
+                    googleOnlyMobile && "hidden sm:block",
+                  )}
+                >
+                  <Separator />
+                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
+                    ou
+                  </span>
+                </div>
+              ) : null}
               <GoogleSignInButton className="w-full justify-center" size="default" />
-              <p className="mt-3 text-center text-xs text-muted-foreground">
-                O login com Google continua disponível no site (menu e botões
-                «Continuar com Google»).
-              </p>
+              {googleOnlyMobile ? (
+                <p className="mt-3 text-center text-xs text-muted-foreground sm:hidden">
+                  Use o mesmo botão no menu «Mais» em qualquer página.
+                </p>
+              ) : (
+                <p className="mt-3 text-center text-xs text-muted-foreground hidden sm:block">
+                  O login com Google continua disponível no site (menu e botões
+                  «Continuar com Google»).
+                </p>
+              )}
             </>
           ) : null}
         </div>

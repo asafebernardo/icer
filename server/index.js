@@ -185,8 +185,9 @@ if (readBoolEnv("ICER_RUN_POST_CATEGORY_MIGRATION", true)) {
 await ensureBuiltinAdminPermissionGroup();
 
 const enableUpstreamProxy = Boolean(
-  process.env.ICER_UPSTREAM_API ||
-    process.env.VITE_APP_BASE_URL,
+  String(process.env.ICER_UPSTREAM_API || "").trim() ||
+    (process.env.NODE_ENV === "production" &&
+      String(process.env.VITE_APP_BASE_URL || "").trim()),
 );
 
 /** Sessão única por conta (predefinido: ativo). `ICER_ENFORCE_SINGLE_SESSION=false` permite vários logins. */

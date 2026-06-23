@@ -448,7 +448,7 @@ export default function Navbar() {
                           </div>
                         ) : (
                           <>
-                            {isServerAuthEnabled() ? (
+                            {isServerAuthEnabled() && !googleLoginAvailable ? (
                               <Link
                                 to="/login"
                                 onClick={() => {

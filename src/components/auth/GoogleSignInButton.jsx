@@ -40,13 +40,18 @@ export default function GoogleSignInButton({
     ? `Continuar com Google como ${rememberedGoogleEmail}`
     : "Continuar com Google";
 
+  const handleClick = () => {
+    onClick?.();
+    void startGoogleLogin();
+  };
+
   return (
     <Button
       type="button"
       variant="outline"
       size={size}
       disabled={googleLoginBusy}
-      onClick={onClick ?? (() => void startGoogleLogin())}
+      onClick={handleClick}
       aria-label={ariaLabel}
       className={cn(
         "gap-2 border-[#dadce0] bg-white font-medium text-[#3c4043] shadow-sm",

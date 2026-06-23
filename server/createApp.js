@@ -84,6 +84,8 @@ import {
   GOOGLE_LOGIN_HINT_COOKIE,
   googleLoginPublicBase,
   googleLoginRedirectUri,
+  googleLoginRedirectUriForRequest,
+  resolveGoogleLoginPublicBase,
   isEmailAllowedForGoogleLogin,
   isGoogleLoginConfiguredValue,
   parseGoogleLoginAllowedEmails,
@@ -970,7 +972,7 @@ export function createApplication(db, options = {}) {
       res.status(503).json({ message: "google_login_unavailable" });
       return;
     }
-    const redirectUri = googleLoginRedirectUri(googleConfig);
+    const redirectUri = googleLoginRedirectUriForRequest(googleConfig, req);
     const pickAccount =
       String(req.query.pick_account || "").trim() === "1" ||
       String(req.query.pick_account || "").trim().toLowerCase() === "true";
@@ -999,12 +1001,12 @@ export function createApplication(db, options = {}) {
 
   app.get("/api/auth/google-login/callback", async (req, res) => {
     const googleConfig = await getGoogleLoginConfig(db);
-    const base = googleLoginPublicBase(googleConfig);
+    const base = resolveGoogleLoginPublicBase(googleConfig, req);
     if (!base || !isGoogleLoginConfiguredValue(googleConfig)) {
       res.status(400).type("text/plain").send("Login Google não configurado.");
       return;
     }
-    const redirectUri = googleLoginRedirectUri(googleConfig);
+    const redirectUri = googleLoginRedirectUriForRequest(googleConfig, req);
     const code = String(req.query.code || "").trim();
     const state = String(req.query.state || "").trim();
     const oauthErr = String(req.query.error || "").trim();

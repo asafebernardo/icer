@@ -3,7 +3,7 @@ import { Lock, LogIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getLoginBlockedAdminNavItems } from "@/lib/adminNavConfig";
-import { setLoginIntent } from "@/lib/loginIntent";
+import { setLoginIntent, LOGIN_QUERY_FLAG } from "@/lib/loginIntent";
 
 /**
  * Em homologação, lista abas do admin bloqueadas por falta de sessão no servidor.
@@ -49,7 +49,10 @@ export default function HomologBlockedMenusNotice({
           </ul>
           {showLoginLink ? (
             <Button variant="outline" size="sm" asChild className="gap-2">
-              <Link to="/login" onClick={() => setLoginIntent()}>
+              <Link
+                to={`/login?${LOGIN_QUERY_FLAG}=1`}
+                onClick={() => setLoginIntent()}
+              >
                 <LogIn className="h-4 w-4" aria-hidden />
                 Ir para login
               </Link>

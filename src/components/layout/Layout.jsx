@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
@@ -7,24 +6,8 @@ import WhatsAppFab from "./WhatsAppFab";
 import AgendaFloatingFab from "./AgendaFloatingFab";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
-import CommandPalette, {
-  useCommandPaletteShortcut,
-} from "@/components/CommandPalette";
 
 export default function Layout() {
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const togglePalette = useCallback(
-    () => setPaletteOpen((v) => !v),
-    [],
-  );
-  useCommandPaletteShortcut(togglePalette);
-
-  useEffect(() => {
-    const open = () => setPaletteOpen(true);
-    window.addEventListener("icer-open-cmdk", open);
-    return () => window.removeEventListener("icer-open-cmdk", open);
-  }, []);
-
   return (
     <div className="relative min-h-screen flex flex-col min-w-0 overflow-x-hidden">
       <a
@@ -50,7 +33,6 @@ export default function Layout() {
       <BottomNav />
       <WhatsAppFab />
       <AgendaFloatingFab />
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

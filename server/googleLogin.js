@@ -13,12 +13,62 @@ function cleanPublicBase(value) {
     .replace(/\/+$/, "");
 }
 
+function isLocalDevHostname(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  return h === "localhost" || h === "127.0.0.1" || h === "[::1]";
+}
+
+function cleanOriginUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const u = new URL(raw);
+    if (!/^https?:$/i.test(u.protocol)) return "";
+    if (!isLocalDevHostname(u.hostname)) return "";
+    return cleanPublicBase(u.origin);
+  } catch {
+    return "";
+  }
+}
+
 /** Base pública (ex.: https://site.com) sem barra final. */
 export function googleLoginPublicBase(config) {
   if (config && typeof config === "object" && "public_base_url" in config) {
     return cleanPublicBase(config.public_base_url);
   }
   return cleanPublicBase(process.env.ICER_PUBLIC_BASE_URL);
+}
+
+/**
+ * Em desenvolvimento, usa o origin do browser (localhost) em vez da URL de produção
+ * guardada no MongoDB — evita redirecionar para o site hospedado após login Google.
+ */
+export function resolveGoogleLoginPublicBase(config, req) {
+  const isDev = process.env.NODE_ENV !== "production";
+
+  if (isDev) {
+    const devBase = cleanOriginUrl(process.env.ICER_DEV_PUBLIC_BASE_URL);
+    if (devBase) return devBase;
+  }
+
+  if (req && isDev) {
+    const fromQuery = cleanOriginUrl(req.query?.public_origin);
+    if (fromQuery) return fromQuery;
+
+    const fromOrigin = cleanOriginUrl(req.get("origin"));
+    if (fromOrigin) return fromOrigin;
+
+    const host = String(req.get("x-forwarded-host") || req.get("host") || "").trim();
+    const hostname = host.split(":")[0] || "";
+    if (host && isLocalDevHostname(hostname)) {
+      const proto = String(req.get("x-forwarded-proto") || req.protocol || "http")
+        .split(",")[0]
+        .trim();
+      return cleanPublicBase(`${proto}://${host}`);
+    }
+  }
+
+  return googleLoginPublicBase(config);
 }
 
 export function parseGoogleLoginAllowedEmails(value = process.env.ICER_GOOGLE_LOGIN_ALLOWED_EMAILS) {
@@ -217,6 +267,13 @@ export function isEmailAllowedForGoogleLogin(email, config) {
 
 export function googleLoginRedirectUri(config) {
   const base = googleLoginPublicBase(config);
+  if (!base) return "";
+  return `${base}/api/auth/google-login/callback`;
+}
+
+/** Como `googleLoginRedirectUri`, mas respeita localhost em desenvolvimento. */
+export function googleLoginRedirectUriForRequest(config, req) {
+  const base = resolveGoogleLoginPublicBase(config, req);
   if (!base) return "";
   return `${base}/api/auth/google-login/callback`;
 }

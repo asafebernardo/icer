@@ -13,6 +13,7 @@
     "images:webp:public": "node scripts/convert-images-to-webp.mjs --public",
     "images:webp:uploads": "node scripts/convert-images-to-webp.mjs --uploads",
     "build": "npm run images:webp:public && vite build",
+    "build:app": "vite build",
     "start": "node server/index.js",
     "start:server": "node server/index.js",
     "lint": "eslint . --quiet",

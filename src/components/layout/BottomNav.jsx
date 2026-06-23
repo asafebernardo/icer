@@ -6,7 +6,6 @@ import {
   MoreHorizontal,
   User,
   Landmark,
-  Search,
   Pencil,
   Settings,
   Users,
@@ -229,19 +228,6 @@ export default function BottomNav() {
           </SheetHeader>
 
           <div className="mt-4 grid grid-cols-1 divide-y divide-border">
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                window.requestAnimationFrame(() => {
-                  window.dispatchEvent(new Event("icer-open-cmdk"));
-                });
-              }}
-              className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50 text-left w-full"
-            >
-              <Search className="w-5 h-5 text-foreground/70" />
-              <span className="text-base">Procurar</span>
-            </button>
             {isAdmin ? (
               <button
                 type="button"
@@ -304,7 +290,7 @@ export default function BottomNav() {
               </>
             ) : (
               <>
-                {isServerAuthEnabled() ? (
+                {isServerAuthEnabled() && !googleLoginAvailable ? (
                   <SheetClose asChild>
                     <Link
                       to="/login"

@@ -63,6 +63,12 @@ export function buildGoogleLoginStartUrl(opts = {}) {
   if (opts.noSilent) {
     params.set("no_silent", "1");
   }
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      params.set("public_origin", window.location.origin);
+    }
+  }
   const q = params.toString();
   return q ? `/api/auth/google-login/start?${q}` : "/api/auth/google-login/start";
 }

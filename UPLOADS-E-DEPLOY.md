@@ -1,6 +1,37 @@
 # Uploads e deploy (ICER)
 
-Este documento explica **onde** a aplicação grava ficheiros enviados pelos utilizadores e **como evitar** que um deploy apague ou substitua esses dados.
+Este documento explica **onde** a aplicação grava ficheiros enviados pelos utilizadores, **como evitar** que um deploy apague ou substitua esses dados, e **como reduzir o tempo de build**.
+
+## Deploy rápido (Docker / EasyPanel)
+
+O `Dockerfile` está optimizado para builds mais curtos:
+
+- **`npm run build:app`** no build (só Vite) — sem reconverter imagens WebP em cada deploy.
+- **Uma instalação** de dependências + `npm prune` (em vez de dois `npm ci`).
+- **Cache de camadas**: alterações só em `server/` não rebuilam o frontend.
+- **Contexto menor** via `.dockerignore` (testes, e2e, docs, etc.).
+
+No painel de build, active BuildKit se disponível: `DOCKER_BUILDKIT=1`.
+
+### Imagens WebP
+
+Converta assets estáticos **uma vez** no desenvolvimento e faça commit dos `.webp`:
+
+```bash
+npm run images:webp:public
+```
+
+Ou corra localmente antes do deploy se adicionou JPG/PNG novos em `public/`.
+
+### Arranque mais rápido após deploy
+
+No primeiro deploy com base MongoDB já migrada, pode desactivar a migração de categorias no arranque:
+
+```bash
+ICER_RUN_POST_CATEGORY_MIGRATION=false
+```
+
+Isto reduz o tempo até o `/health` responder quando há muitos posts. A migração é idempotente — só é necessária quando mudam categorias no código.
 
 ## Onde ficam os ficheiros
 
