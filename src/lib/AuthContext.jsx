@@ -43,9 +43,6 @@ import { tryHomologDevLogin } from "@/lib/homologDevLogin";
 
 const AuthContext = createContext(null);
 
-/** Janela curta após login em que um 401 em `/api/auth/me` pode ser transitório. */
-const SESSION_LOGIN_GRACE_MS = 5_000;
-
 const GOOGLE_LOGIN_ERROR_MESSAGES = {
   oauth: "Não foi possível concluir o login com Google.",
   forbidden: "Este e-mail não está autorizado a usar o login Google.",
@@ -72,7 +69,25 @@ export function AuthProvider({ children }) {
   /** Ignora respostas 401 de validações iniciadas antes de um login/logout recente. */
   const sessionValidationGenRef = useRef(0);
   const lastSessionOkAtRef = useRef(0);
+  /** Evita limpar sessão local enquanto login/callback OAuth ainda está em curso. */
+  const loginInProgressRef = useRef(false);
   const [isValidatingSession, setIsValidatingSession] = useState(false);
+
+  const invalidateStaleServerSession = useCallback((opts = {}) => {
+    const { notify = true } = opts;
+    const cur = getUser();
+    if (!cur || isDemoAdminSession(cur)) return false;
+    if (notify) {
+      toast.info("A sua sessão expirou. Inicie sessão novamente.");
+    }
+    clearSessionUser();
+    setServerMenuEffective(null);
+    setUser(null);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("icer-user-session"));
+    }
+    return true;
+  }, []);
 
   const checkUserAuth = useCallback(() => {
     setUser(getUser());
@@ -156,13 +171,13 @@ export function AuthProvider({ children }) {
         } else if (sessionValidationGenRef.current === genAtStart) {
           const cur = getUser();
           const isHomolog = getRuntimeEnvSync().isHomolog;
-          const recentlyOk =
-            lastSessionOkAtRef.current > 0 &&
-            Date.now() - lastSessionOkAtRef.current < SESSION_LOGIN_GRACE_MS;
-          if (cur && !isDemoAdminSession(cur) && !isHomolog && !recentlyOk) {
-            toast.info("A sua sessão expirou. Inicie sessão novamente.");
-            clearSessionUser();
-            setServerMenuEffective(null);
+          if (
+            cur &&
+            !isDemoAdminSession(cur) &&
+            !isHomolog &&
+            !loginInProgressRef.current
+          ) {
+            invalidateStaleServerSession();
           }
         }
       } catch {
@@ -180,7 +195,7 @@ export function AuthProvider({ children }) {
     } finally {
       validateServerSessionRef.current = null;
     }
-  }, [checkUserAuth, applySessionUser, fetchSessionUserWithRetry]);
+  }, [checkUserAuth, applySessionUser, fetchSessionUserWithRetry, invalidateStaleServerSession]);
 
   useEffect(() => {
     if (!shouldUseRemotePublicWorkspace()) return;
@@ -279,20 +294,27 @@ export function AuthProvider({ children }) {
     if (gl === "ok") {
       stripGoogleParams();
       void (async () => {
+        loginInProgressRef.current = true;
         sessionValidationGenRef.current += 1;
-        await validateServerSession();
-        const u = getUser();
-        if (u?.email) setGoogleLoginHint(u.email);
-        toast.success("Sessão iniciada com Google.");
-        if (isServerAuthEnabled()) {
-          void queryClientInstance
-            .fetchQuery({
-              queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
-              queryFn: fetchPublicWorkspaceJson,
-            })
-            .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
-            .catch(() => {});
-          setServerMenuEffective(null);
+        try {
+          await validateServerSession();
+          const u = getUser();
+          if (u?.email) setGoogleLoginHint(u.email);
+          if (getUser()) {
+            toast.success("Sessão iniciada com Google.");
+          }
+          if (isServerAuthEnabled() && getUser()) {
+            void queryClientInstance
+              .fetchQuery({
+                queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+                queryFn: fetchPublicWorkspaceJson,
+              })
+              .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+              .catch(() => {});
+            setServerMenuEffective(null);
+          }
+        } finally {
+          loginInProgressRef.current = false;
         }
       })();
       return;
@@ -370,50 +392,49 @@ export function AuthProvider({ children }) {
       await applySessionUser(u);
       return { ok: true };
     }
-    const cur = getUser();
-    if (cur) {
-      clearSessionUser();
-      setServerMenuEffective(null);
-      setUser(null);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("icer-user-session"));
-      }
+    if (getUser()) {
+      invalidateStaleServerSession({ notify: false });
     }
     return { ok: false };
-  }, [applySessionUser, fetchSessionUser, checkUserAuth]);
+  }, [applySessionUser, fetchSessionUser, checkUserAuth, invalidateStaleServerSession]);
 
   const login = useCallback(async (email, senha) => {
     sessionValidationGenRef.current += 1;
     homologBootstrapAttemptedRef.current = false;
-    const result = await authLogin(email, senha);
-    if (!result.ok) return result;
-    const u = await fetchSessionUser();
-    if (!u) {
-      clearSessionUser();
-      setServerMenuEffective(null);
-      setUser(null);
-      return {
-        ok: false,
-        message:
-          "A sessão não ficou activa neste browser. Permita cookies e use sempre o mesmo endereço (localhost ou 127.0.0.1).",
-      };
+    loginInProgressRef.current = true;
+    try {
+      const result = await authLogin(email, senha);
+      if (!result.ok) return result;
+      const u = await fetchSessionUser();
+      if (!u) {
+        clearSessionUser();
+        setServerMenuEffective(null);
+        setUser(null);
+        return {
+          ok: false,
+          message:
+            "A sessão não ficou activa neste browser. Permita cookies e use sempre o mesmo endereço (localhost ou 127.0.0.1).",
+        };
+      }
+      lastSessionOkAtRef.current = Date.now();
+      await applySessionUser(u);
+      if (isServerAuthEnabled()) {
+        void queryClientInstance
+          .fetchQuery({
+            queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+            queryFn: fetchPublicWorkspaceJson,
+          })
+          .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+          .catch(() => {});
+        setServerMenuEffective(null);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("icer-user-session"));
+      }
+      return { ok: true };
+    } finally {
+      loginInProgressRef.current = false;
     }
-    lastSessionOkAtRef.current = Date.now();
-    await applySessionUser(u);
-    if (isServerAuthEnabled()) {
-      void queryClientInstance
-        .fetchQuery({
-          queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
-          queryFn: fetchPublicWorkspaceJson,
-        })
-        .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
-        .catch(() => {});
-      setServerMenuEffective(null);
-    }
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("icer-user-session"));
-    }
-    return { ok: true };
   }, [applySessionUser, fetchSessionUser]);
 
   const updateProfile = useCallback(async (fields) => {

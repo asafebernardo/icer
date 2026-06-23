@@ -99,6 +99,21 @@ export default defineConfig(({ mode }) => {
               changeOrigin: true,
               timeout: proxyTimeout,
               proxyTimeout,
+              /** Cookies httpOnly do Node (localhost:3001) devem valer no origin do Vite (localhost:5173). */
+              cookieDomainRewrite: "",
+              cookiePathRewrite: "/",
+              configure: (proxy) => {
+                proxy.on("proxyRes", (proxyRes) => {
+                  const raw = proxyRes.headers["set-cookie"];
+                  if (!raw) return;
+                  const list = Array.isArray(raw) ? raw : [raw];
+                  proxyRes.headers["set-cookie"] = list.map((c) =>
+                    String(c)
+                      .replace(/;\s*Domain=[^;]+/gi, "")
+                      .replace(/;\s*Secure/gi, ""),
+                  );
+                });
+              },
             },
           },
         }

@@ -46,7 +46,8 @@ export function sessionCookieOptions(maxAgeSeconds) {
     Number.isFinite(Number(maxAgeSeconds)) &&
     Number(maxAgeSeconds) > 0
   ) {
-    opts.maxAge = Math.floor(Number(maxAgeSeconds));
+    // Express/cookie `maxAge` é em milissegundos; a API do ICER recebe segundos.
+    opts.maxAge = Math.floor(Number(maxAgeSeconds) * 1000);
   }
   return opts;
 }
