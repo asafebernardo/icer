@@ -23,6 +23,30 @@ Object.assign(POST_CATEGORIA_LABELS, LEGACY_POST_CATEGORIA_LABELS);
 
 export const POST_CATEGORIA_ORDER = POST_CATEGORIAS.map((c) => c.value);
 
+export const POST_CATEGORIA_VALUES = new Set(POST_CATEGORIA_ORDER);
+
+/**
+ * Slug de categoria válido para formulários e listagem (somente `categoria` explícito).
+ * @param {unknown} value
+ */
+export function isValidPostCategoria(value) {
+  const slug = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return Boolean(slug && POST_CATEGORIA_VALUES.has(slug));
+}
+
+/**
+ * Valor guardado para o campo categoria (vazio se inválido ou ausente).
+ * @param {unknown} value
+ */
+export function normalizeStoredPostCategoria(value) {
+  const slug = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return isValidPostCategoria(slug) ? slug : "";
+}
+
 /** Categorias temáticas de culto (exclui Notícias e hub de Eventos). */
 export const WORSHIP_POST_CATEGORY_KEYS = new Set(
   POST_CATEGORIAS.filter(
@@ -189,39 +213,14 @@ export const POST_CATEGORIA_EMOJI = {
   outros: "📄",
 };
 
-const LABEL_TO_VALUE = Object.fromEntries(
-  POST_CATEGORIAS.map((c) => [c.label.toLowerCase(), c.value]),
-);
-
-function stripAccents(s) {
-  return String(s || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
 /**
- * Resolve a categoria de um post (campo `categoria` ou 1.ª tag reconhecida).
+ * Categoria explícita do post (`body_json.categoria`), se for um slug válido.
  * @param {object | null | undefined} post
  * @returns {string | null}
  */
 export function resolvePostCategoria(post) {
-  const raw = String(post?.categoria || "").trim().toLowerCase();
-  if (raw && POST_CATEGORIA_LABELS[raw]) return raw;
-
-  const tags = Array.isArray(post?.tags) ? post.tags : [];
-  for (const t of tags) {
-    const key = String(t || "")
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-    if (POST_CATEGORIA_LABELS[key]) return key;
-    const fromLabel = LABEL_TO_VALUE[String(t || "").trim().toLowerCase()];
-    if (fromLabel) return fromLabel;
-    const fromLabelPlain = LABEL_TO_VALUE[stripAccents(String(t || "").trim().toLowerCase())];
-    if (fromLabelPlain) return fromLabelPlain;
-  }
-  return null;
+  const slug = normalizeStoredPostCategoria(post?.categoria);
+  return slug || null;
 }
 
 /**

@@ -1,19 +1,17 @@
 import { Link } from "react-router-dom";
-import { FileText, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** Ações admin na página de posts (Novo, Rascunhos). */
+/** Ações admin na página de uma categoria de posts (Novo post). */
 export default function PostsAdminToolbar({
   canCreate,
-  canShowDrafts,
-  showDrafts,
-  onToggleDrafts,
+  createHref = "/Posts/nova",
   needsEditMode = false,
   className,
 }) {
-  const visible = canCreate || canShowDrafts || needsEditMode;
+  const visible = canCreate || needsEditMode;
   if (!visible) return null;
 
   return (
@@ -34,25 +32,9 @@ export default function PostsAdminToolbar({
       )}
 
       <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-        {canShowDrafts ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-8 border-white/[0.08] bg-[#08111F]/50 px-3 text-xs text-[#94A3B8]",
-              showDrafts && "border-[#38BDF8]/25 bg-[#38BDF8]/10 text-[#F8FAFC]",
-            )}
-            aria-pressed={showDrafts}
-            onClick={onToggleDrafts}
-          >
-            <FileText className="mr-1.5 h-3.5 w-3.5" />
-            Rascunhos
-          </Button>
-        ) : null}
         {canCreate ? (
           <Button size="sm" className="h-8 px-3 text-xs" asChild>
-            <Link to="/Posts/nova">
+            <Link to={createHref}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Novo post
             </Link>

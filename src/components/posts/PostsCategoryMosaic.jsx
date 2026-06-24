@@ -16,13 +16,9 @@ import {
 } from "@/hooks/usePostCategoryCounts";
 import { cn } from "@/lib/utils";
 
-export default function PostsCategoryMosaic({
-  showDrafts = false,
-  tagFilter = "all",
-}) {
-  const { counts, visibleCategories, isLoading: countsLoading } = usePostCategoryCounts({
-    showDrafts,
-  });
+export default function PostsCategoryMosaic({ tagFilter = "all" }) {
+  const { counts, visibleCategories, isLoading: countsLoading } =
+    usePostCategoryCounts();
 
   const filteredCategories = useMemo(() => {
     if (tagFilter === "all") return visibleCategories;

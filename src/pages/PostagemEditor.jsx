@@ -7,7 +7,7 @@ import {
   Fragment,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -38,6 +38,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
@@ -84,6 +91,10 @@ import {
   urlsToSlides,
 } from "@/lib/posts";
 import { cn } from "@/lib/utils";
+import {
+  POST_CATEGORIAS,
+  normalizeStoredPostCategoria,
+} from "@/lib/postCategories";
 import {
   FieldHintMessage,
   MSG_CAMPO_OBRIGATORIO,
@@ -261,6 +272,11 @@ export default function PostagemEditor() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const categoriaPresetRef = useRef("");
+  categoriaPresetRef.current = normalizeStoredPostCategoria(
+    searchParams.get("categoria"),
+  );
   const { user: authUser, checkUserAuth } = useAuth();
 
   useEffect(() => {
@@ -341,15 +357,11 @@ export default function PostagemEditor() {
       }
       return parsed;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
-      if (variables.status === "draft") {
-        toast.success("Rascunho guardado.");
-        navigate(`/Posts/editar/${data.id}`);
-      } else {
-        toast.success("Post publicado com sucesso.");
-        navigate("/Posts");
-      }
+      toast.success("Post publicado com sucesso.");
+      const cat = normalizeStoredPostCategoria(data?.categoria);
+      navigate(cat ? `/Posts/categoria/${cat}` : "/Posts");
     },
   });
 
@@ -380,12 +392,9 @@ export default function PostagemEditor() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
-      if (variables.status === "draft") {
-        toast.success("Rascunho guardado.");
-      } else {
-        toast.success("Post salvo com sucesso.");
-        navigate("/Posts");
-      }
+      toast.success("Post salvo com sucesso.");
+      const cat = normalizeStoredPostCategoria(variables.categoria);
+      navigate(cat ? `/Posts/categoria/${cat}` : "/Posts");
     },
   });
 
@@ -398,6 +407,7 @@ export default function PostagemEditor() {
     todayDateInputValue(),
   );
   const [carousel_interval_sec, setCarouselInterval] = useState(5);
+  const [categoria, setCategoria] = useState("");
   const [tags, setTags] = useState([]);
   const [tagDraft, setTagDraft] = useState("");
   const [editingTagIdx, setEditingTagIdx] = useState(-1);
@@ -414,6 +424,10 @@ export default function PostagemEditor() {
   const [fieldHints, setFieldHints] = useState({});
   const fieldHintTimersRef = useRef({});
   const fieldHintAnchorRefs = useRef({});
+  /** Evita `reset()` repetido em «novo post» (ex.: re-render após upload). */
+  const didInitCreateFormRef = useRef(false);
+  /** Hidratação única por id ao editar (refetch não deve voltar à etapa 1). */
+  const hydratedPostIdRef = useRef(null);
   const [step, setStep] = useState(1);
   /** URL de uma imagem anexa ou "" = usar primeira imagem na ordem */
   const [imagemDestaqueUrl, setImagemDestaqueUrl] = useState("");
@@ -496,6 +510,7 @@ export default function PostagemEditor() {
     setVideoUrls([""]);
     setDataPublicacao(todayDateInputValue());
     setCarouselInterval(5);
+    setCategoria(categoriaPresetRef.current);
     setTags([]);
     setTagDraft("");
     setEditingTagIdx(-1);
@@ -511,14 +526,29 @@ export default function PostagemEditor() {
     Object.values(fieldHintTimersRef.current).forEach((t) => clearTimeout(t));
     fieldHintTimersRef.current = {};
     setStep(1);
-  }, [isEditMode]);
+  }, []);
 
   useEffect(() => {
-    if (!isEditMode) reset();
+    if (isEditMode) {
+      didInitCreateFormRef.current = false;
+      return;
+    }
+    hydratedPostIdRef.current = null;
+    if (didInitCreateFormRef.current) return;
+    didInitCreateFormRef.current = true;
+    reset();
   }, [isEditMode, reset]);
 
   useEffect(() => {
     if (!isEditMode || !loadedPost) return;
+    const postKey =
+      loadedPost.id != null
+        ? String(loadedPost.id)
+        : loadedPost.updated_at != null
+          ? String(loadedPost.updated_at)
+          : null;
+    if (postKey && hydratedPostIdRef.current === postKey) return;
+    if (postKey) hydratedPostIdRef.current = postKey;
     const p = normalizePost(loadedPost);
     setTitulo(p.titulo);
     setDescricao(p.descricao);
@@ -529,6 +559,7 @@ export default function PostagemEditor() {
     }
     setDataPublicacao(isoToDateInputValue(p.data_publicacao));
     setCarouselInterval(p.carousel_interval_sec);
+    setCategoria(normalizeStoredPostCategoria(p.categoria));
     setTags(dedupeTagsPreserveOrder(p.tags || []));
     setTagDraft("");
     setEditingTagIdx(-1);
@@ -1022,23 +1053,18 @@ export default function PostagemEditor() {
     setStep(5);
   };
 
-  /** Monta o corpo gravado no servidor; `draft` permite campos mínimos para continuar mais tarde. */
-  const buildPostPayload = (mode) => {
+  /** Monta o corpo gravado no servidor (sempre publicado). */
+  const buildPostPayload = () => {
     const videoUrlsClean = video_urls
       .map((s) => String(s || "").trim())
       .filter(Boolean);
     let featured = String(imagemDestaqueUrl || "").trim();
     if (featured && !featuredEligibleUrls.includes(featured)) featured = "";
 
-    const pubIso =
-      mode === "draft"
-        ? dateInputToIso(dataPublicacao) || new Date().toISOString()
-        : dateInputToIso(dataPublicacao);
+    const pubIso = dateInputToIso(dataPublicacao);
 
     return {
-      titulo:
-        titulo.trim() ||
-        (mode === "draft" ? "Rascunho" : ""),
+      titulo: titulo.trim(),
       descricao: descricao.trim(),
       anexos,
       video_urls: videoUrlsClean,
@@ -1049,6 +1075,7 @@ export default function PostagemEditor() {
         Math.max(2, Number(carousel_interval_sec) || 5),
       ),
       tags: dedupeTagsPreserveOrder(tags),
+      categoria: categoria || undefined,
       autor: autorEmail || "",
       imagem_destaque_url: featured,
       usar_galeria_por_dia: usarGaleriaPorDia,
@@ -1071,18 +1098,8 @@ export default function PostagemEditor() {
         visibility === "private" || visibility === "unlisted"
           ? visibility
           : "public",
-      status: mode === "draft" ? "draft" : "published",
+      status: "published",
     };
-  };
-
-  const handleSaveDraft = () => {
-    setError("");
-    const payload = buildPostPayload("draft");
-    if (isEditMode) {
-      updatePost.mutate({ id: postId, ...payload });
-    } else {
-      createPost.mutate(payload);
-    }
   };
 
   const handleSubmit = () => {
@@ -1112,7 +1129,7 @@ export default function PostagemEditor() {
       return;
     }
 
-    const payload = buildPostPayload("publish");
+    const payload = buildPostPayload();
     if (isEditMode) {
       updatePost.mutate({ id: postId, ...payload });
     } else {
@@ -1316,6 +1333,28 @@ export default function PostagemEditor() {
                   "border-destructive ring-2 ring-destructive/30 focus-visible:ring-destructive/40",
               )}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="post-categoria">Categoria</Label>
+            <Select
+              value={categoria || "__none__"}
+              onValueChange={(value) =>
+                setCategoria(value === "__none__" ? "" : value)
+              }
+            >
+              <SelectTrigger id="post-categoria" className="w-full">
+                <SelectValue placeholder="Selecione a categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">—</SelectItem>
+                {POST_CATEGORIAS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -2856,21 +2895,18 @@ export default function PostagemEditor() {
               type="button"
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() => navigate("/Posts")}
+              onClick={() =>
+                navigate(
+                  categoria
+                    ? `/Posts/categoria/${categoria}`
+                    : "/Posts",
+                )
+              }
             >
               Cancelar
             </Button>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={handleSaveDraft}
-              disabled={uploading || saving}
-            >
-              Salvar rascunho
-            </Button>
             {step === 1 ? (
               <Button
                 type="button"

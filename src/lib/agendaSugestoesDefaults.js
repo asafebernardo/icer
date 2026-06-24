@@ -1,9 +1,7 @@
 /**
- * Valores iniciais das listas de sugestão (eventos: título, horário, preletor, presbítero, categoria).
+ * Valores iniciais das listas de sugestão (eventos: título, horário, preletor, presbítero).
  * Persistidas no servidor em `public_workspace.agenda_sugestoes` quando há sessão MongoDB.
  */
-import { EVENTO_CATEGORIAS } from "@/lib/eventoFormOptions";
-
 export const DEFAULT_AGENDA_SUGESTOES = {
   /** Por texto exacto do título sugerido → preset de barra (`auto` | `blue` | …). */
   titulo_cor_barra: {},
@@ -23,7 +21,6 @@ export const DEFAULT_AGENDA_SUGESTOES = {
   preletor: ["Asafe", "Joneri", "Juninho"],
   /** Presbítero no formulário (`pastor` na API); mesma lista em agendamento em massa. */
   pastor: ["Joneri", "Sandro"],
-  categoria: EVENTO_CATEGORIAS.map((c) => c.value),
   /** Locais sugeridos (evento + agendamento em massa). */
   local: ["Sede local", "Outros"],
   /** Horários sugeridos (formato HH:mm — evento, rotinas / agendamento em massa). */
@@ -39,7 +36,6 @@ export const AGENDA_SUGESTOES_KEYS = [
   "titulo",
   "preletor",
   "pastor",
-  "categoria",
   "local",
   "horario",
 ];
@@ -59,11 +55,6 @@ export const AGENDA_SUGESTOES_FIELD_META = {
     title: "Presbíteros",
     tabLabel: "Presbíteros",
     description: "Nomes sugeridos; foto opcional por nome.",
-  },
-  categoria: {
-    title: "Categorias (identificadores)",
-    tabLabel: "Categorias",
-    description: "Slugs internos — alinhe com eventos já gravados.",
   },
   local: {
     title: "Locais do evento",

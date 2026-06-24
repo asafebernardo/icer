@@ -13,7 +13,7 @@ import PostsCategoryFeed, {
 import PostsAdminToolbar from "../components/posts/PostsAdminToolbar";
 import { FEED_MAX_W } from "../components/posts/PostsPageHero";
 
-import { getUser, canMenuAction, MENU, isAdminUser } from "@/lib/auth";
+import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useEditMode } from "@/lib/EditModeContext";
 import { useAuth } from "@/lib/AuthContext";
 import useRuntimeEnv from "@/hooks/useRuntimeEnv";
@@ -36,7 +36,6 @@ export default function PostsCategoriaPage() {
   const { user: authUser, checkUserAuth } = useAuth();
 
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
-  const [showDrafts, setShowDrafts] = useState(false);
 
   const catKey = String(categoria || "").trim().toLowerCase();
 
@@ -54,12 +53,7 @@ export default function PostsCategoriaPage() {
   const canDelete =
     canMenuAction(sessionUser, MENU.POSTAGENS, "delete") && editMode;
 
-  useEffect(() => {
-    if (!isAdminUser(sessionUser)) setShowDrafts(false);
-  }, [sessionUser]);
-
   const { posts, isLoading } = usePostsList({
-    showDrafts,
     categoriaKey: catKey,
   });
 
@@ -128,9 +122,7 @@ export default function PostsCategoriaPage() {
           </div>
           <PostsAdminToolbar
             canCreate={canCreate}
-            canShowDrafts={isAdminUser(sessionUser)}
-            showDrafts={showDrafts}
-            onToggleDrafts={() => setShowDrafts((v) => !v)}
+            createHref={`/Posts/nova?categoria=${encodeURIComponent(catKey)}`}
             needsEditMode={
               canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
               !editMode &&
@@ -162,11 +154,9 @@ export default function PostsCategoriaPage() {
             icon={BookOpen}
             title="Nenhum post"
             description={
-              showDrafts
-                ? "Não há rascunhos nesta categoria."
-                : catKey === "noticias"
-                  ? "Publicações gerais e avisos aparecem aqui."
-                  : `Ainda não há publicações em ${categoryLabel}.`
+              catKey === "noticias"
+                ? "Publicações gerais e avisos aparecem aqui."
+                : `Ainda não há publicações em ${categoryLabel}.`
             }
           />
         ) : (

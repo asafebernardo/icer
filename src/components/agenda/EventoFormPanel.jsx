@@ -20,7 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
-import { EVENTO_CATEGORIAS } from "@/lib/eventoFormOptions";
+import { EVENTO_CATEGORIAS, normalizeStoredEventoCategoria, isValidEventoCategoria } from "@/lib/eventoFormOptions";
 import {
   HORARIO_FIM_VAZIO,
   horarioSelectOptions,
@@ -86,10 +86,6 @@ const nativePickerInputClass = cn(
 );
 
 const DEFAULT_SUGESTOES = DEFAULT_AGENDA_SUGESTOES;
-
-const CATEGORIA_LABEL_BY_SLUG = Object.fromEntries(
-  EVENTO_CATEGORIAS.map((c) => [c.value, c.label]),
-);
 
 function ComboSugestao({
   label,
@@ -166,7 +162,7 @@ const empty = {
   horario: "",
   horario_fim: "",
   local: "",
-  categoria: "culto",
+  categoria: "",
   preletor: "",
   pastor: "",
   imagem_url: "",
@@ -382,6 +378,7 @@ export default function EventoFormPanel({
     merged.tem_programacao =
       Boolean(merged.tem_programacao) ||
       (Array.isArray(merged.programacao) && merged.programacao.length > 0);
+    merged.categoria = normalizeStoredEventoCategoria(evento.categoria);
     setForm(merged);
     setStep("dados");
   }, [evento, isActive]);
@@ -556,7 +553,7 @@ export default function EventoFormPanel({
   const isValid =
     String(form.titulo || "").trim() &&
     String(form.data || "").trim() &&
-    String(form.categoria || "").trim() &&
+    isValidEventoCategoria(form.categoria) &&
     String(form.local || "").trim() &&
     String(form.horario || "").trim();
 
@@ -610,7 +607,7 @@ export default function EventoFormPanel({
       eventCardBarClass(
         {
           titulo: String(form.titulo || "").trim(),
-          categoria: String(form.categoria || "").trim() || "culto",
+          categoria: isValidEventoCategoria(form.categoria) ? form.categoria : "",
           cor_barra: evento ? form.cor_barra || "auto" : "auto",
         },
         CATEGORY_BAR_CLASS,
@@ -770,16 +767,26 @@ export default function EventoFormPanel({
               />
             </div>
           </div>
-          <ComboSugestao
-            label="Categoria"
-            required
-            value={form.categoria}
-            onChange={(v) => set("categoria", v)}
-            sugestoes={sugestoes.categoria}
-            formatSuggestion={(slug) =>
-              CATEGORIA_LABEL_BY_SLUG[slug] || slug
-            }
-          />
+          <div className="space-y-2">
+            <Label htmlFor="evento-categoria">
+              Categoria *
+            </Label>
+            <Select
+              value={form.categoria || undefined}
+              onValueChange={(v) => set("categoria", v)}
+            >
+              <SelectTrigger id="evento-categoria" className="w-full">
+                <SelectValue placeholder="Selecione a categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {EVENTO_CATEGORIAS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <ComboSugestao

@@ -25,14 +25,14 @@ describe("resolveTargetPostCategory", () => {
     );
   });
 
-  it("desconhecido explícito → noticias", () => {
-    assert.equal(resolveTargetPostCategory({ categoria: "foo" }), "noticias");
+  it("desconhecido explícito → limpar", () => {
+    assert.equal(resolveTargetPostCategory({ categoria: "foo" }), "");
   });
 
-  it("resolve a partir da 1.ª tag reconhecida", () => {
+  it("não infere a partir de tags", () => {
     assert.equal(
       resolveTargetPostCategory({ tags: ["Natal", "2024"] }),
-      "natal",
+      null,
     );
   });
 
@@ -49,7 +49,7 @@ describe("mergeWorkspacePostCategories", () => {
     assert.ok(merged.some((c) => c.value === "conferencias"));
   });
 
-  it("adiciona categorias novas mantendo rótulos custom", () => {
+  it("usa rótulos predefinidos (ignora custom no workspace)", () => {
     const merged = mergeWorkspacePostCategories([
       { value: "noticias", label: "News", order: 0 },
       { value: "culto_dominical", label: "Domingo", order: 1 },
@@ -57,7 +57,7 @@ describe("mergeWorkspacePostCategories", () => {
     assert.ok(merged.some((c) => c.value === "conferencias"));
     assert.equal(
       merged.find((c) => c.value === "noticias")?.label,
-      "News",
+      "Notícias",
     );
   });
 });

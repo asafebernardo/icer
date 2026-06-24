@@ -41,7 +41,7 @@ import {
   resolvePreletorAvatarUrl,
 } from "@/lib/agendaPreletorAvatar";
 import { buildEventoApiPayload, normalizeEventoDate } from "@/lib/eventoPayload";
-import { EVENTO_CATEGORIAS } from "@/lib/eventoFormOptions";
+import { EVENTO_CATEGORIAS, normalizeStoredEventoCategoria, isValidEventoCategoria } from "@/lib/eventoFormOptions";
 import { eventCardBarClass } from "@/lib/eventCardColors";
 import { CATEGORY_BAR_CLASS } from "@/lib/categoryAppearance";
 import { cn } from "@/lib/utils";
@@ -174,9 +174,7 @@ const CATEGORIA_LABEL_BY_SLUG = {
 };
 
 function bulkCategoriaToApi(slug) {
-  const c = String(slug || "").trim();
-  if (!c || c === BULK_CATEGORIA_NONE_VALUE) return "";
-  return c;
+  return normalizeStoredEventoCategoria(slug);
 }
 
 function bulkCategoriaLabel(slug) {
@@ -675,8 +673,8 @@ export default function BulkEventScheduler({
     const p = initialSavedSchedule.payload;
     if (typeof p.titulo === "string") setTitulo(p.titulo);
     if (typeof p.categoria === "string") {
-      const c = p.categoria.trim();
-      setCategoria(c === "" ? BULK_CATEGORIA_NONE_VALUE : c);
+      const normalized = normalizeStoredEventoCategoria(p.categoria);
+      setCategoria(normalized || BULK_CATEGORIA_NONE_VALUE);
     }
     if (typeof p.local === "string") setLocal(p.local);
     if (typeof p.horario === "string") setHorario(p.horario);
@@ -894,13 +892,6 @@ export default function BulkEventScheduler({
     () => horarioSelectOptions(sugestoes.horario, horario),
     [sugestoes.horario, horario],
   );
-
-  const categoriaSugestoesBulk = useMemo(() => {
-    const extra = (sugestoes.categoria || []).filter(
-      (s) => s && s !== BULK_CATEGORIA_NONE_VALUE,
-    );
-    return [BULK_CATEGORIA_NONE_VALUE, ...new Set(extra)];
-  }, [sugestoes.categoria]);
 
   const setFieldHintAnchor = useCallback((key) => (el) => {
     if (el) fieldHintAnchorRefs.current[key] = el;
@@ -1199,6 +1190,7 @@ export default function BulkEventScheduler({
 
     if (step === "dados") {
       if (!String(titulo || "").trim()) errs.titulo = MSG_CAMPO_OBRIGATORIO;
+      if (!isValidEventoCategoria(categoria)) errs.categoria = MSG_CAMPO_OBRIGATORIO;
       if (!String(local || "").trim()) errs.local = MSG_CAMPO_OBRIGATORIO;
       if (!String(horario || "").trim()) errs.horario = MSG_CAMPO_OBRIGATORIO;
     } else if (step === "datas") {
@@ -1283,19 +1275,44 @@ export default function BulkEventScheduler({
               anchorRef={setFieldHintAnchor("titulo")}
             />
             </div>
-            <ComboSugestao
-              label="Categoria"
-              value={categoria}
-              onChange={(v) => {
-                setCategoria(v);
-                clearFieldHint("categoria");
-              }}
-              sugestoes={categoriaSugestoesBulk}
-              formatSuggestion={bulkCategoriaLabel}
-              hintMessage={fieldHints.categoria}
-              invalid={!!fieldHints.categoria}
-              anchorRef={setFieldHintAnchor("categoria")}
-            />
+            <div
+              ref={setFieldHintAnchor("categoria")}
+              className="space-y-2 scroll-mt-28"
+            >
+              <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3">
+                <Label htmlFor="bulk-categoria">Categoria *</Label>
+                <FieldHintMessage
+                  message={fieldHints.categoria}
+                  className="text-sm text-destructive"
+                />
+              </div>
+              <Select
+                value={categoria === BULK_CATEGORIA_NONE_VALUE ? undefined : categoria}
+                onValueChange={(v) => {
+                  setCategoria(v);
+                  clearFieldHint("categoria");
+                }}
+              >
+                <SelectTrigger
+                  id="bulk-categoria"
+                  aria-invalid={!!fieldHints.categoria}
+                  className={cn(
+                    "w-full",
+                    fieldHints.categoria &&
+                      "border-destructive ring-2 ring-destructive/30 focus-visible:ring-destructive/40",
+                  )}
+                >
+                  <SelectValue placeholder="Selecione a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENTO_CATEGORIAS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <ComboSugestao
               label="Local"
               required

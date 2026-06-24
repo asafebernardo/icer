@@ -87,25 +87,22 @@ function resolveFromToken(token) {
 }
 
 /**
- * Resolve a categoria alvo para migração (campo `categoria` ou tags).
+ * Normaliza `categoria` explícita em posts (body_json). Não infere a partir de tags.
  * @param {Record<string, unknown> | null | undefined} body
- * @returns {string | null} null = deixar inalterado (sem categoria reconhecível)
+ * @returns {string | null} slug válido, `""` para limpar inválido, `null` = não alterar
  */
 export function resolveTargetPostCategory(body) {
   const rawCat = String(body?.categoria ?? "").trim();
-  if (rawCat) {
-    const direct = resolveFromToken(rawCat);
-    if (direct) return direct;
-    return "noticias";
-  }
+  if (!rawCat) return null;
 
-  const tags = Array.isArray(body?.tags) ? body.tags : [];
-  for (const tag of tags) {
-    const fromTag = resolveFromToken(tag);
-    if (fromTag) return fromTag;
-  }
+  const direct = resolveFromToken(rawCat);
+  if (direct) return direct;
+  return "";
+}
 
-  return null;
+function normalizeStoredPostCategoria(value) {
+  const slug = normalizeToken(value);
+  return slug && VALID_CATEGORY_KEYS.has(slug) ? slug : "";
 }
 
 /**
@@ -117,22 +114,11 @@ export function mergeWorkspacePostCategories(existing) {
     return sanitizePostCategorias(null);
   }
 
-  const byValue = new Map();
-  for (const item of existing) {
-    if (!item || typeof item !== "object") continue;
-    const value = String(item.value || "").trim().toLowerCase();
-    if (!value) continue;
-    byValue.set(value, item);
-  }
-
-  const merged = DEFAULT_POST_CATEGORIES.map((def, order) => {
-    const prev = byValue.get(def.value);
-    return {
-      value: def.value,
-      label: prev?.label ? String(prev.label).trim().slice(0, 80) : def.label,
-      order,
-    };
-  });
+  const merged = DEFAULT_POST_CATEGORIES.map((def, order) => ({
+    value: def.value,
+    label: def.label,
+    order,
+  }));
 
   return sanitizePostCategorias(merged);
 }
@@ -193,18 +179,23 @@ export async function migratePostsCategories(db) {
     }
 
     const target = resolveTargetPostCategory(body);
-    if (!target) {
+    if (target === null) {
       skipped += 1;
       continue;
     }
 
-    const current = normalizeToken(body.categoria);
-    if (current === target && VALID_CATEGORY_KEYS.has(target)) {
+    const current = normalizeStoredPostCategoria(body.categoria);
+    if (target === current) {
       skipped += 1;
       continue;
     }
 
-    const nextBody = { ...body, categoria: target };
+    const nextBody = { ...body };
+    if (target) {
+      nextBody.categoria = target;
+    } else {
+      delete nextBody.categoria;
+    }
     ops.push({
       updateOne: {
         filter: { id: row.id },
