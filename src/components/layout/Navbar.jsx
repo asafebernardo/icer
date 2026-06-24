@@ -56,10 +56,10 @@ import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB
 const BASE_LINKS = [
   { label: "Início", path: "/Home" },
   { label: "Cultos", path: "/Cultos" },
-  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH },
   { label: "História", path: "/Historia" },
   { label: "Contato", path: "/Contato" },
+  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH },
 ];
 
 export default function Navbar() {

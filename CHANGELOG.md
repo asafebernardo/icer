@@ -4,6 +4,19 @@
 
 * hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
 * **posts:** hub hierárquico, FABs mobile e fim do auto-login homolog ([8837f89](https://github.com/asafebernardo/icer/commit/8837f89e6202f1b893ac2a7f21c0f0889ac1f4b0))
+* reorganiza Informações, Eventos e navegação de posts ([dcc03d4](https://github.com/asafebernardo/icer/commit/dcc03d415e1c949f98a1c8b9e1842437e5947d4c))
+
+### Bug Fixes
+
+* **auth:** sessão, login Google mobile e dev local ([c2a2f05](https://github.com/asafebernardo/icer/commit/c2a2f051a1ac8ca282c46f13e9385b23bf425d39))
+* coloca Informações à direita de Contato na navegação ([194caa2](https://github.com/asafebernardo/icer/commit/194caa299b82fafacfd2fbb90a0b09c2bd2e957a))
+* correções gerais de sessão e performance mobile ([5614d55](https://github.com/asafebernardo/icer/commit/5614d559787e95db69e3b150dd32d6df5955af0c))
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-06-24)
+
+### Features
+
+* hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
+* **posts:** hub hierárquico, FABs mobile e fim do auto-login homolog ([8837f89](https://github.com/asafebernardo/icer/commit/8837f89e6202f1b893ac2a7f21c0f0889ac1f4b0))
 * reorganiza Informações, Eventos e navegação de posts ([526bfc2](https://github.com/asafebernardo/icer/commit/526bfc2a11e507533aa6ad030b94a870bd8d2c44))
 
 ### Bug Fixes
