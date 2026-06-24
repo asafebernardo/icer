@@ -121,6 +121,56 @@ export const POST_CATEGORIA_MOSAIC_TAG = Object.fromEntries(
   ),
 );
 
+/** @param {string} groupId */
+export function getPostMosaicGroup(groupId) {
+  const id = String(groupId || "").trim().toLowerCase();
+  return POST_MOSAIC_TAG_GROUPS.find((g) => g.id === id) ?? null;
+}
+
+/** @param {string} categoryKey */
+export function getPostCategoryGroupId(categoryKey) {
+  const key = String(categoryKey || "").trim().toLowerCase();
+  return POST_CATEGORIA_MOSAIC_TAG[key]?.id ?? null;
+}
+
+/** Grupos em que o clique no ano abre a lista de publicações (Oficiais, Encontros, Especiais). */
+export const POST_MOSAIC_YEAR_LIST_GROUP_IDS = new Set([
+  "oficiais",
+  "encontros",
+  "especiais",
+]);
+
+/** Categorias oficiais sem navegação a partir do mosaico do grupo. */
+export const POST_OFICIAIS_BLOCKED_CATEGORY_KEYS = new Set([
+  "culto_dominical",
+  "ceia",
+  "oracao",
+]);
+
+/** @param {string} categoryKey */
+export function isOficiaisCategoryNavigationBlocked(categoryKey) {
+  const key = String(categoryKey || "").trim().toLowerCase();
+  return POST_OFICIAIS_BLOCKED_CATEGORY_KEYS.has(key);
+}
+
+/** @param {string} categoryKey */
+export function categoryUsesYearPostList(categoryKey) {
+  const groupId = getPostCategoryGroupId(categoryKey);
+  return groupId != null && POST_MOSAIC_YEAR_LIST_GROUP_IDS.has(groupId);
+}
+
+/** Encontros: lista por ano em cards embaçados com data dia/mês. */
+export function categoryUsesBlurredDatePostCards(categoryKey) {
+  return getPostCategoryGroupId(categoryKey) === "encontros";
+}
+
+/** @param {string} categoryKey */
+export function categoryOpensPostDirectlyOnYearClick(categoryKey) {
+  const key = String(categoryKey || "").trim().toLowerCase();
+  if (key === "noticias") return false;
+  return !categoryUsesYearPostList(key);
+}
+
 /** Rótulos para cabeçalhos de secção (plural quando aplicável). */
 export const POST_FEED_SECTION_LABELS = Object.fromEntries(
   POST_CATEGORIAS.map((c) => [c.value, c.label]),

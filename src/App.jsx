@@ -27,28 +27,22 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
 import EventosRotinasAgendar from "./pages/EventosRotinasAgendar";
+import PostsGrupoPage from "./pages/PostsGrupoPage";
 import Postagens from "./pages/Postagens";
 import PostsCategoriaPage from "./pages/PostsCategoriaPage";
 import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
-import Login from "./pages/Login";
 import Historia from "./pages/Historia";
 import AdminRoute from "./components/AdminRoute";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
-import {
-  hasLoginIntent,
-  isLoginPath,
-  setLoginIntent,
-  clearLoginIntent,
-} from "@/lib/loginIntent";
 
 function RedirectLegacyPostagensEdit() {
   const { id } = useParams();
   return <Navigate to={`/Posts/editar/${id}`} replace />;
 }
 
-// Rotas privadas — redireciona para /login se não houver sessão
+// Rotas privadas — inicia login Google se não houver sessão
 const PrivateRoute = ({ children }) => {
   const {
     isAuthenticated,
@@ -81,25 +75,15 @@ const PrivateRoute = ({ children }) => {
 };
 
 function RootRedirect() {
-  const browserPath =
-    typeof window !== "undefined" ? window.location.pathname : "";
-  if (isLoginPath(browserPath) || hasLoginIntent()) {
-    return <Navigate to="/login" replace />;
-  }
   return <Navigate to="/Home" replace />;
 }
 
 function TrackLastVisitedPath() {
   const location = useLocation();
   useEffect(() => {
-    if (isLoginPath(location.pathname)) {
-      setLoginIntent();
-      return;
-    }
     if (location.pathname === "/") {
       return;
     }
-    clearLoginIntent();
     const p = location.pathname + location.search;
     sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
   }, [location.pathname, location.search]);
@@ -131,8 +115,8 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<RootRedirect />} />
 
-      <Route path="/login" element={<Login />} />
-      <Route path="/Login" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<Navigate to="/Home" replace />} />
+      <Route path="/Login" element={<Navigate to="/Home" replace />} />
       <Route path="/accept-invite" element={<AcceptInvite />} />
 
       <Route element={<Layout />}>
@@ -166,8 +150,8 @@ const AppRoutes = () => {
           path="Eventos/rotinas"
           element={<Navigate to="/Posts/categoria/eventos?tab=configuracoes" replace />}
         />
-        <Route path="Eventos/rotinas/agendar/:id" element={<EventosRotinasAgendar />} />
-        <Route path="Eventos/rotinas/agendar" element={<EventosRotinasAgendar />} />
+        <Route path="Eventos/rotinas/agendar/:id" element={<AdminRoute><EventosRotinasAgendar /></AdminRoute>} />
+        <Route path="Eventos/rotinas/agendar" element={<AdminRoute><EventosRotinasAgendar /></AdminRoute>} />
         <Route
           path="Posts/novo-evento"
           element={
@@ -193,6 +177,7 @@ const AppRoutes = () => {
             </PrivateRoute>
           }
         />
+        <Route path="Posts/grupo/:grupo" element={<PostsGrupoPage />} />
         <Route path="Posts/categoria/:categoria" element={<PostsCategoriaPage />} />
         <Route path="Posts" element={<Postagens />} />
         <Route path="Postagens/nova" element={<Navigate to="/Posts/nova" replace />} />

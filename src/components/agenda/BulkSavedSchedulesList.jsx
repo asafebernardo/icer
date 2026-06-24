@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale";
 import { CalendarPlus2, Loader2, Pencil, Play, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import { toast } from "sonner";

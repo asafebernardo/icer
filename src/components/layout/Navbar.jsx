@@ -28,7 +28,6 @@ import {
   Sparkles,
   FileStack,
   Pencil,
-  LogIn,
 } from "lucide-react";
 import { useEditMode } from "@/lib/EditModeContext";
 import useCanEdit from "@/lib/useCanEdit";
@@ -39,8 +38,6 @@ import {
 } from "@/lib/siteConfig";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
-import { isServerAuthEnabled } from "@/lib/serverAuth";
-import { setLoginIntent } from "@/lib/loginIntent";
 import { useAuth } from "@/lib/AuthContext";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
@@ -424,19 +421,6 @@ export default function Navbar() {
                           </div>
                         ) : (
                           <>
-                            {isServerAuthEnabled() && !googleLoginAvailable ? (
-                              <Link
-                                to="/login"
-                                onClick={() => {
-                                  setLoginIntent();
-                                  setOpen(false);
-                                }}
-                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-foreground hover:bg-muted/50"
-                              >
-                                <LogIn className="h-4 w-4 shrink-0" aria-hidden />
-                                <span>Entrar</span>
-                              </Link>
-                            ) : null}
                             {googleLoginAvailable ? (
                               <div className="px-4 py-2">
                                 <GoogleSignInButton

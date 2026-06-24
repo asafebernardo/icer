@@ -36,6 +36,7 @@ import {
 import { motion } from "framer-motion";
 import PageHeader from "../components/shared/PageHeader";
 import EmptyState from "../components/shared/EmptyState";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import EventoFormPanel from "../components/agenda/EventoFormPanel";
 import { canMenuAction, MENU, isAdminUser } from "@/lib/auth";
@@ -616,10 +617,10 @@ export default function Eventos({ embedded = false } = {}) {
               : "max-w-5xl mx-auto px-4 sm:px-6 lg:px-8"
           }
         >
-          {canCreate && !embedded ? (
+          {!embedded && (canCreate || isAdmin) ? (
             <div className="flex w-full flex-col gap-3 mb-6">
             <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:justify-end">
-                  {!embedded ? (
+                  {isAdmin ? (
                   <Button
                     type="button"
                     className="gap-2 max-sm:min-h-[44px]"
@@ -633,6 +634,7 @@ export default function Eventos({ embedded = false } = {}) {
                     </Link>
                   </Button>
                   ) : null}
+                  {canCreate ? (
                   <Button
                     type="button"
                     onClick={handleNew}
@@ -643,6 +645,7 @@ export default function Eventos({ embedded = false } = {}) {
                     <span className="sm:hidden text-xs font-medium">Novo</span>
                     <span className="hidden sm:inline">Novo evento</span>
                   </Button>
+                  ) : null}
               </div>
             </div>
           ) : null}

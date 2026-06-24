@@ -55,7 +55,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import PageHeader from "../components/shared/PageHeader";
 import SafeImg from "../components/shared/SafeImg";
 import MediaKindCornerBadge from "../components/shared/MediaKindCornerBadge";
 import PostImagesBlock, {
@@ -72,6 +71,8 @@ import AnexoOrderMosaicDnd, {
 import EditorAnexoSlidesPreviewDialog, {
   AnexoPreviewOpenButton,
 } from "@/components/posts/EditorAnexoSlidesPreviewDialog";
+import PostsHubHeader from "@/components/posts/PostsHubHeader";
+import PostsNavBreadcrumb from "@/components/posts/PostsNavBreadcrumb";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -95,6 +96,7 @@ import {
   POST_CATEGORIAS,
   normalizeStoredPostCategoria,
 } from "@/lib/postCategories";
+import { resolvePostsReturnPath } from "@/lib/postsNavPath";
 import {
   FieldHintMessage,
   MSG_CAMPO_OBRIGATORIO,
@@ -259,6 +261,14 @@ function sortFieldHintKeysForScroll(keys) {
   return [...keys].sort((a, b) => rank(a) - rank(b));
 }
 
+function getPostEditorBackTo(from, categoriaSlug) {
+  const cat = normalizeStoredPostCategoria(categoriaSlug);
+  const fallback = cat
+    ? `/Posts/categoria/${encodeURIComponent(cat)}`
+    : "/Posts";
+  return resolvePostsReturnPath(from, fallback);
+}
+
 export default function PostagemEditor() {
   const { id: postIdParam } = useParams();
   const postId =
@@ -272,6 +282,7 @@ export default function PostagemEditor() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const from = location.state?.from;
   const [searchParams] = useSearchParams();
   const categoriaPresetRef = useRef("");
   categoriaPresetRef.current = normalizeStoredPostCategoria(
@@ -360,8 +371,7 @@ export default function PostagemEditor() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       toast.success("Post publicado com sucesso.");
-      const cat = normalizeStoredPostCategoria(data?.categoria);
-      navigate(cat ? `/Posts/categoria/${cat}` : "/Posts");
+      navigate(getPostEditorBackTo(from, data?.categoria));
     },
   });
 
@@ -393,8 +403,7 @@ export default function PostagemEditor() {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
       toast.success("Post salvo com sucesso.");
-      const cat = normalizeStoredPostCategoria(variables.categoria);
-      navigate(cat ? `/Posts/categoria/${cat}` : "/Posts");
+      navigate(getPostEditorBackTo(from, variables.categoria));
     },
   });
 
@@ -429,6 +438,12 @@ export default function PostagemEditor() {
   /** Hidratação única por id ao editar (refetch não deve voltar à etapa 1). */
   const hydratedPostIdRef = useRef(null);
   const [step, setStep] = useState(1);
+
+  const backTo = useMemo(
+    () => getPostEditorBackTo(from, categoria),
+    [from, categoria],
+  );
+
   /** URL de uma imagem anexa ou "" = usar primeira imagem na ordem */
   const [imagemDestaqueUrl, setImagemDestaqueUrl] = useState("");
   const [usarGaleriaPorDia, setUsarGaleriaPorDia] = useState(false);
@@ -1140,12 +1155,6 @@ export default function PostagemEditor() {
   if (isEditMode && loadingPost) {
     return (
       <div>
-        <PageHeader
-          pageKey="postagens"
-          tag="Comunidade"
-          title="Editar post"
-          description="A carregar…"
-        />
         <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <p className="text-muted-foreground">A carregar…</p>
         </section>
@@ -1156,19 +1165,23 @@ export default function PostagemEditor() {
   if (isEditMode && loadPostError) {
     return (
       <div>
-        <PageHeader
-          pageKey="postagens"
-          tag="Comunidade"
-          title="Editar post"
-          description="Não foi possível abrir o formulário."
-        />
         <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
           <p className="text-sm text-destructive">
             {loadPostErrorObj?.message || "Erro ao carregar o post."}
           </p>
-          <Button variant="outline" asChild>
-            <Link to="/Posts">Voltar aos Posts</Link>
-          </Button>
+          <PostsHubHeader
+            backTo={backTo}
+            breadcrumb={
+              <PostsNavBreadcrumb
+                centered
+                tone="default"
+                items={[
+                  { label: "Posts", href: "/Posts" },
+                  { label: "Editar publicação", href: null },
+                ]}
+              />
+            }
+          />
         </section>
       </div>
     );
@@ -1178,23 +1191,25 @@ export default function PostagemEditor() {
 
   return (
     <div>
-      <PageHeader
-        pageKey="postagens"
-        tag="Comunidade"
-        title={isEditMode ? "Editar post" : "Novo post"}
-      />
+      <section className="mx-auto max-w-7xl px-3 pb-28 pt-8 sm:px-6 sm:pb-24 lg:px-8">
+        <PostsHubHeader
+          backTo={backTo}
+          breadcrumb={
+            <PostsNavBreadcrumb
+              centered
+              tone="default"
+              items={[
+                { label: "Posts", href: "/Posts" },
+                {
+                  label: isEditMode ? "Editar publicação" : "Nova publicação",
+                  href: null,
+                },
+              ]}
+            />
+          }
+        />
 
-      <section className="mx-auto max-w-7xl px-3 pb-28 pt-2 sm:px-6 sm:pb-24 sm:pt-8 lg:px-8">
-        <div className="mb-6">
-          <Button variant="ghost" className="gap-2 -ml-2 w-fit" asChild>
-            <Link to="/Posts">
-              <ChevronLeft className="h-4 w-4 shrink-0" />
-              Voltar aos Posts
-            </Link>
-          </Button>
-        </div>
-
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 mt-6">
           {error ? (
             <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
               {error}
@@ -2895,13 +2910,7 @@ export default function PostagemEditor() {
               type="button"
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() =>
-                navigate(
-                  categoria
-                    ? `/Posts/categoria/${categoria}`
-                    : "/Posts",
-                )
-              }
+              onClick={() => navigate(backTo)}
             >
               Cancelar
             </Button>

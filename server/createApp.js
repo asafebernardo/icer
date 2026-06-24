@@ -54,7 +54,7 @@ import {
   readLoginBlocks,
 } from "./loginAttemptLock.js";
 import { envBoolTrue, isHomologEnvironment, readCookieSecureFlag } from "./envFlags.js";
-import { getHomologSeedAccounts, getHomologSeedEmails, isHomologSeedEmail } from "./homologSeed.js";
+import { isHomologSeedEmail } from "./homologSeed.js";
 import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
 import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
 import {
@@ -470,7 +470,6 @@ export function createApplication(db, options = {}) {
     // Não exigir CSRF em endpoints públicos/bootstraps.
     if (
       path === "/api/auth/login" ||
-      path === "/api/auth/homolog-dev-login" ||
       path === "/api/auth/csrf" ||
       path.startsWith("/api/health") ||
       path === "/api/site-config" ||
@@ -786,59 +785,6 @@ export function createApplication(db, options = {}) {
       ...auditCtx(req),
     });
     res.json({ ok: true });
-  });
-
-  /** Homologação: sessão automática com conta seed admin (sem palavra-passe no cliente). */
-  app.post("/api/auth/homolog-dev-login", async (req, res) => {
-    if (!isHomologEnvironment()) {
-      res.status(404).json({ message: "not_found" });
-      return;
-    }
-    if (req.user) {
-      res.json({ ok: true, already: true });
-      return;
-    }
-    const seed = getHomologSeedAccounts()[0];
-    const email = String(seed?.email || "").toLowerCase().trim();
-    if (!email) {
-      res.status(503).json({ message: "homolog_seed_unavailable" });
-      return;
-    }
-    const row = await db.collection("users").findOne(
-      { email },
-      {
-        projection: {
-          _id: 0,
-          id: 1,
-          email: 1,
-          full_name: 1,
-          role: 1,
-          disabled: 1,
-        },
-      },
-    );
-    if (!row || row.disabled === true) {
-      res.status(503).json({ message: "homolog_seed_unavailable" });
-      return;
-    }
-    const loginStamp = nowIso();
-    await db.collection("users").updateOne(
-      { id: row.id },
-      { $set: { last_login_at: loginStamp } },
-    );
-    const ttlMinutes = await getSessionTtlMinutes();
-    const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
-    setSessionCookie(res, token, ttlMinutes * 60);
-    ensureCsrfCookie(req, res);
-    await recordAudit(db, {
-      userId: row.id,
-      actorUserId: row.id,
-      action: "auth.homolog_dev_login",
-      details: { email: row.email },
-      ip: clientIp(req),
-      ...auditCtx(req),
-    });
-    res.json({ ok: true, email: row.email });
   });
 
   app.get("/api/admin/google-login/config", requireAuth, requireAdmin, async (_req, res) => {

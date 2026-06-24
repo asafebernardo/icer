@@ -182,6 +182,134 @@ export function getPostPublicationYear(post) {
   return Number.isFinite(y) && y >= 1900 && y <= 2100 ? y : null;
 }
 
+/** Data de publicação formatada como dia/mês (ex.: 15/03). */
+export function formatPostPublicationDayMonth(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(typeof iso === "string" ? iso : iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+/** Anos fixos no mosaico por categoria (exceto Notícias). */
+export const POST_CATEGORY_YEAR_PRESET_FROM = 2022;
+export const POST_CATEGORY_YEAR_PRESET_TO = 2026;
+
+/** @returns {number[]} Anos em ordem decrescente (ex.: 2026 … 2022). */
+export function getPostCategoryPresetYears(
+  from = POST_CATEGORY_YEAR_PRESET_FROM,
+  to = POST_CATEGORY_YEAR_PRESET_TO,
+) {
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  const years = [];
+  for (let y = end; y >= start; y -= 1) years.push(y);
+  return years;
+}
+
+export const POST_CATEGORY_PRESET_YEARS = getPostCategoryPresetYears();
+
+/**
+ * Agrupa publicações por ano (desc). Sem data → grupo `year: null`.
+ * Com `presetYears`, garante um card por ano mesmo sem publicações.
+ * @param {object[]} posts
+ * @param {{ presetYears?: number[] }} [options]
+ * @returns {Array<{ year: number | null, posts: object[] }>}
+ */
+export function groupPostsByPublicationYear(posts, options = {}) {
+  const { presetYears } = options;
+  const buckets = new Map();
+
+  for (const raw of Array.isArray(posts) ? posts : []) {
+    const year = getPostPublicationYear(normalizePost(raw));
+    const key = year ?? "unknown";
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(raw);
+  }
+
+  const sortPosts = (items) => sortPostsByPublicationDate(items);
+
+  if (Array.isArray(presetYears) && presetYears.length > 0) {
+    const presetSet = new Set(presetYears);
+    const result = presetYears.map((year) => ({
+      year,
+      posts: sortPosts(buckets.get(year) || []),
+    }));
+
+    for (const [key, items] of buckets.entries()) {
+      if (key === "unknown") continue;
+      const y = Number(key);
+      if (!presetSet.has(y) && items.length > 0) {
+        result.push({ year: y, posts: sortPosts(items) });
+      }
+    }
+
+    result.sort((a, b) => {
+      if (a.year == null) return 1;
+      if (b.year == null) return -1;
+      return b.year - a.year;
+    });
+
+    if (buckets.has("unknown") && buckets.get("unknown").length > 0) {
+      result.push({ year: null, posts: sortPosts(buckets.get("unknown")) });
+    }
+
+    return result;
+  }
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => {
+      if (a === "unknown") return 1;
+      if (b === "unknown") return -1;
+      return Number(b) - Number(a);
+    })
+    .map(([key, items]) => ({
+      year: key === "unknown" ? null : Number(key),
+      posts: sortPosts(items),
+    }));
+}
+
+/** Ordena publicações da mais recente para a mais antiga. */
+export function sortPostsByPublicationDate(posts) {
+  return [...(Array.isArray(posts) ? posts : [])].sort((a, b) => {
+    const da = String(normalizePost(a).data_publicacao || "");
+    const db = String(normalizePost(b).data_publicacao || "");
+    if (da === db) return 0;
+    return da < db ? 1 : -1;
+  });
+}
+
+/** Publicação principal de um ano (mais recente). */
+export function getPrimaryPostForYear(posts) {
+  return sortPostsByPublicationDate(posts)[0] ?? null;
+}
+
+/** Slug de ano na query `?ano=` (ex.: `2026`, `sem-data`). */
+export function postYearToQueryValue(year) {
+  return year == null ? "sem-data" : String(year);
+}
+
+/** @param {string | null | undefined} raw */
+export function parsePostYearQueryValue(raw) {
+  const v = String(raw ?? "").trim();
+  if (!v) return undefined;
+  if (v === "sem-data") return null;
+  const y = Number.parseInt(v, 10);
+  if (!Number.isFinite(y) || y < 1900 || y > 2100) return undefined;
+  return y;
+}
+
+/** Categorias que usam mosaico por ano (exceto Informações / notícias). */
+export function categoryUsesYearMosaic(catKey) {
+  return String(catKey || "").trim().toLowerCase() !== "noticias";
+}
+
 export function normalizePost(post) {
   const imagens_urls = Array.isArray(post?.imagens_urls)
     ? post.imagens_urls.filter(Boolean)

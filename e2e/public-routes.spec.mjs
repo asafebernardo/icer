@@ -7,7 +7,6 @@ const PUBLIC_PAGES = [
   "/Eventos",
   "/Eventos/rotinas",
   "/accept-invite",
-  "/login",
 ];
 
 test.describe("Páginas públicas", () => {
@@ -20,18 +19,11 @@ test.describe("Páginas públicas", () => {
       const res = await page.goto(path, { waitUntil: "domcontentloaded" });
       expect(res?.ok()).toBeTruthy();
       const shell =
-        path === "/accept-invite" || path === "/login"
+        path === "/accept-invite"
           ? page.locator("body")
           : page.locator("#main-content, main").first();
       await expect(shell).toBeVisible({ timeout: 20_000 });
       expect(errors).toEqual([]);
-      if (path === "/login") {
-        await expect(
-          page.getByRole("heading", { name: /ICER/i }).or(
-            page.getByText(/palavra-passe|Entrar/i).first(),
-          ),
-        ).toBeVisible({ timeout: 10_000 });
-      }
     });
   }
 
@@ -41,6 +33,11 @@ test.describe("Páginas públicas", () => {
     await expect(
       page.getByRole("link", { name: "Início", exact: true }).first(),
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("/login legado redireciona para a Home", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page).toHaveURL(/\/Home$/);
   });
 
   test("Recursos redireciona para a secção na Home", async ({ page }) => {

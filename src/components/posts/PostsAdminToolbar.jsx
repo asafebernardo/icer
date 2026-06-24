@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,25 @@ export default function PostsAdminToolbar({
   canCreate,
   createHref = "/Posts/nova",
   needsEditMode = false,
+  compact = false,
   className,
 }) {
+  const location = useLocation();
+  const returnPath = `${location.pathname}${location.search}`;
   const visible = canCreate || needsEditMode;
   if (!visible) return null;
+
+  if (compact) {
+    if (needsEditMode) return null;
+    return canCreate ? (
+      <Button size="sm" className="h-8 px-3 text-xs" asChild>
+        <Link to={createHref} state={{ from: returnPath }}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Novo post
+        </Link>
+      </Button>
+    ) : null;
+  }
 
   return (
     <div
@@ -34,7 +49,7 @@ export default function PostsAdminToolbar({
       <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
         {canCreate ? (
           <Button size="sm" className="h-8 px-3 text-xs" asChild>
-            <Link to={createHref}>
+            <Link to={createHref} state={{ from: returnPath }}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Novo post
             </Link>

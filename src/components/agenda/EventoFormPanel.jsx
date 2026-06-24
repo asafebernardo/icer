@@ -46,6 +46,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import SafeImg from "@/components/shared/SafeImg";
 import {
   resolvePastorAvatarUrl,

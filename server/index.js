@@ -19,6 +19,7 @@ import {
   isHomologSeedEnabled,
 } from "./homologSeed.js";
 import { migratePostCategories } from "./postCategoryMigration.js";
+import { seedPostExamples } from "./postExamplesSeed.js";
 
 const root = process.cwd();
 dotenv.config({ path: path.join(root, ".env") });
@@ -182,6 +183,27 @@ if (readBoolEnv("ICER_RUN_POST_CATEGORY_MIGRATION", true)) {
     ),
   );
 }
+
+/** Posts de demonstração (mosaico /Posts) — activo em dev/homolog por omissão. */
+async function ensurePostExamplesSeed() {
+  const defaultOn =
+    isHomologEnvironment() || String(process.env.NODE_ENV || "").trim() !== "production";
+  if (!readBoolEnv("ICER_SEED_POST_EXAMPLES", defaultOn)) return;
+  try {
+    const result = await seedPostExamples(db);
+    log.info(
+      `Posts de exemplo: ${color.brightYellow(String(result.inserted))} criados, ${color.brightYellow(String(result.updated))} actualizados (${result.total} total).`,
+    );
+  } catch (err) {
+    log.warn(
+      color.dim(
+        `Posts de exemplo: não foi possível gerar seed (${err?.message || err}).`,
+      ),
+    );
+  }
+}
+
+await ensurePostExamplesSeed();
 await ensureBuiltinAdminPermissionGroup();
 
 const enableUpstreamProxy = Boolean(

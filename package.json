@@ -9,6 +9,7 @@
     "dev:server": "node server/index.js",
     "clear-login-blocks": "node scripts/clear-login-blocks.mjs",
     "migrate:post-categories": "node scripts/migrate-post-categories.mjs",
+    "seed:post-examples": "node scripts/seed-post-examples.mjs",
     "images:webp": "node scripts/convert-images-to-webp.mjs --all",
     "images:webp:public": "node scripts/convert-images-to-webp.mjs --public",
     "images:webp:uploads": "node scripts/convert-images-to-webp.mjs --uploads",

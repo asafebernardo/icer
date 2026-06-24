@@ -26,6 +26,7 @@ export function PostMedia({
   intervalSec,
   showPresentationButton = false,
   galleryAdmin = null,
+  onRemoveGallerySlide = null,
   usarGaleriaPorDia = false,
   diasGaleria = null,
   audioAmbienteUrl = "",
@@ -76,6 +77,7 @@ export function PostMedia({
             : undefined
         }
         adminGallery={galleryAdmin}
+        onRemoveGallerySlide={onRemoveGallerySlide}
       />
     );
   }

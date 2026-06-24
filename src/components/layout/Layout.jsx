@@ -3,7 +3,8 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 import WhatsAppFab from "./WhatsAppFab";
-import AgendaFloatingFab from "./AgendaFloatingFab";
+import EditModeFloatingFab from "./EditModeFloatingFab";
+import SessionFloatingFab from "./SessionFloatingFab";
 import ContactFloatingFab from "./ContactFloatingFab";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
@@ -36,7 +37,8 @@ export default function Layout() {
       <Footer />
       <BottomNav />
       <WhatsAppFab />
-      <AgendaFloatingFab />
+      <SessionFloatingFab />
+      <EditModeFloatingFab />
       <ContactFloatingFab />
     </div>
   );

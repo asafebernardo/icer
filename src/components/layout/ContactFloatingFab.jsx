@@ -6,12 +6,6 @@ import useSiteContactDetails from "@/hooks/useSiteContactDetails";
 import { hasSiteContactDetails } from "@/lib/contactDetails";
 import { cn } from "@/lib/utils";
 
-const fabAnchorClass = cn(
-  "bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))]",
-  "right-[max(1rem,env(safe-area-inset-right,0px))]",
-  "sm:bottom-[10rem] sm:right-6",
-);
-
 export default function ContactFloatingFab() {
   const [open, setOpen] = useState(false);
   const contactDetails = useSiteContactDetails();
@@ -40,15 +34,17 @@ export default function ContactFloatingFab() {
         <button
           type="button"
           aria-label="Fechar painel de contato"
-          className="fixed inset-0 z-[39] bg-black/15 sm:bg-black/25"
+          className="fixed inset-0 z-[39] bg-black/5 sm:bg-black/25"
           onClick={() => setOpen(false)}
         />
       ) : null}
 
       <div
         className={cn(
-          "fixed z-40 flex flex-row-reverse items-end gap-3",
-          fabAnchorClass,
+          "fixed z-40 flex flex-row-reverse items-end gap-2 sm:gap-3",
+          "max-sm:right-[max(1rem,env(safe-area-inset-right,0px))]",
+          "max-sm:bottom-[calc(8.5rem+env(safe-area-inset-bottom,0px))]",
+          "sm:bottom-[10rem] sm:right-6",
         )}
       >
         <button
@@ -59,16 +55,19 @@ export default function ContactFloatingFab() {
           aria-controls="contact-fab-panel"
           title="Contato"
           className={cn(
-            "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full",
-            "bg-accent text-accent-foreground shadow-xl ring-1 ring-black/10",
-            "transition-transform duration-200 hover:scale-105 active:scale-95",
+            "inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full sm:h-14 sm:w-14",
+            "border border-white/10 bg-accent/35 text-accent-foreground backdrop-blur-md",
+            "shadow-md shadow-black/10 ring-1 ring-black/5",
+            "sm:border-transparent sm:bg-accent sm:shadow-xl sm:ring-black/10 sm:backdrop-blur-none",
+            open && "max-sm:bg-accent/55 max-sm:border-white/15",
+            "transition-[transform,background-color,opacity] duration-200 hover:scale-105 active:scale-95",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           )}
         >
           {open ? (
-            <X className="h-7 w-7" aria-hidden />
+            <X className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden />
           ) : (
-            <Phone className="h-7 w-7" aria-hidden />
+            <Phone className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden />
           )}
         </button>
 
@@ -78,14 +77,16 @@ export default function ContactFloatingFab() {
             role="dialog"
             aria-label="Canais de contacto"
             className={cn(
-              "rounded-2xl border border-white/[0.08] bg-[#0B1220] p-3",
-              "shadow-2xl ring-1 ring-black/20",
+              "rounded-2xl border border-white/[0.05] bg-[#0B1220]/45 p-2.5 backdrop-blur-xl",
+              "shadow-lg shadow-black/10 ring-1 ring-white/[0.04]",
+              "sm:border-white/[0.08] sm:bg-[#0B1220] sm:p-3 sm:shadow-2xl sm:ring-black/20 sm:backdrop-blur-none",
               "origin-bottom-right animate-in fade-in-0 slide-in-from-right-4 duration-200",
             )}
           >
             <ContactInfoIconLinks
               details={contactDetails}
               onLinkClick={() => setOpen(false)}
+              className="max-sm:[&_a]:h-10 max-sm:[&_a]:w-10 max-sm:[&_a]:border-white/[0.06] max-sm:[&_a]:bg-[#08111F]/35 max-sm:[&_a]:backdrop-blur-sm"
             />
           </div>
         ) : null}

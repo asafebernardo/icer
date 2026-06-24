@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { toast } from "sonner";
 
 const HISTORY_PAGE_SIZE = 10;

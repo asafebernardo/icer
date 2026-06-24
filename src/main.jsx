@@ -8,11 +8,9 @@ import {
 } from "@/lib/siteConfig";
 import { applySiteTheme } from "@/lib/siteTheme";
 import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
-import { captureLoginIntentFromBrowserUrl } from "@/lib/loginIntent";
 import { refreshRecaptchaConfig } from "@/lib/recaptcha";
 
 purgeLegacyDemoStorage();
-captureLoginIntentFromBrowserUrl();
 
 // Tema escuro institucional (#08111F …) — sempre ativo.
 document.documentElement.classList.add("dark");

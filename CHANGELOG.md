@@ -1,3 +1,14 @@
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-06-24)
+
+### Features
+
+* hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
+* **posts:** hub hierárquico, FABs mobile e fim do auto-login homolog ([1ef18be](https://github.com/asafebernardo/icer/commit/1ef18be8752de1da49b5bea7cfa0dc863b985829))
+
+### Bug Fixes
+
+* **auth:** sessão, login Google mobile e dev local ([c2a2f05](https://github.com/asafebernardo/icer/commit/c2a2f051a1ac8ca282c46f13e9385b23bf425d39))
+* correções gerais de sessão e performance mobile ([5614d55](https://github.com/asafebernardo/icer/commit/5614d559787e95db69e3b150dd32d6df5955af0c))
 ## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-06-23)
 
 ### Features

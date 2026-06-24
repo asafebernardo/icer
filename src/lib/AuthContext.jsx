@@ -44,9 +44,7 @@ import {
   recaptchaErrorMessagePt,
 } from "@/lib/recaptcha";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
-import { setLoginIntent } from "@/lib/loginIntent";
 import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
-import { tryHomologDevLogin } from "@/lib/homologDevLogin";
 
 const AuthContext = createContext(null);
 
@@ -61,6 +59,18 @@ const GOOGLE_LOGIN_ERROR_MESSAGES = {
 
 function readUserFromStorage() {
   return getUser();
+}
+
+function readPostLoginReturnPath() {
+  try {
+    const raw = sessionStorage.getItem(LAST_VISITED_PATH_KEY) || "";
+    if (!raw.startsWith("/")) return null;
+    if (raw.startsWith("/login") || raw.startsWith("/Login")) return null;
+    if (raw === "/Home" || raw === "/") return null;
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }) {
@@ -106,7 +116,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   const validateServerSessionRef = useRef(null);
-  const homologBootstrapAttemptedRef = useRef(false);
 
   const applySessionUser = useCallback(async (u) => {
     persistSessionUser({
@@ -161,16 +170,8 @@ export function AuthProvider({ children }) {
     const run = (async () => {
       try {
         await fetchRuntimeEnv();
-        let u = await fetchSessionUserWithRetry();
+        const u = await fetchSessionUserWithRetry();
         if (sessionValidationGenRef.current !== genAtStart) return;
-
-        if (!u && getRuntimeEnvSync().isHomolog && !homologBootstrapAttemptedRef.current) {
-          homologBootstrapAttemptedRef.current = true;
-          const booted = await tryHomologDevLogin();
-          if (booted && sessionValidationGenRef.current === genAtStart) {
-            u = await fetchSessionUserWithRetry();
-          }
-        }
 
         if (u) {
           lastSessionOkAtRef.current = Date.now();
@@ -309,6 +310,10 @@ export function AuthProvider({ children }) {
           if (u?.email) setGoogleLoginHint(u.email);
           if (getUser()) {
             toast.success("Sessão iniciada com Google.");
+            const returnPath = readPostLoginReturnPath();
+            if (returnPath) {
+              navigate(returnPath, { replace: true });
+            }
           }
           if (isServerAuthEnabled() && getUser()) {
             void queryClientInstance
@@ -450,7 +455,6 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, senha, recaptchaToken) => {
     sessionValidationGenRef.current += 1;
-    homologBootstrapAttemptedRef.current = false;
     loginInProgressRef.current = true;
     try {
       const result = await authLogin(email, senha, recaptchaToken);
@@ -498,7 +502,6 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     sessionValidationGenRef.current += 1;
-    homologBootstrapAttemptedRef.current = false;
     authLogout();
     setUser(null);
     if (typeof window !== "undefined") {
@@ -508,20 +511,26 @@ export function AuthProvider({ children }) {
 
   const navigateToLogin = useCallback(() => {
     const p = location.pathname + location.search;
-    if (
-      p !== "/login" &&
-      p !== "/Login" &&
-      location.pathname !== "/Home" &&
-      location.pathname !== "/"
-    ) {
+    if (location.pathname !== "/Home" && location.pathname !== "/") {
       sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
     }
-    if (location.pathname === "/login" || location.pathname === "/Login") {
+    if (googleLoginAvailable) {
+      void startGoogleLogin();
       return;
     }
-    setLoginIntent();
-    navigate("/login", { replace: true });
-  }, [navigate, location.pathname, location.search]);
+    if (isServerAuthEnabled()) {
+      toast.error("Login com Google não está configurado.");
+    } else {
+      toast.error(
+        "Autenticação do servidor desativada. Ative VITE_USE_SERVER_AUTH para usar login Google.",
+      );
+    }
+  }, [
+    location.pathname,
+    location.search,
+    googleLoginAvailable,
+    startGoogleLogin,
+  ]);
 
   return (
     <AuthContext.Provider

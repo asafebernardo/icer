@@ -1,19 +1,23 @@
-import { useState, useEffect } from "react";
-import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { Link, Navigate, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 import PostsAgendaHubPage from "./PostsAgendaHubPage";
 import PostsEventosHubPage from "./PostsEventosHubPage";
-import { Button } from "@/components/ui/button";
 import EmptyState from "../components/shared/EmptyState";
+import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
-import PostsCategoryFeed, {
+import {
+  PostsCategoryDateMosaicList,
   PostsCategoryFeedSkeleton,
+  PostsCategoryPostList,
+  PostsCategoryYearMosaic,
 } from "../components/posts/PostsCategoryFeed";
 import PostsAdminToolbar from "../components/posts/PostsAdminToolbar";
-import { FEED_MAX_W } from "../components/posts/PostsPageHero";
+import PostsHubHeader from "../components/posts/PostsHubHeader";
+import PostsNavBreadcrumb from "../components/posts/PostsNavBreadcrumb";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
 import { useEditMode } from "@/lib/EditModeContext";
@@ -21,12 +25,20 @@ import { useAuth } from "@/lib/AuthContext";
 import useRuntimeEnv from "@/hooks/useRuntimeEnv";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
-  POST_CATEGORIA_LABELS,
-  POST_FEED_SECTION_LABELS,
   POST_FEED_SECTION_ORDER,
+  categoryOpensPostDirectlyOnYearClick,
+  categoryUsesBlurredDatePostCards,
+  getPostCategoryGroupId,
 } from "@/lib/postCategories";
 import { usePostsList } from "@/hooks/usePostsList";
 import { formatPostCount } from "@/hooks/usePostCategoryCounts";
+import {
+  categoryUsesYearMosaic,
+  getPostPublicationYear,
+  getPrimaryPostForYear,
+  normalizePost,
+  parsePostYearQueryValue,
+} from "@/lib/posts";
 import { cn } from "@/lib/utils";
 
 const VALID_CATEGORIES = new Set([...POST_FEED_SECTION_ORDER]);
@@ -34,6 +46,7 @@ const VALID_CATEGORIES = new Set([...POST_FEED_SECTION_ORDER]);
 export default function PostsCategoriaPage() {
   const { categoria } = useParams();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user: authUser, checkUserAuth } = useAuth();
 
@@ -87,10 +100,64 @@ export default function PostsCategoriaPage() {
     return <Navigate to="/Posts" replace />;
   }
 
-  const categoryLabel =
-    POST_FEED_SECTION_LABELS[catKey] ||
-    POST_CATEGORIA_LABELS[catKey] ||
-    catKey;
+  const usesYearMosaic = categoryUsesYearMosaic(catKey);
+  const yearQuery = searchParams.get("ano");
+  const parsedYear =
+    yearQuery != null ? parsePostYearQueryValue(yearQuery) : undefined;
+  const yearViewActive =
+    usesYearMosaic && yearQuery != null && parsedYear !== undefined;
+  const selectedYear = yearViewActive ? parsedYear : undefined;
+
+  const postsForYear = useMemo(() => {
+    if (!yearViewActive || selectedYear === undefined) return null;
+    return posts.filter(
+      (post) => getPostPublicationYear(normalizePost(post)) === selectedYear,
+    );
+  }, [posts, yearViewActive, selectedYear]);
+
+  const categoryPath = `/Posts/categoria/${catKey}`;
+  const usesDateMosaic = categoryUsesBlurredDatePostCards(catKey);
+  const opensPostDirectlyOnYear = categoryOpensPostDirectlyOnYearClick(catKey);
+
+  if (yearViewActive && !isLoading && opensPostDirectlyOnYear) {
+    const primaryPost = getPrimaryPostForYear(postsForYear || []);
+    if (primaryPost?.id != null) {
+      return (
+        <Navigate
+          to={`/Post/${primaryPost.id}`}
+          replace
+          state={{ from: categoryPath }}
+        />
+      );
+    }
+  }
+
+  const groupId = getPostCategoryGroupId(catKey);
+  const yearLabel =
+    selectedYear == null ? "Sem data" : String(selectedYear);
+
+  const displayCount = yearViewActive
+    ? (postsForYear?.length ?? 0)
+    : posts.length;
+
+  const backTo = yearViewActive
+    ? categoryPath
+    : groupId
+      ? `/Posts/grupo/${encodeURIComponent(groupId)}`
+      : "/Posts";
+
+  const headerActions = yearViewActive ? (
+    <PostsAdminToolbar
+      compact
+      canCreate={canCreate}
+      createHref={`/Posts/nova?categoria=${encodeURIComponent(catKey)}`}
+      needsEditMode={
+        canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
+        !editMode &&
+        !isHomolog
+      }
+    />
+  ) : null;
 
   return (
     <div className="posts-hub min-h-screen">
@@ -99,44 +166,30 @@ export default function PostsCategoriaPage() {
       <section
         className={cn(
           "posts-hub__shell container-page relative mx-auto w-full px-4 py-8 sm:px-6 sm:py-10",
-          FEED_MAX_W,
+          "max-w-[1280px]",
         )}
       >
-        <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 px-2 text-[#94A3B8] hover:text-[#F8FAFC]"
-              asChild
-            >
-              <Link to="/Posts">
-                <ArrowLeft className="h-4 w-4" />
-                Categorias
-              </Link>
-            </Button>
-            <div className="min-w-0">
-              <h1 className="font-display text-lg font-semibold tracking-tight text-[#F8FAFC] sm:text-xl">
-                {categoryLabel}
-              </h1>
-              {!isLoading && (
-                <p className="mt-0.5 text-xs font-medium tracking-wide text-[#64748B]">
-                  {formatPostCount(posts.length)}
-                </p>
-              )}
-            </div>
-          </div>
-          <PostsAdminToolbar
-            canCreate={canCreate}
-            createHref={`/Posts/nova?categoria=${encodeURIComponent(catKey)}`}
-            needsEditMode={
-              canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
-              !editMode &&
-              !isHomolog
-            }
-          />
-        </div>
+        <PostsHubHeader
+          actions={headerActions}
+          backTo={backTo}
+          breadcrumb={
+            <PostsNavBreadcrumb
+              centered
+              groupId={groupId}
+              categoryKey={catKey}
+              year={yearViewActive ? selectedYear : undefined}
+              includeYear={yearViewActive}
+            />
+          }
+        />
 
+        {!isLoading ? (
+          <p className="mt-2 text-center text-xs font-medium tracking-wide text-[#64748B]">
+            {formatPostCount(displayCount)}
+          </p>
+        ) : null}
+
+        <div className="mt-6 sm:mt-8">
         <ConfirmDialog
           open={pendingDeleteId != null}
           onOpenChange={(open) => {
@@ -154,26 +207,87 @@ export default function PostsCategoriaPage() {
         />
 
         {isLoading ? (
-          <PostsCategoryFeedSkeleton />
+          <PostsCategoryFeedSkeleton
+            count={5}
+            variant={
+              yearViewActive && usesDateMosaic
+                ? "dateMosaic"
+                : usesYearMosaic && !yearViewActive
+                  ? "mosaic"
+                  : "list"
+            }
+          />
+        ) : yearViewActive ? (
+          postsForYear?.length ? (
+            usesDateMosaic ? (
+              <PostsCategoryDateMosaicList
+                posts={postsForYear}
+                location={location}
+                categoryKey={catKey}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onDelete={setPendingDeleteId}
+              />
+            ) : (
+              <PostsCategoryPostList
+                posts={postsForYear}
+                location={location}
+                categoryKey={catKey}
+                year={selectedYear}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onDelete={setPendingDeleteId}
+              />
+            )
+          ) : (
+            <EmptyState
+              icon={BookOpen}
+              title={`Nenhuma publicação em ${yearLabel}`}
+              description="Crie a primeira publicação deste ano."
+              action={
+                canCreate ? (
+                  <Button size="sm" asChild>
+                    <Link
+                      to={`/Posts/nova?categoria=${encodeURIComponent(catKey)}`}
+                      state={{ from: `${location.pathname}${location.search}` }}
+                    >
+                      Novo post
+                    </Link>
+                  </Button>
+                ) : canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
+                  !editMode &&
+                  !isHomolog ? (
+                  <p className="text-xs text-[#64748B]">
+                    Ative o modo edição para criar publicações.
+                  </p>
+                ) : null
+              }
+            />
+          )
+        ) : usesYearMosaic ? (
+          <PostsCategoryYearMosaic
+            posts={posts}
+            categoryPath={categoryPath}
+            categoryKey={catKey}
+            location={location}
+          />
         ) : posts.length === 0 ? (
           <EmptyState
             icon={BookOpen}
             title="Nenhum post"
-            description={
-              catKey === "noticias"
-                ? "Publicações gerais e avisos aparecem aqui."
-                : `Ainda não há publicações em ${categoryLabel}.`
-            }
+            description="Publicações gerais e avisos aparecem aqui."
           />
         ) : (
-          <PostsCategoryFeed
+          <PostsCategoryPostList
             posts={posts}
             location={location}
+            categoryKey={catKey}
             canEdit={canEdit}
             canDelete={canDelete}
             onDelete={setPendingDeleteId}
           />
         )}
+        </div>
       </section>
     </div>
   );

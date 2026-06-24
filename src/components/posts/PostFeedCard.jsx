@@ -4,11 +4,14 @@ import { Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import SafeImg from "@/components/shared/SafeImg";
-import { normalizePost, getPostFeedThumbnailUrl } from "@/lib/posts";
+import { normalizePost, getPostFeedThumbnailUrl, getPostPublicationYear } from "@/lib/posts";
 import {
   POST_CATEGORIA_LABELS,
+  getPostCategoryGroupId,
   resolvePostCategoria,
 } from "@/lib/postCategories";
+import PostsNavBreadcrumb from "@/components/posts/PostsNavBreadcrumb";
+import { buildPostsNavPath } from "@/lib/postsNavPath";
 
 function formatPubDate(iso) {
   if (!iso) return "—";
@@ -67,15 +70,28 @@ function FeedThumbnail({ post }) {
 export default function PostFeedCard({
   post,
   location,
+  categoryKey: categoryKeyProp,
+  year: yearProp,
   hideCategory = false,
   canEdit,
   canDelete,
   onDelete,
 }) {
   const p = normalizePost(post);
-  const categoria = resolvePostCategoria(p);
-  const categoriaLabel = categoria
-    ? POST_CATEGORIA_LABELS[categoria] || categoria
+  const resolvedCategory = resolvePostCategoria(p);
+  const categoryKey = categoryKeyProp || resolvedCategory || "noticias";
+  const year =
+    yearProp !== undefined
+      ? yearProp
+      : getPostPublicationYear(p) ?? undefined;
+  const pathItems = buildPostsNavPath({
+    groupId: getPostCategoryGroupId(categoryKey),
+    categoryKey,
+    year,
+    includeYear: year !== undefined,
+  });
+  const categoriaLabel = resolvedCategory
+    ? POST_CATEGORIA_LABELS[resolvedCategory] || resolvedCategory
     : null;
   const description = shortDescription(p.descricao);
   const isDraft = p.status === "draft" || p.is_draft;
@@ -90,7 +106,13 @@ export default function PostFeedCard({
         <FeedThumbnail post={post} />
 
         <div className="min-w-0 flex-1 pt-0.5">
-          {!hideCategory && categoriaLabel ? (
+          {pathItems.length > 0 ? (
+            <PostsNavBreadcrumb
+              items={pathItems}
+              variant="plain"
+              className="mb-1"
+            />
+          ) : !hideCategory && categoriaLabel ? (
             <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#64748B]">
               {categoriaLabel}
             </p>
@@ -128,7 +150,12 @@ export default function PostFeedCard({
               title="Editar"
               asChild
             >
-              <Link to={`/Posts/editar/${post.id}`}>
+              <Link
+                to={`/Posts/editar/${post.id}`}
+                state={{
+                  from: location.pathname + (location.search || ""),
+                }}
+              >
                 <Pencil className="h-3 w-3" />
               </Link>
             </Button>
