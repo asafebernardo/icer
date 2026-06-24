@@ -41,8 +41,6 @@ import {
   DEFAULT_VERSE_TEXT,
   DEFAULT_VERSE_REF,
   DEFAULT_VERSE_IMAGE_URL,
-  DEFAULT_HISTORY_VALUE,
-  DEFAULT_HISTORY_LABEL,
   SECTION_BG_KEYS,
 } from "@/lib/homeContentDefaults";
 import { cn } from "@/lib/utils";
@@ -57,8 +55,6 @@ function loadHomeCopyFromConfig() {
     welcomeP2: cfg.welcomeParagraph2 ?? DEFAULT_WELCOME_P2,
     verseText: cfg.verseText ?? DEFAULT_VERSE_TEXT,
     verseRef: cfg.verseRef ?? DEFAULT_VERSE_REF,
-    historyYearsValue: cfg.historyYearsValue ?? DEFAULT_HISTORY_VALUE,
-    historyYearsLabel: cfg.historyYearsLabel ?? DEFAULT_HISTORY_LABEL,
   };
 }
 
@@ -75,12 +71,6 @@ export default function WelcomeSection() {
   const [welcomeP2, setWelcomeP2] = useState(DEFAULT_WELCOME_P2);
   const [verseText, setVerseText] = useState(DEFAULT_VERSE_TEXT);
   const [verseRef, setVerseRef] = useState(DEFAULT_VERSE_REF);
-  const [historyYearsValue, setHistoryYearsValue] = useState(
-    DEFAULT_HISTORY_VALUE,
-  );
-  const [historyYearsLabel, setHistoryYearsLabel] = useState(
-    DEFAULT_HISTORY_LABEL,
-  );
   const [homeEditorOpen, setHomeEditorOpen] = useState(false);
   const [homeDraft, setHomeDraft] = useState(null);
 
@@ -92,8 +82,6 @@ export default function WelcomeSection() {
     setWelcomeP2(copy.welcomeP2);
     setVerseText(copy.verseText);
     setVerseRef(copy.verseRef);
-    setHistoryYearsValue(copy.historyYearsValue);
-    setHistoryYearsLabel(copy.historyYearsLabel);
   }, []);
 
   useEffect(() => {
@@ -128,10 +116,6 @@ export default function WelcomeSection() {
       welcomeParagraph2: homeDraft.welcomeP2.trim() || DEFAULT_WELCOME_P2,
       verseText: homeDraft.verseText.trim() || DEFAULT_VERSE_TEXT,
       verseRef: homeDraft.verseRef.trim() || DEFAULT_VERSE_REF,
-      historyYearsValue:
-        homeDraft.historyYearsValue.trim() || DEFAULT_HISTORY_VALUE,
-      historyYearsLabel:
-        homeDraft.historyYearsLabel.trim() || DEFAULT_HISTORY_LABEL,
     };
     try {
       if (canEditHome) {
@@ -160,8 +144,6 @@ export default function WelcomeSection() {
       welcomeP2: next.welcomeParagraph2,
       verseText: next.verseText,
       verseRef: next.verseRef,
-      historyYearsValue: next.historyYearsValue,
-      historyYearsLabel: next.historyYearsLabel,
     });
     setHomeEditorOpen(false);
     setHomeDraft(null);
@@ -286,8 +268,7 @@ export default function WelcomeSection() {
           <DialogHeader className="shrink-0 space-y-1 border-b border-border px-5 py-4 text-left sm:px-6">
             <DialogTitle>Textos da secção Bem-vindo</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Parágrafos à esquerda; cartão do versículo à direita. O selo de
-              história aparece no hero do topo.
+              Parágrafos à esquerda; cartão do versículo à direita.
             </p>
           </DialogHeader>
           {homeDraft && (
@@ -403,42 +384,6 @@ export default function WelcomeSection() {
                       }
                       placeholder="— João 3:16"
                     />
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-lg border border-border/80 bg-muted/5 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Selo de história
-                  </p>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="wd-hist-v">Anos (destaque)</Label>
-                      <Input
-                        id="wd-hist-v"
-                        value={homeDraft.historyYearsValue}
-                        onChange={(e) =>
-                          setHomeDraft((d) => ({
-                            ...d,
-                            historyYearsValue: e.target.value,
-                          }))
-                        }
-                        placeholder="3+"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="wd-hist-l">Legenda</Label>
-                      <Input
-                        id="wd-hist-l"
-                        value={homeDraft.historyYearsLabel}
-                        onChange={(e) =>
-                          setHomeDraft((d) => ({
-                            ...d,
-                            historyYearsLabel: e.target.value,
-                          }))
-                        }
-                        placeholder="Anos de história"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>

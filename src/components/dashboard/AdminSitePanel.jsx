@@ -334,9 +334,9 @@ export default function AdminSitePanel() {
             <MapPin className="h-5 w-5 text-accent" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Rodapé (site público)</h2>
+            <h2 className="text-lg font-semibold text-foreground">Contacto do site</h2>
             <p className="text-sm text-muted-foreground">
-              Textos de contacto e horários visíveis no rodapé de todas as páginas.
+              Endereço, telefone e e-mail no rodapé e no botão flutuante.
             </p>
           </div>
         </div>
@@ -351,7 +351,7 @@ export default function AdminSitePanel() {
               placeholder={FOOTER_SITE_CONFIG_DEFAULTS.footerEndereco}
             />
             <p className="text-xs text-muted-foreground">
-              Se ficar vazio, o endereço e o link para o Google Maps deixam de aparecer no rodapé.
+              Se ficar vazio, o endereço deixa de aparecer no rodapé e nos links de contacto.
             </p>
           </div>
           <div className="space-y-2">

@@ -28,8 +28,7 @@ export const DEFAULT_EVENTOS_PAGE_BACKGROUND = "/eventos-pattern-bg.webp";
 export const DEFAULT_ADMIN_PAGE_BACKGROUND = "/admin-pattern-bg.webp";
 
 /**
- * Textos do rodapé (contacto e horários). Usados como fallback em `Footer` e
- * valores iniciais em Admin → Site.
+ * Textos de contacto e horários. Usados no rodapé, botão flutuante e Admin → Site.
  */
 export const FOOTER_SITE_CONFIG_DEFAULTS = {
   footerDescricao:

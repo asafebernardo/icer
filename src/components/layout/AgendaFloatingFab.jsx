@@ -38,7 +38,7 @@ export default function AgendaFloatingFab() {
           "bg-accent text-accent-foreground shadow-xl ring-1 ring-black/10",
           "transition-transform duration-200 hover:scale-105 active:scale-95",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          "bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-4 sm:bottom-6 sm:left-6",
+          "bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-[max(1rem,env(safe-area-inset-right,0px))] sm:bottom-[5.75rem] sm:right-6",
         )}
       >
         <CalendarDays className="h-7 w-7" aria-hidden />

@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -25,15 +24,17 @@ export default function CtaSection() {
             agenda de eventos.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Link to="/Contato">
-              <Button
-                size="lg"
-                className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl px-8 h-12 text-base font-semibold"
-              >
-                Fale Conosco
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              size="lg"
+              className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl px-8 h-12 text-base font-semibold"
+              onClick={() =>
+                window.dispatchEvent(new Event("icer-open-contato"))
+              }
+            >
+              Fale Conosco
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
             <Button
               type="button"
               size="lg"

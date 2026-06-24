@@ -19,7 +19,7 @@ export function normalizeWhatsappUrl(raw) {
 }
 
 /**
- * URLs públicas para ícones no rodapé (secção Contato).
+ * URLs públicas para contacto (rodapé e botão flutuante).
  * `social*` tem prioridade quando preenchidos; Instagram legado usa `instagramUrl` ou o default do site.
  */
 export function resolveSocialLinksFromConfig(cfg) {
@@ -54,7 +54,7 @@ export function resolveSocialLinksFromConfig(cfg) {
   return { instagram, facebook, whatsapp };
 }
 
-/** Há pelo menos um ícone de rede para mostrar no rodapé. */
+/** Há pelo menos um link de rede social para mostrar no contacto do site. */
 export function hasAnyResolvedSocialLinks(cfg) {
   const r = resolveSocialLinksFromConfig(cfg);
   return !!(r.instagram || r.facebook || r.whatsapp);

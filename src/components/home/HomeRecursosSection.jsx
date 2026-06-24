@@ -33,16 +33,9 @@ export default function HomeRecursosSection() {
             homeSectionSolidContent,
           )}
         >
-          <span className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
-            Edificação
-          </span>
           <h2 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Recursos
+            Aplicativos
           </h2>
-          <div className="mt-4 h-1 w-16 rounded-full bg-accent/60" />
-          <p className="mt-5 max-w-xl text-muted-foreground">
-            Materiais e links úteis para o seu crescimento espiritual.
-          </p>
         </div>
 
         <MateriaisTab perm={perm} embedded />

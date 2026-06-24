@@ -47,6 +47,8 @@ const PRIMARY_ITEMS = [
   { label: "Posts", path: "/Posts", icon: Newspaper },
 ];
 
+const ADMIN_MORE_LINKS = [{ label: "História", path: "/Historia", icon: Landmark }];
+
 export default function BottomNav() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -83,6 +85,11 @@ export default function BottomNav() {
   );
   const adminTabHref = (id) =>
     id === "profile" ? "/Admin" : `/Admin?tab=${id}`;
+
+  const moreNavLinks = useMemo(
+    () => (isAdmin ? ADMIN_MORE_LINKS : []),
+    [isAdmin],
+  );
 
   useEffect(() => {
     setAdminDockOpen(false);
@@ -252,17 +259,20 @@ export default function BottomNav() {
                 </span>
               </button>
             ) : null}
-            {isAdmin ? (
-              <SheetClose asChild>
-                <Link
-                  to="/Historia"
-                  className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50"
-                >
-                  <Landmark className="w-5 h-5 text-foreground/70" />
-                  <span className="text-base">História</span>
-                </Link>
-              </SheetClose>
-            ) : null}
+            {moreNavLinks.map((link) => {
+              const Icon = link.icon;
+              return (
+                <SheetClose key={link.path} asChild>
+                  <Link
+                    to={link.path}
+                    className="flex items-center gap-3 px-5 py-4 hover:bg-muted/50"
+                  >
+                    <Icon className="w-5 h-5 text-foreground/70" />
+                    <span className="text-base">{link.label}</span>
+                  </Link>
+                </SheetClose>
+              );
+            })}
             {isLoggedIn ? (
               <>
                 {!isAdmin ? (

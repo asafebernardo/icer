@@ -4,6 +4,7 @@ import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 import WhatsAppFab from "./WhatsAppFab";
 import AgendaFloatingFab from "./AgendaFloatingFab";
+import ContactFloatingFab from "./ContactFloatingFab";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
 
@@ -33,6 +34,7 @@ export default function Layout() {
       <BottomNav />
       <WhatsAppFab />
       <AgendaFloatingFab />
+      <ContactFloatingFab />
     </div>
   );
 }

@@ -17,9 +17,6 @@ export const DEFAULT_VERSE_TEXT =
 export const DEFAULT_VERSE_REF = "— João 3:16";
 export const DEFAULT_VERSE_IMAGE_URL = "/images/verse-card-earth.webp";
 
-export const DEFAULT_HISTORY_VALUE = "3+";
-export const DEFAULT_HISTORY_LABEL = "Anos de história";
-
 /** Secção do canal (entre Sobre e Horários) — cabeçalho + link + carrossel */
 export const DEFAULT_CHANNEL_SECTION_TAG = "Online";
 export const DEFAULT_CHANNEL_SECTION_TITLE = "Nosso canal no YouTube";

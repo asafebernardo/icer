@@ -61,6 +61,8 @@ const BASE_LINKS = [
   { label: "Posts", path: "/Posts" },
 ];
 
+const ADMIN_ONLY_NAV_LINKS = [{ label: "História", path: "/Historia" }];
+
 export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -110,6 +112,11 @@ export default function Navbar() {
   );
   const adminTabHref = (id) => (id === "profile" ? "/Admin" : `/Admin?tab=${id}`);
 
+  const mainNavLinks = useMemo(
+    () => [...BASE_LINKS, ...(isAdmin ? ADMIN_ONLY_NAV_LINKS : [])],
+    [isAdmin],
+  );
+
   return (
     <nav
       className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/90 shadow-nav backdrop-blur-xl transition-colors duration-300 supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_1px_0_hsl(var(--border)),0_12px_40px_-16px_hsl(217_59%_4%/0.9)]"
@@ -158,7 +165,7 @@ export default function Navbar() {
 
           {/* Desktop: navegação */}
           <div className="hidden lg:flex items-center gap-1 shrink-0">
-            {BASE_LINKS.map((link) => {
+            {mainNavLinks.map((link) => {
               const active = location.pathname === link.path;
               return (
                 <Link
@@ -175,21 +182,6 @@ export default function Navbar() {
                 </Link>
               );
             })}
-            {isAdmin ? (
-              <Link
-                to="/Historia"
-                aria-current={
-                  location.pathname === "/Historia" ? "page" : undefined
-                }
-                className={`nav-link-pill ${
-                  location.pathname === "/Historia"
-                    ? "bg-primary text-primary-foreground shadow-soft"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
-              >
-                História
-              </Link>
-            ) : null}
           </div>
 
           {/* Ações direita */}
@@ -304,7 +296,7 @@ export default function Navbar() {
                       Navegação
                     </p>
                     <nav className="flex flex-col gap-1 overflow-x-hidden px-4" aria-label="Secções">
-                      {BASE_LINKS.map((link) => {
+                      {mainNavLinks.map((link) => {
                         const active = location.pathname === link.path;
                         return (
                           <Link
@@ -322,22 +314,6 @@ export default function Navbar() {
                           </Link>
                         );
                       })}
-                      {isAdmin ? (
-                        <Link
-                          to="/Historia"
-                          onClick={() => setOpen(false)}
-                          aria-current={
-                            location.pathname === "/Historia" ? "page" : undefined
-                          }
-                          className={`min-h-[44px] flex items-center px-4 py-2.5 text-[14px] font-medium rounded-xl transition-all duration-200 ${
-                            location.pathname === "/Historia"
-                              ? "bg-primary text-primary-foreground shadow-soft"
-                              : "text-foreground/80 hover:text-foreground hover:bg-muted/50"
-                          }`}
-                        >
-                          História
-                        </Link>
-                      ) : null}
                       <div className="mt-2 border-t border-border pt-2">
                         {isLoggedIn ? (
                           <div className="min-w-0">

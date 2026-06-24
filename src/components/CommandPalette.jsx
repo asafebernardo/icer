@@ -213,7 +213,11 @@ export default function CommandPalette({ open, onOpenChange }) {
         <CommandGroup heading="Atalhos">
           <CommandItem
             value="atalho contato sobre"
-            onSelect={() => runAndClose(() => navigate("/Home#contato"))}
+            onSelect={() =>
+              runAndClose(() =>
+                window.dispatchEvent(new Event("icer-open-contato")),
+              )
+            }
           >
             <ScrollText className="mr-2" />
             <span>Contato</span>
