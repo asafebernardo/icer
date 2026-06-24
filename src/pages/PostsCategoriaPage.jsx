@@ -7,7 +7,7 @@ import PostsAgendaHubPage from "./PostsAgendaHubPage";
 import PostsEventosHubPage from "./PostsEventosHubPage";
 import { Button } from "@/components/ui/button";
 import EmptyState from "../components/shared/EmptyState";
-import ConfirmDialog from "../components/shared/ConfirmDialog";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import PostsCategoryFeed, {
   PostsCategoryFeedSkeleton,
 } from "../components/posts/PostsCategoryFeed";
@@ -142,7 +142,7 @@ export default function PostsCategoriaPage() {
             if (!open) setPendingDeleteId(null);
           }}
           title="Eliminar esta publicação?"
-          description="Esta ação não pode ser desfeita."
+          description={SOFT_DELETE_CONFIRM_DESCRIPTION}
           confirmLabel="Eliminar"
           cancelLabel="Cancelar"
           onConfirm={() => {

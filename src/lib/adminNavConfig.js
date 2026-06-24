@@ -15,6 +15,8 @@ export const ADMIN_NAV_ITEM_ICON_TONE = {
     "bg-rose-500/20 text-rose-900 shadow-sm shadow-rose-500/10 dark:bg-rose-500/30 dark:text-rose-50",
   "audit-log":
     "bg-slate-600/18 text-slate-800 shadow-sm dark:bg-slate-500/30 dark:text-slate-100",
+  "pending-deletions":
+    "bg-rose-500/18 text-rose-900 shadow-sm dark:bg-rose-500/30 dark:text-rose-50",
   "admin-users":
     "bg-violet-500/20 text-violet-900 shadow-sm shadow-violet-500/10 dark:bg-violet-500/30 dark:text-violet-50",
   "permission-groups":
@@ -55,6 +57,7 @@ const ADMINISTRACAO_BASE_ITEMS = [
     requiresServerAuth: true,
   },
   { id: "login-blocks", label: "Bloqueios", requiresServerAuth: true },
+  { id: "pending-deletions", label: "Eliminações pendentes", requiresServerAuth: true },
   { id: "audit-log", label: "Logs", requiresServerAuth: true },
 ];
 

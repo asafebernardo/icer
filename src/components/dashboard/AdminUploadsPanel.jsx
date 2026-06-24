@@ -46,6 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { withCsrfHeaderAsync, ensureCsrfCookieClient } from "@/lib/csrf";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -794,8 +795,8 @@ export default function AdminUploadsPanel() {
             </AlertDialogTitle>
             {delState?.step === 1 ? (
               <AlertDialogDescription>
-                «{delState.name}» será apagado da base e do disco. Se estiver referenciado em
-                conteúdos, será pedida uma confirmação adicional.
+                «{delState.name}» deixa de estar disponível no site. Se estiver referenciado em
+                conteúdos, será pedida uma confirmação adicional. {SOFT_DELETE_CONFIRM_DESCRIPTION}
               </AlertDialogDescription>
             ) : delState?.step === 2 ? (
               <div className="space-y-3 text-sm text-muted-foreground">
@@ -846,9 +847,10 @@ export default function AdminUploadsPanel() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remover ficheiros selecionados?</AlertDialogTitle>
             <AlertDialogDescription>
-              Serão apagados <span className="font-semibold tabular-nums text-foreground">{selectedIds.size}</span>{" "}
-              ficheiro(s) da base e do disco. Ficheiros em uso não serão removidos neste passo em
-              massa — trate-os individualmente com a confirmação forçada quando aplicável.
+              Serão marcados para remoção{" "}
+              <span className="font-semibold tabular-nums text-foreground">{selectedIds.size}</span>{" "}
+              ficheiro(s). Ficheiros em uso não serão removidos neste passo em massa — trate-os
+              individualmente quando aplicável. {SOFT_DELETE_CONFIRM_DESCRIPTION}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">

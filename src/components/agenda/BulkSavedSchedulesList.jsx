@@ -6,7 +6,7 @@ import { ptBR } from "date-fns/locale";
 import { CalendarPlus2, Loader2, Pencil, Play, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import { toast } from "sonner";
 
@@ -171,7 +171,7 @@ export default function BulkSavedSchedulesList({ queryKey = ["bulk-schedule-temp
           if (!o) setDeleteId(null);
         }}
         title="Eliminar agendamento guardado?"
-        description="O modelo deixa de estar disponível. Os eventos já criados na agenda não são apagados."
+        description={`O modelo deixa de estar disponível. Os eventos já criados na agenda não são apagados. ${SOFT_DELETE_CONFIRM_DESCRIPTION}`}
         confirmLabel={remove.isPending ? "A remover…" : "Eliminar"}
         cancelLabel="Cancelar"
         confirmVariant="danger"

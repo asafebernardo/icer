@@ -34,6 +34,7 @@ export function getTestDb() {
 
 export async function setupTestHarness() {
   process.env.ICER_GITHUB_DISABLED = "1";
+  process.env.ICER_ALLOW_PASSWORD_LOGIN = "1";
   memoryServer = await MongoMemoryServer.create();
   const uri = memoryServer.getUri();
   const dbName = `icer_test_${Date.now()}`;

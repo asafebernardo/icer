@@ -4,6 +4,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Lock } from "lucide-react";
 import ProfileSettings from "@/components/dashboard/ProfileSettings";
 import AdminPermissionGroupsPanel from "@/components/dashboard/AdminPermissionGroupsPanel";
+import PendingDeletionsPanel from "@/components/dashboard/PendingDeletionsPanel";
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import AdminGooglePanel from "@/components/dashboard/AdminGooglePanel";
 import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
@@ -164,6 +165,9 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           </TabsContent>
           <TabsContent value="cadastros-opcoes">
             {canUseAdminTabs ? <AdminCadastrosOpcoesPanel /> : lockedNotice}
+          </TabsContent>
+          <TabsContent value="pending-deletions">
+            {canUseAdminTabs ? <PendingDeletionsPanel /> : lockedNotice}
           </TabsContent>
           <TabsContent value="audit-log">
             {canUseAdminTabs ? <GlobalAuditLogPanel /> : lockedNotice}

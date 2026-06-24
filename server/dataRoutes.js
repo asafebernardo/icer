@@ -9,6 +9,12 @@ import {
 } from "./menuPermissions.js";
 import { nextSeq } from "./sequences.js";
 import { clientIp, recordAudit } from "./auditLog.js";
+import {
+  isDeletedRow,
+  markRowSoftDeleted,
+  notDeletedFilter,
+} from "./softDelete.js";
+import { sanitizePostBody } from "./htmlSanitize.js";
 
 const CONTATO_WINDOW_MS = 15 * 60 * 1000;
 const CONTATO_MAX = 30;
@@ -181,7 +187,7 @@ function requireMenu(db, menuKey, action) {
 }
 
 function assertOwnerOrAdmin(req, res, row) {
-  if (!row) {
+  if (!row || isDeletedRow(row)) {
     res.status(404).json({ message: "not_found" });
     return false;
   }
@@ -283,7 +289,9 @@ export function createDataRouter(db) {
       if (isAdmin) {
         visibilityClauses.push({ visibility: { $in: ["unlisted", "private"] } });
       }
-      filter = { $and: [filter, { $or: visibilityClauses }] };
+      filter = { $and: [filter, { $or: visibilityClauses }, notDeletedFilter()] };
+    } else {
+      filter = { $and: [filter, notDeletedFilter()] };
     }
     const [rows, total] = await Promise.all([
       db
@@ -310,7 +318,7 @@ export function createDataRouter(db) {
       return;
     }
     const row = await db.collection("posts").findOne({ id }, { projection: { _id: 0 } });
-    if (!row) {
+    if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
@@ -351,7 +359,9 @@ export function createDataRouter(db) {
     requireMenu(db, "postagens", "create"),
     async (req, res) => {
       const now = nowIso();
-      const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
+      const body = sanitizePostBody(
+        req.body && typeof req.body === "object" ? { ...req.body } : {},
+      );
       delete body.id;
       const is_draft =
         body.status === "draft" || body.is_draft === true;
@@ -402,9 +412,11 @@ export function createDataRouter(db) {
       } catch {
         prev = {};
       }
-      const incoming = req.body && typeof req.body === "object" ? { ...req.body } : {};
+      const incoming = sanitizePostBody(
+        req.body && typeof req.body === "object" ? { ...req.body } : {},
+      );
       delete incoming.id;
-      const merged = { ...prev, ...incoming };
+      const merged = sanitizePostBody({ ...prev, ...incoming });
       const visibility = normalizePostVisibility(merged.visibility);
       merged.visibility = visibility;
       const body_json = JSON.stringify(merged);
@@ -450,11 +462,15 @@ export function createDataRouter(db) {
       await recordAudit(db, {
         userId: row.owner_user_id ?? req.user.id,
         actorUserId: req.user.id,
-        action: "data.posts.delete",
+        action: "data.posts.delete_scheduled",
         details: { resource_id: id },
         ip: clientIp(req),
       });
-      await db.collection("posts").deleteOne({ id });
+      const marked = await markRowSoftDeleted(db, "posts", { id }, req.user.id);
+      if (!marked.ok) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
       res.status(204).end();
     },
   );
@@ -465,7 +481,7 @@ export function createDataRouter(db) {
     const sort = mongoSort("eventos", req.query.sort);
     const rows = await db
       .collection("eventos")
-      .find({}, { projection: { _id: 0 } })
+      .find(notDeletedFilter(), { projection: { _id: 0 } })
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -563,11 +579,15 @@ export function createDataRouter(db) {
       await recordAudit(db, {
         userId: row.owner_user_id ?? req.user.id,
         actorUserId: req.user.id,
-        action: "data.eventos.delete",
+        action: "data.eventos.delete_scheduled",
         details: { resource_id: id },
         ip: clientIp(req),
       });
-      await db.collection("eventos").deleteOne({ id });
+      const marked = await markRowSoftDeleted(db, "eventos", { id }, req.user.id);
+      if (!marked.ok) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
       res.status(204).end();
     },
   );
@@ -578,7 +598,7 @@ export function createDataRouter(db) {
     const sort = mongoSort("materiais", req.query.sort);
     const rows = await db
       .collection("materiais")
-      .find({}, { projection: { _id: 0 } })
+      .find(notDeletedFilter(), { projection: { _id: 0 } })
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -666,11 +686,15 @@ export function createDataRouter(db) {
       await recordAudit(db, {
         userId: row.owner_user_id ?? req.user.id,
         actorUserId: req.user.id,
-        action: "data.materiais.delete",
+        action: "data.materiais.delete_scheduled",
         details: { resource_id: id },
         ip: clientIp(req),
       });
-      await db.collection("materiais").deleteOne({ id });
+      const marked = await markRowSoftDeleted(db, "materiais", { id }, req.user.id);
+      if (!marked.ok) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
       res.status(204).end();
     },
   );
@@ -681,7 +705,7 @@ export function createDataRouter(db) {
     const sort = mongoSort("fotos_galeria", req.query.sort);
     const rows = await db
       .collection("fotos_galeria")
-      .find({}, { projection: { _id: 0 } })
+      .find(notDeletedFilter(), { projection: { _id: 0 } })
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -773,11 +797,15 @@ export function createDataRouter(db) {
       await recordAudit(db, {
         userId: row.owner_user_id ?? req.user.id,
         actorUserId: req.user.id,
-        action: "data.fotos_galeria.delete",
+        action: "data.fotos_galeria.delete_scheduled",
         details: { resource_id: id },
         ip: clientIp(req),
       });
-      await db.collection("fotos_galeria").deleteOne({ id });
+      const marked = await markRowSoftDeleted(db, "fotos_galeria", { id }, req.user.id);
+      if (!marked.ok) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
       res.status(204).end();
     },
   );

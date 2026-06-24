@@ -9,6 +9,7 @@ import {
 import { applySiteTheme } from "@/lib/siteTheme";
 import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
 import { captureLoginIntentFromBrowserUrl } from "@/lib/loginIntent";
+import { refreshRecaptchaConfig } from "@/lib/recaptcha";
 
 purgeLegacyDemoStorage();
 captureLoginIntentFromBrowserUrl();
@@ -28,5 +29,7 @@ refreshPublicSiteConfig()
   .catch(() => {
     // Se falhar, mantém o cache local/legado.
   });
+
+void refreshRecaptchaConfig();
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);

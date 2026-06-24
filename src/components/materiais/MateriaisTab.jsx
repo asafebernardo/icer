@@ -15,6 +15,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import EmptyState from "@/components/shared/EmptyState";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +58,7 @@ export default function MateriaisTab({ perm, embedded = false }) {
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [editingLink, setEditingLink] = useState(null);
+  const [pendingMaterialDeleteId, setPendingMaterialDeleteId] = useState(null);
   const [links, setLinks] = useState([]);
 
   useEffect(() => {
@@ -401,7 +404,7 @@ export default function MateriaisTab({ perm, embedded = false }) {
                           className="w-7 h-7 text-destructive hover:text-destructive"
                           onClick={() => {
                             if (item.kind === "material") {
-                              deleteMaterialMutation.mutate(item.raw.id);
+                              setPendingMaterialDeleteId(item.raw.id);
                             } else {
                               handleDeleteLink(item.raw.id);
                             }
@@ -419,6 +422,22 @@ export default function MateriaisTab({ perm, embedded = false }) {
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={pendingMaterialDeleteId != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingMaterialDeleteId(null);
+        }}
+        title="Eliminar este material?"
+        description={SOFT_DELETE_CONFIRM_DESCRIPTION}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        onConfirm={() => {
+          if (pendingMaterialDeleteId != null) {
+            deleteMaterialMutation.mutate(pendingMaterialDeleteId);
+            setPendingMaterialDeleteId(null);
+          }
+        }}
+      />
     </div>
   );
 }

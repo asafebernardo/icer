@@ -45,7 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import SafeImg from "@/components/shared/SafeImg";
 import {
   resolvePastorAvatarUrl,
@@ -1435,7 +1435,7 @@ export default function EventoFormPanel({
       open={deleteConfirmOpen}
       onOpenChange={setDeleteConfirmOpen}
       title="Excluir evento?"
-      description="Esta ação não pode ser desfeita."
+      description={SOFT_DELETE_CONFIRM_DESCRIPTION}
       confirmLabel="Excluir"
       cancelLabel="Cancelar"
       onConfirm={() => {

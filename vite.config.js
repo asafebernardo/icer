@@ -76,22 +76,14 @@ export default defineConfig(({ mode }) => {
     env.ICER_HOMOLOG === "on" ||
     ["homolog", "homologacao", "homologação", "staging", "hml"].includes(homologEnvRaw);
 
-  return {
-    logLevel: "error",
-    define: {
-      "import.meta.env.VITE_ICER_SEMVER": JSON.stringify(icerSemver),
-      "import.meta.env.VITE_ICER_GIT_SHA": JSON.stringify(icerGitSha || "unknown"),
-      "import.meta.env.VITE_ICER_GIT_BRANCH": JSON.stringify(icerGitBranch || ""),
-      "import.meta.env.VITE_ICER_BUILD_ID": JSON.stringify(icerBuildId),
-      "import.meta.env.VITE_ICER_HOMOLOG": JSON.stringify(isHomologFromEnv),
-    },
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-      },
-    },
-    plugins: [react()],
-    server: shouldProxyApi
+  const devClickjackingHeaders = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+  };
+
+  const devServer = {
+    headers: devClickjackingHeaders,
+    ...(shouldProxyApi
       ? {
           proxy: {
             "/api": {
@@ -117,6 +109,24 @@ export default defineConfig(({ mode }) => {
             },
           },
         }
-      : {},
+      : {}),
+  };
+
+  return {
+    logLevel: "error",
+    define: {
+      "import.meta.env.VITE_ICER_SEMVER": JSON.stringify(icerSemver),
+      "import.meta.env.VITE_ICER_GIT_SHA": JSON.stringify(icerGitSha || "unknown"),
+      "import.meta.env.VITE_ICER_GIT_BRANCH": JSON.stringify(icerGitBranch || ""),
+      "import.meta.env.VITE_ICER_BUILD_ID": JSON.stringify(icerBuildId),
+      "import.meta.env.VITE_ICER_HOMOLOG": JSON.stringify(isHomologFromEnv),
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+    plugins: [react()],
+    server: devServer,
   };
 });

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { toast } from "sonner";
 
 const HISTORY_PAGE_SIZE = 10;
@@ -472,7 +472,7 @@ export default function BulkEventRunsDialog({
         if (!next) setUndoConfirmId(null);
       }}
       title="Desfazer esta rotina?"
-      description="Esta ação vai apagar todos os eventos criados por este agendamento em massa. Não pode ser desfeita."
+      description={`Os eventos deste lote deixam de aparecer na agenda. ${SOFT_DELETE_CONFIRM_DESCRIPTION}`}
       confirmLabel="Desfazer"
       cancelLabel="Cancelar"
       confirmVariant="danger"

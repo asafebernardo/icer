@@ -14,6 +14,7 @@ import {
   isAccountPasswordPolicyCode,
   passwordPolicyErrorMessagePt,
 } from "@/lib/passwordPolicy";
+import { recaptchaErrorMessagePt } from "@/lib/recaptcha";
 
 /** Mapa `menuKey` → `{ create, edit, delete }` vindo do servidor (sessão com cookie). */
 let serverMenuEffective = null;
@@ -60,8 +61,9 @@ const PAGE_KEY_TO_MENU = {
 
 export { isServerAuthEnabled };
 
-async function loginWithServer(email, senha) {
+async function loginWithServer(email, senha, recaptchaToken) {
   const body = { email, password: senha };
+  if (recaptchaToken) body.recaptcha_token = recaptchaToken;
   await fetchJson("/auth/login", {
     method: "POST",
     body,
@@ -87,6 +89,9 @@ function mapServerLoginError(e) {
       ? /** @type {{ message?: string }} */ (e.data).message
       : null) || e?.message;
   const code = String(raw || "");
+  if (code === "google_login_required") {
+    return "Use o login com Google para entrar.";
+  }
   if (code === "invalid_credentials") {
     return "E-mail ou palavra-passe incorrectos.";
   }
@@ -105,6 +110,16 @@ function mapServerLoginError(e) {
   if (code === "login_unavailable") {
     return "Acesso temporariamente indisponível para esta conta/rede por excesso de tentativas. Tente novamente mais tarde.";
   }
+  if (
+    code === "recaptcha_required" ||
+    code === "recaptcha_invalid" ||
+    code === "recaptcha_low_score" ||
+    code === "recaptcha_unreachable" ||
+    code === "recaptcha_not_configured" ||
+    code === "recaptcha_action_mismatch"
+  ) {
+    return recaptchaErrorMessagePt(code) || "Verificação de segurança falhou.";
+  }
   if (code && code !== "Error") return code;
   return "Não foi possível iniciar sessão.";
 }
@@ -112,7 +127,7 @@ function mapServerLoginError(e) {
 /**
  * @returns {Promise<{ ok: true } | { ok: false; message: string }>}
  */
-export async function login(email, senha) {
+export async function login(email, senha, recaptchaToken) {
   if (!isServerAuthEnabled()) {
     return {
       ok: false,
@@ -122,7 +137,7 @@ export async function login(email, senha) {
   }
 
   try {
-    await loginWithServer(email, senha);
+    await loginWithServer(email, senha, recaptchaToken);
     return { ok: true };
   } catch (e) {
     const status = /** @type {Error & { status?: number }} */ (e)?.status;

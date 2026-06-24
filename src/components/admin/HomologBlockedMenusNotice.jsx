@@ -3,7 +3,7 @@ import { Lock, LogIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getLoginBlockedAdminNavItems } from "@/lib/adminNavConfig";
-import { setLoginIntent, LOGIN_QUERY_FLAG } from "@/lib/loginIntent";
+import { setLoginIntent } from "@/lib/loginIntent";
 
 /**
  * Em homologação, lista abas do admin bloqueadas por falta de sessão no servidor.
@@ -31,8 +31,7 @@ export default function HomologBlockedMenusNotice({
             </p>
             <p className="mt-1 text-muted-foreground">
               Pode abrir qualquer aba abaixo para pré-visualizar, mas o conteúdo
-              só funciona com sessão real no MongoDB (e-mail/palavra-passe ou
-              Google).
+              só funciona com sessão real no MongoDB (login Google).
             </p>
           </div>
           <ul className="flex flex-wrap gap-2">
@@ -50,7 +49,7 @@ export default function HomologBlockedMenusNotice({
           {showLoginLink ? (
             <Button variant="outline" size="sm" asChild className="gap-2">
               <Link
-                to={`/login?${LOGIN_QUERY_FLAG}=1`}
+                to="/login"
                 onClick={() => setLoginIntent()}
               >
                 <LogIn className="h-4 w-4" aria-hidden />

@@ -34,6 +34,7 @@ describe("ICER API", () => {
 
   before(async () => {
     process.env.ICER_GITHUB_DISABLED = "1";
+    process.env.ICER_ALLOW_PASSWORD_LOGIN = "1";
     memoryServer = await MongoMemoryServer.create();
     const uri = memoryServer.getUri();
     const dbName = `icer_test_${Date.now()}`;
@@ -86,6 +87,70 @@ describe("ICER API", () => {
     const res = await request(app).get("/api/health").expect(200);
     assert.equal(res.body.ok, true);
     assert.ok(res.body.time);
+  });
+
+  it("GET /api/recaptcha/config (público)", async () => {
+    const res = await request(app).get("/api/recaptcha/config").expect(200);
+    assert.equal(typeof res.body.enabled, "boolean");
+  });
+
+  it("GET /api/recaptcha/site-access sem cookie", async () => {
+    const res = await request(app).get("/api/recaptcha/site-access").expect(200);
+    assert.equal(typeof res.body.passed, "boolean");
+    assert.equal(typeof res.body.required, "boolean");
+  });
+
+  it("respostas incluem cabeçalhos de segurança", async () => {
+    const res = await request(app).get("/api/health").expect(200);
+    assert.equal(res.headers["x-content-type-options"], "nosniff");
+    assert.equal(res.headers["x-frame-options"], "DENY");
+    assert.ok(res.headers["content-security-policy"]);
+    const csp = String(res.headers["content-security-policy"]);
+    assert.match(csp, /default-src 'self'/);
+    assert.match(csp, /frame-ancestors 'none'/);
+  });
+
+  it("anti-clickjacking mantém-se com CSP desligada", async () => {
+    const prev = process.env.ICER_CSP_DISABLE;
+    process.env.ICER_CSP_DISABLE = "true";
+    try {
+      const isolated = createApplication(db, {
+        uploadDir,
+        enableUpstreamProxy: false,
+        loginRateLimit: false,
+        enforceSingleSession: false,
+      });
+      const res = await request(isolated).get("/api/health").expect(200);
+      assert.equal(res.headers["x-frame-options"], "DENY");
+      assert.equal(res.headers["content-security-policy"], undefined);
+    } finally {
+      if (prev === undefined) delete process.env.ICER_CSP_DISABLE;
+      else process.env.ICER_CSP_DISABLE = prev;
+    }
+  });
+
+  it("POST /api/data/posts sanitiza conteudo HTML (XSS)", async () => {
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: ADMIN_EMAIL, password: ADMIN_PASS })
+      .expect(200);
+    const csrf = await getCsrf(agent);
+    const created = await agent
+      .post("/api/data/posts")
+      .set("X-CSRF-Token", csrf)
+      .send({
+        titulo: "XSS test",
+        conteudo: '<p>ok</p><script>alert(1)</script>',
+      })
+      .expect(201);
+    assert.ok(created.body.id);
+    const fetched = await agent
+      .get(`/api/data/posts/${created.body.id}`)
+      .expect(200);
+    const html = String(fetched.body.conteudo || "");
+    assert.ok(!html.includes("<script"));
+    assert.ok(html.includes("ok"));
   });
 
   it("POST /api/auth/login recusa credenciais inválidas", async () => {

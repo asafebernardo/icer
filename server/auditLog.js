@@ -1,6 +1,37 @@
 import { nowIso } from "./security.js";
 import { nextSeq } from "./sequences.js";
 
+const AUDIT_SENSITIVE_KEYS = new Set([
+  "password",
+  "current_password",
+  "new_password",
+  "password_hash",
+  "recaptcha_token",
+  "token",
+  "secret",
+  "client_secret",
+]);
+
+/** Remove campos sensíveis antes de gravar em `audit_logs`. */
+function sanitizeAuditDetails(details) {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(details)) {
+    if (AUDIT_SENSITIVE_KEYS.has(String(key).toLowerCase())) {
+      out[key] = "[redacted]";
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/** Cabeçalhos para respostas com dados de sessão ou auditoria (não cachear). */
+export function setPrivateNoStore(res) {
+  res.setHeader("Cache-Control", "no-store, private");
+  res.setHeader("Pragma", "no-cache");
+}
+
 /** @param {import("express").Request} req */
 export function clientIp(req) {
   const xf = req.headers["x-forwarded-for"];
@@ -41,7 +72,7 @@ export async function recordAudit(db, opts) {
     user_id: userId,
     actor_user_id: actorUserId ?? userId,
     action,
-    details: details && typeof details === "object" ? details : {},
+    details: sanitizeAuditDetails(details && typeof details === "object" ? details : {}),
     ip: ip || null,
     origin_url: originUrl || null,
     route: route || null,

@@ -46,6 +46,13 @@ import {
   setSessionCookie,
   verifyPassword,
 } from "./auth.js";
+import {
+  bumpLoginFailure,
+  clearLoginFailures,
+  loginFailureKeys,
+  LOGIN_FAIL_COLLECTION,
+  readLoginBlocks,
+} from "./loginAttemptLock.js";
 import { envBoolTrue, isHomologEnvironment, readCookieSecureFlag } from "./envFlags.js";
 import { getHomologSeedAccounts, getHomologSeedEmails, isHomologSeedEmail } from "./homologSeed.js";
 import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
@@ -67,13 +74,35 @@ import {
   getAuditLogRetentionPolicy,
   setAuditLogRetentionPolicy,
   purgeAuditLogsByPolicy,
+  setPrivateNoStore,
 } from "./auditLog.js";
+import { purgeSoftDeletedRecords } from "./purgeSoftDeleted.js";
+import {
+  SOFT_DELETE_COLLECTIONS,
+  SOFT_DELETE_TYPE_LABELS,
+  isDeletedRow,
+  markRowSoftDeleted,
+  notDeletedFilter,
+  restoreSoftDeletedRow,
+  softDeleteFields,
+  softDeleteItemLabel,
+} from "./softDelete.js";
 import { findFileReferences } from "./fileReferences.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
   BUILTIN_ADMIN_GROUP_SLUG,
   defaultGroupPermissionsMap,
 } from "./permissionGroupDefaults.js";
+import { createSecurityHeadersMiddleware } from "./securityHeaders.js";
+import {
+  RECAPTCHA_ACTIONS,
+  SITE_ACCESS_COOKIE,
+  createSiteAccessCookieValue,
+  isRecaptchaEnforced,
+  publicRecaptchaConfig,
+  requireRecaptchaToken,
+  verifySiteAccessCookie,
+} from "./recaptcha.js";
 import {
   buildGoogleLoginAuthorizeUrl,
   clearGoogleLoginHintCookie,
@@ -197,95 +226,15 @@ export function createApplication(db, options = {}) {
   const LOGIN_WINDOW_MS = 15 * 60 * 1000;
   const LOGIN_MAX = 40;
 
-  // Bloqueio por tentativas falhadas (por IP e por utilizador/email).
-  // Regras:
-  // - 3 falhas na janela → bloqueio temporário
-  // - 9 falhas na janela → "fora do ar" para esse utilizador/IP (bloqueio mais longo)
-  const LOGIN_FAIL_WINDOW_MS = 15 * 60 * 1000;
-  const LOGIN_FAIL_LOCK_3_MS = 15 * 60 * 1000;
-  const LOGIN_FAIL_LOCK_9_MS = 24 * 60 * 60 * 1000;
-  const LOGIN_FAIL_COLLECTION = "auth_login_failures_v1";
-
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  async function readLoginBlocks(keys) {
-    if (!keys || keys.length === 0) return [];
-    const now = nowIso();
-    return await db
-      .collection(LOGIN_FAIL_COLLECTION)
-      .find({ key: { $in: keys }, locked_until: { $gt: now } })
-      .project({ _id: 0, key: 1, locked_until: 1, hard: 1, count: 1 })
-      .toArray();
-  }
-
-  function parseLoginFailureExemptEmails() {
-    const seeded = getHomologSeedEmails();
-    const extraRaw = String(process.env.ICER_LOGIN_FAIL_EXEMPT_EMAILS || "").trim();
-    const extra = extraRaw
-      ? extraRaw
-          .split(/[\s,;]+/)
-          .map((e) => e.toLowerCase().trim())
-          .filter(Boolean)
-      : [];
-    return new Set([...seeded, ...extra]);
-  }
-
-  const loginFailureExemptEmails = parseLoginFailureExemptEmails();
-  function isLoginFailureExemptEmail(email) {
-    const e = String(email || "").toLowerCase().trim();
-    if (!e) return false;
-    return loginFailureExemptEmails.has(e);
-  }
-
-  function loginFailureKeys({ ipKey, userKey, email }) {
-    // Exceção: contas seed/admin não entram em bloqueio por e-mail (só por IP).
-    return isLoginFailureExemptEmail(email) ? [ipKey] : [ipKey, userKey];
-  }
-
-  async function bumpLoginFailure(keys, { hard = false } = {}) {
-    const nowTs = Date.now();
-    const now = nowIso();
-    for (const key of keys) {
-      if (!key) continue;
-      const cur = await db
-        .collection(LOGIN_FAIL_COLLECTION)
-        .findOne({ key }, { projection: { _id: 0, key: 1, count: 1, first_fail_ts: 1 } });
-      const freshWindow =
-        !cur?.first_fail_ts || !Number.isFinite(cur.first_fail_ts)
-          ? true
-          : nowTs - cur.first_fail_ts > LOGIN_FAIL_WINDOW_MS;
-      const nextCount = freshWindow ? 1 : Number(cur.count || 0) + 1;
-      const first_fail_ts = freshWindow ? nowTs : cur.first_fail_ts;
-      const $set = {
-        key,
-        count: nextCount,
-        first_fail_ts,
-        last_fail_at: now,
-        updated_at: now,
-      };
-      let locked_until = null;
-      let nextHard = hard === true;
-      if (nextCount >= 9) {
-        locked_until = new Date(nowTs + LOGIN_FAIL_LOCK_9_MS).toISOString();
-        nextHard = true;
-      } else if (nextCount >= 3) {
-        locked_until = new Date(nowTs + LOGIN_FAIL_LOCK_3_MS).toISOString();
-      }
-      if (locked_until) $set.locked_until = locked_until;
-      $set.hard = nextHard;
-      await db
-        .collection(LOGIN_FAIL_COLLECTION)
-        .updateOne({ key }, { $set }, { upsert: true });
-    }
-  }
-
-  async function clearLoginFailures(keys) {
-    if (!keys || keys.length === 0) return;
-    await db.collection(LOGIN_FAIL_COLLECTION).deleteMany({ key: { $in: keys } });
-  }
 
   function isEnvAdminEmail(email) {
     return isHomologSeedEmail(email);
+  }
+
+  function isPasswordLoginApiAllowed() {
+    if (isHomologEnvironment()) return true;
+    return envBoolTrue("ICER_ALLOW_PASSWORD_LOGIN");
   }
 
   const dismissDestaqueRate = new Map();
@@ -357,6 +306,7 @@ export function createApplication(db, options = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  app.use(createSecurityHeadersMiddleware());
 
   /**
    * Log colorido por pedido — útil em desenvolvimento. Em produção pode ser
@@ -397,6 +347,38 @@ export function createApplication(db, options = {}) {
     const cfg = await getPublicSiteConfig();
     res.setHeader("Cache-Control", "no-store");
     res.json(cfg);
+  });
+
+  app.get("/api/recaptcha/config", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json(publicRecaptchaConfig());
+  });
+
+  app.get("/api/recaptcha/site-access", (req, res) => {
+    const required = isRecaptchaEnforced();
+    const passed = !required || verifySiteAccessCookie(req.cookies?.[SITE_ACCESS_COOKIE]);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ passed, required });
+  });
+
+  app.post("/api/recaptcha/site-access", async (req, res) => {
+    if (
+      !(await requireRecaptchaToken(req, res, {
+        expectedAction: RECAPTCHA_ACTIONS.SITE_ACCESS,
+      }))
+    ) {
+      return;
+    }
+    const { value, maxAgeMs } = createSiteAccessCookieValue();
+    res.cookie(SITE_ACCESS_COOKIE, value, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: readCookieSecureFlag(),
+      path: "/",
+      maxAge: maxAgeMs,
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true });
   });
 
   // Métrica pública: registra visita na Home (por IP).
@@ -492,6 +474,8 @@ export function createApplication(db, options = {}) {
       path === "/api/auth/csrf" ||
       path.startsWith("/api/health") ||
       path === "/api/site-config" ||
+      path === "/api/recaptcha/config" ||
+      path === "/api/recaptcha/site-access" ||
       path === "/api/public-workspace/dismiss-destaque"
     ) {
       return next();
@@ -651,22 +635,35 @@ export function createApplication(db, options = {}) {
     loginRateLimit && !skipLoginAttemptLock ? rateLimitLogin : (_req, _res, next) => next();
 
   app.post("/api/auth/login", loginMw, async (req, res) => {
+    if (!isPasswordLoginApiAllowed()) {
+      res.status(403).json({ message: "google_login_required" });
+      return;
+    }
     const schema = z.object({
       email: z.string().email(),
       password: z.string().min(1),
+      recaptcha_token: z.string().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ message: "invalid_request" });
       return;
     }
+    if (
+      !(await requireRecaptchaToken(req, res, {
+        expectedAction: RECAPTCHA_ACTIONS.LOGIN,
+      }))
+    ) {
+      return;
+    }
     const email = parsed.data.email.toLowerCase().trim();
     const isEnvAdmin = isEnvAdminEmail(email);
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
+    const failureKeys = loginFailureKeys({ ipKey, userKey, email });
     const blockRows = skipLoginAttemptLock
       ? []
-      : await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
+      : await readLoginBlocks(db, failureKeys);
     if (blockRows && blockRows.length > 0) {
       const hard = blockRows.some((b) => b.hard === true);
       const until =
@@ -705,7 +702,7 @@ export function createApplication(db, options = {}) {
         ...auditCtx(req),
       });
       if (!skipLoginAttemptLock) {
-        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        await bumpLoginFailure(db, failureKeys);
       }
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
@@ -714,7 +711,7 @@ export function createApplication(db, options = {}) {
     if (!row.password_hash) {
       // Evita enumeração por estado de conta.
       if (!skipLoginAttemptLock) {
-        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        await bumpLoginFailure(db, failureKeys);
       }
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
@@ -724,7 +721,7 @@ export function createApplication(db, options = {}) {
       // Conta seed do `.env`: nunca impedir login por flag disabled (serve como acesso de emergência).
       if (!isEnvAdmin) {
         if (!skipLoginAttemptLock) {
-          await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+          await bumpLoginFailure(db, failureKeys);
         }
         await sleep(350);
         res.status(401).json({ message: "invalid_credentials" });
@@ -742,13 +739,13 @@ export function createApplication(db, options = {}) {
         ...auditCtx(req),
       });
       if (!skipLoginAttemptLock) {
-        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        await bumpLoginFailure(db, failureKeys);
       }
       await sleep(350);
       res.status(401).json({ message: "invalid_credentials" });
       return;
     }
-    await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
+    await clearLoginFailures(db, failureKeys);
 
     // Sessão única: com credenciais válidas, substitui sessões activas (outro dispositivo ou cookie antigo).
     if (enforceSingleSession && !isEnvAdmin) {
@@ -966,22 +963,31 @@ export function createApplication(db, options = {}) {
     res.json({ ok: true });
   });
 
-  app.get("/api/auth/google-login/start", loginMw, async (req, res) => {
+  async function handleGoogleLoginStart(req, res) {
     const googleConfig = await getGoogleLoginConfig(db);
     if (!isGoogleLoginConfiguredValue(googleConfig)) {
       res.status(503).json({ message: "google_login_unavailable" });
       return;
     }
-    const redirectUri = googleLoginRedirectUriForRequest(googleConfig, req);
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    if (body.public_origin) {
+      req.query = {
+        ...(req.query && typeof req.query === "object" ? req.query : {}),
+        public_origin: String(body.public_origin),
+      };
+    }
     const pickAccount =
-      String(req.query.pick_account || "").trim() === "1" ||
-      String(req.query.pick_account || "").trim().toLowerCase() === "true";
+      body.pick_account === true ||
+      String(body.pick_account || req.query.pick_account || "").trim() === "1" ||
+      String(body.pick_account || req.query.pick_account || "").trim().toLowerCase() === "true";
     const noSilent =
-      String(req.query.no_silent || "").trim() === "1" ||
-      String(req.query.no_silent || "").trim().toLowerCase() === "true";
-    const hintParam = sanitizeGoogleLoginHint(req.query.login_hint);
+      body.no_silent === true ||
+      String(body.no_silent || req.query.no_silent || "").trim() === "1" ||
+      String(body.no_silent || req.query.no_silent || "").trim().toLowerCase() === "true";
+    const hintParam = sanitizeGoogleLoginHint(body.login_hint || req.query.login_hint);
     const hintCookie = sanitizeGoogleLoginHint(req.cookies?.[GOOGLE_LOGIN_HINT_COOKIE]);
     const loginHint = pickAccount ? "" : hintParam || hintCookie;
+    const redirectUri = googleLoginRedirectUriForRequest(googleConfig, req);
     try {
       const state = await createGoogleLoginOauthState(db);
       const url = buildGoogleLoginAuthorizeUrl({
@@ -997,6 +1003,25 @@ export function createApplication(db, options = {}) {
     } catch {
       res.status(500).json({ message: "google_login_start_failed" });
     }
+  }
+
+  app.post("/api/auth/google-login/start", loginMw, async (req, res) => {
+    if (
+      !(await requireRecaptchaToken(req, res, {
+        expectedAction: RECAPTCHA_ACTIONS.GOOGLE_LOGIN,
+      }))
+    ) {
+      return;
+    }
+    await handleGoogleLoginStart(req, res);
+  });
+
+  app.get("/api/auth/google-login/start", loginMw, async (req, res) => {
+    if (isRecaptchaEnforced()) {
+      res.status(403).json({ message: "recaptcha_required" });
+      return;
+    }
+    await handleGoogleLoginStart(req, res);
   });
 
   app.get("/api/auth/google-login/callback", async (req, res) => {
@@ -1061,9 +1086,10 @@ export function createApplication(db, options = {}) {
     const email = googleProfile.email;
     const ipKey = `ip:${clientIp(req)}`;
     const userKey = `user:${email}`;
+    const googleFailureKeys = loginFailureKeys({ ipKey, userKey, email });
     const blockRows = skipLoginAttemptLock
       ? []
-      : await readLoginBlocks(loginFailureKeys({ ipKey, userKey, email }));
+      : await readLoginBlocks(db, googleFailureKeys);
     if (blockRows && blockRows.length > 0) {
       await recordAudit(db, {
         userId: null,
@@ -1107,7 +1133,7 @@ export function createApplication(db, options = {}) {
     );
     if (!row || row.disabled === true) {
       if (!skipLoginAttemptLock) {
-        await bumpLoginFailure(loginFailureKeys({ ipKey, userKey, email }));
+        await bumpLoginFailure(db, googleFailureKeys);
       }
       await recordAudit(db, {
         userId: row?.id ?? null,
@@ -1140,7 +1166,7 @@ export function createApplication(db, options = {}) {
       }
     }
 
-    await clearLoginFailures(loginFailureKeys({ ipKey, userKey, email }));
+    await clearLoginFailures(db, googleFailureKeys);
     const loginStamp = nowIso();
     /**
      * Espelha o perfil Google na conta local em cada login: a foto da Google
@@ -1207,6 +1233,7 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/auth/me", (req, res) => {
+    setPrivateNoStore(res);
     res.setHeader("Cache-Control", "no-store, private");
     res.setHeader("Vary", "Cookie");
     if (!req.user) {
@@ -1346,10 +1373,11 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    setPrivateNoStore(res);
     const users = await db
       .collection("users")
       .find(
-        {},
+        notDeletedFilter(),
         {
           projection: {
             _id: 0,
@@ -1397,7 +1425,7 @@ export function createApplication(db, options = {}) {
     const rows = await db
       .collection("permission_groups")
       .find(
-        {},
+        notDeletedFilter(),
         {
           projection: {
             _id: 0,
@@ -1511,25 +1539,27 @@ export function createApplication(db, options = {}) {
       res.status(400).json({ message: "builtin_permission_group" });
       return;
     }
-    const inUse = await db.collection("users").countDocuments({ permission_group_id: id });
+    const inUse = await db
+      .collection("users")
+      .countDocuments({ permission_group_id: id, ...notDeletedFilter() });
     if (inUse > 0) {
       res.status(409).json({ message: "permission_group_in_use", count: inUse });
       return;
     }
-    const del = await db.collection("permission_groups").deleteOne({ id });
-    if (del.deletedCount === 0) {
+    const marked = await markRowSoftDeleted(db, "permission_groups", { id }, req.user.id);
+    if (!marked.ok) {
       res.status(404).json({ message: "not_found" });
       return;
     }
     await recordAudit(db, {
       userId: null,
       actorUserId: req.user.id,
-      action: "admin.permission_group.delete",
-      details: { id },
+      action: "admin.permission_group.delete_scheduled",
+      details: { id, purge_after: marked.purge_after },
       ip: clientIp(req),
       ...auditCtx(req),
     });
-    res.json({ ok: true });
+    res.json({ ok: true, purge_after: marked.purge_after });
   });
 
   app.get("/api/admin/metrics/home-views", requireAdmin, async (req, res) => {
@@ -1620,6 +1650,7 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/admin/audit-log", requireAdmin, async (req, res) => {
+    setPrivateNoStore(res);
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
     const skip = Math.max(0, Math.min(10000, Number(req.query.skip) || 0));
     const action = req.query.action != null ? String(req.query.action) : "";
@@ -1801,7 +1832,7 @@ export function createApplication(db, options = {}) {
     const fileRows = await db
       .collection("files")
       .find(
-        {},
+        notDeletedFilter(),
         {
           projection: {
             _id: 0,
@@ -2212,7 +2243,11 @@ export function createApplication(db, options = {}) {
         res.status(400).json({ message: "invalid_batch_id" });
         return;
       }
-      const del = await db.collection("eventos").deleteMany({ bulk_batch_id: batchId });
+      const fields = softDeleteFields(req.user.id);
+      const upd = await db.collection("eventos").updateMany(
+        { bulk_batch_id: batchId, ...notDeletedFilter() },
+        { $set: fields },
+      );
       const now = nowIso();
       await db.collection(BULK_RUNS_COLLECTION).updateOne(
         { id },
@@ -2220,7 +2255,7 @@ export function createApplication(db, options = {}) {
           $set: {
             undone_at: now,
             undone_by_user_id: req.user.id,
-            undone_deleted_count: del.deletedCount || 0,
+            undone_deleted_count: upd.modifiedCount || 0,
             updated_at: now,
           },
         },
@@ -2229,11 +2264,11 @@ export function createApplication(db, options = {}) {
         userId: req.user.id,
         actorUserId: req.user.id,
         action: "admin.eventos.bulk_run.undo",
-        details: { bulk_run_id: id, deleted: del.deletedCount || 0 },
+        details: { bulk_run_id: id, scheduled: upd.modifiedCount || 0 },
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      res.json({ ok: true, deleted: del.deletedCount || 0 });
+      res.json({ ok: true, deleted: upd.modifiedCount || 0 });
     },
   );
 
@@ -2275,7 +2310,7 @@ export function createApplication(db, options = {}) {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const rows = await db
       .collection(BULK_SCHEDULE_TEMPLATES)
-      .find({}, { projection: { _id: 0 } })
+      .find(notDeletedFilter(), { projection: { _id: 0 } })
       .sort({ updated_at: -1 })
       .limit(limit)
       .toArray();
@@ -2292,7 +2327,7 @@ export function createApplication(db, options = {}) {
     const row = await db
       .collection(BULK_SCHEDULE_TEMPLATES)
       .findOne({ id }, { projection: { _id: 0 } });
-    if (!row) {
+    if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
@@ -2386,20 +2421,20 @@ export function createApplication(db, options = {}) {
       res.status(400).json({ message: "invalid_id" });
       return;
     }
-    const r = await db.collection(BULK_SCHEDULE_TEMPLATES).deleteOne({ id });
-    if (r.deletedCount === 0) {
+    const marked = await markRowSoftDeleted(db, BULK_SCHEDULE_TEMPLATES, { id }, req.user.id);
+    if (!marked.ok) {
       res.status(404).json({ message: "not_found" });
       return;
     }
     await recordAudit(db, {
       userId: req.user.id,
       actorUserId: req.user.id,
-      action: "admin.eventos.bulk_schedule.delete",
-      details: { template_id: id },
+      action: "admin.eventos.bulk_schedule.delete_scheduled",
+      details: { template_id: id, purge_after: marked.purge_after },
       ip: clientIp(req),
       ...auditCtx(req),
     });
-    res.json({ ok: true });
+    res.json({ ok: true, purge_after: marked.purge_after });
   });
 
   app.post("/api/admin/users", requireAdmin, async (_req, res) => {
@@ -2752,20 +2787,25 @@ export function createApplication(db, options = {}) {
 
     await Promise.all([
       db.collection("sessions").deleteMany({ user_id: id }),
-      db.collection("user_invites").deleteMany({ user_id: id }),
-      db.collection("users").deleteOne({ id }),
     ]);
+
+    const marked = await markRowSoftDeleted(db, "users", { id }, req.user.id);
+    if (!marked.ok) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    await db.collection("users").updateOne({ id }, { $set: { disabled: true } });
 
     await recordAudit(db, {
       userId: id,
       actorUserId: req.user.id,
-      action: "admin.user.delete",
-      details: { email: row.email, role: row.role },
+      action: "admin.user.delete_scheduled",
+      details: { email: row.email, role: row.role, purge_after: marked.purge_after },
       ip: clientIp(req),
       ...auditCtx(req),
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, purge_after: marked.purge_after });
   });
 
   app.get("/api/admin/sessions/active", requireAdmin, async (_req, res) => {
@@ -2830,6 +2870,7 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/admin/users/:id/audit-log", requireAdmin, async (req, res) => {
+    setPrivateNoStore(res);
     const uid = Number(req.params.id);
     if (!Number.isFinite(uid)) {
       res.status(400).json({ message: "invalid_id" });
@@ -2871,8 +2912,9 @@ export function createApplication(db, options = {}) {
     } else if (kind === "audio") {
       clauses.push({ mime: { $regex: "^audio\\/", $options: "i" } });
     }
-    const filter =
+    const filterBase =
       clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
+    const filter = { $and: [filterBase, notDeletedFilter()] };
     const [items, total] = await Promise.all([
       db
         .collection("files")
@@ -2894,7 +2936,7 @@ export function createApplication(db, options = {}) {
       return;
     }
     const row = await db.collection("files").findOne({ id }, { projection: { _id: 0, storage_path: 0 } });
-    if (!row) {
+    if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
@@ -2911,7 +2953,7 @@ export function createApplication(db, options = {}) {
     const forceRaw = String(req.query.force || "").toLowerCase();
     const force = forceRaw === "1" || forceRaw === "true" || forceRaw === "yes";
     const row = await db.collection("files").findOne({ id });
-    if (!row) {
+    if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
@@ -2920,48 +2962,26 @@ export function createApplication(db, options = {}) {
       res.status(409).json({ message: "in_use", references });
       return;
     }
-    const diskPath = resolveUploadedDiskPath(row);
-    if (diskPath) {
-      try {
-        fs.unlinkSync(diskPath);
-      } catch (err) {
-        log.warn(
-          `${color.brightYellow("[files]")} falha ao apagar ficheiro em disco id=${color.bold(String(id))}: ${color.dim(String(err?.message || err))}`,
-        );
-      }
+    const marked = await markRowSoftDeleted(db, "files", { id }, req.user.id);
+    if (!marked.ok) {
+      res.status(404).json({ message: "not_found" });
+      return;
     }
-    try {
-      const cacheDir = path.join(uploadDir, "_cache");
-      if (fs.existsSync(cacheDir)) {
-        const pref = `${id}-`;
-        for (const name of fs.readdirSync(cacheDir)) {
-          if (name.startsWith(pref)) {
-            try {
-              fs.unlinkSync(path.join(cacheDir, name));
-            } catch {
-              /* ignore */
-            }
-          }
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    await db.collection("files").deleteOne({ id });
     await recordAudit(db, {
       userId: req.user.id,
       actorUserId: req.user.id,
-      action: "admin.file.delete",
+      action: "admin.file.delete_scheduled",
       details: {
         file_id: id,
         original_name: row.original_name,
         forced: force && references.length > 0,
         reference_count: references.length,
+        purge_after: marked.purge_after,
       },
       ip: clientIp(req),
       ...auditCtx(req),
     });
-    res.json({ ok: true });
+    res.json({ ok: true, purge_after: marked.purge_after });
   });
 
   const upload = multer({
@@ -3047,7 +3067,7 @@ export function createApplication(db, options = {}) {
       return;
     }
     const row = await db.collection("files").findOne({ id }, { projection: { _id: 0 } });
-    if (!row) {
+    if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
@@ -3190,6 +3210,67 @@ export function createApplication(db, options = {}) {
 
   /** SPA em produção: `npm run build` → `dist/` (Docker / deploy único). */
   const distPath = path.resolve(process.cwd(), "dist");
+
+  app.get("/api/admin/pending-deletions", requireAdmin, async (_req, res) => {
+    setPrivateNoStore(res);
+    const pendingFilter = {
+      deleted_at: { $exists: true, $nin: [null, ""] },
+    };
+    const items = [];
+    for (const collection of SOFT_DELETE_COLLECTIONS) {
+      const rows = await db
+        .collection(collection)
+        .find(pendingFilter, { projection: { _id: 0 } })
+        .sort({ deleted_at: -1 })
+        .limit(200)
+        .toArray();
+      for (const row of rows) {
+        if (!isDeletedRow(row)) continue;
+        items.push({
+          type: collection,
+          type_label: SOFT_DELETE_TYPE_LABELS[collection] || collection,
+          id: row.id,
+          label: softDeleteItemLabel(row),
+          deleted_at: row.deleted_at,
+          purge_after: row.purge_after,
+          deleted_by_user_id: row.deleted_by_user_id ?? null,
+        });
+      }
+    }
+    items.sort((a, b) => String(b.deleted_at).localeCompare(String(a.deleted_at)));
+    res.json({ items });
+  });
+
+  app.post(
+    "/api/admin/pending-deletions/:type/:id/restore",
+    requireAdmin,
+    async (req, res) => {
+      const type = String(req.params.type || "").trim();
+      const id = Number(req.params.id);
+      if (!SOFT_DELETE_COLLECTIONS.includes(type) || !Number.isFinite(id)) {
+        res.status(400).json({ message: "invalid_request" });
+        return;
+      }
+      const restored = await restoreSoftDeletedRow(db, type, { id });
+      if (!restored.ok) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
+      if (type === "users") {
+        await db.collection("users").updateOne({ id }, { $set: { disabled: false } });
+      }
+      await recordAudit(db, {
+        userId: type === "users" ? id : req.user.id,
+        actorUserId: req.user.id,
+        action: "admin.soft_delete.restore",
+        details: { type, resource_id: id },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      res.json({ ok: true });
+    },
+  );
+
   if (fs.existsSync(path.join(distPath, "index.html"))) {
     app.use(express.static(distPath, { index: false }));
     // Express 5 + path-to-regexp v6: não usar `app.get('*')` nem `*` em paths.
@@ -3208,8 +3289,10 @@ export function createApplication(db, options = {}) {
   }
 
   void purgeAuditLogsByPolicy(db).catch(() => {});
+  void purgeSoftDeletedRecords(db, uploadDir, resolveUploadedDiskPath).catch(() => {});
   setInterval(() => {
     void purgeAuditLogsByPolicy(db).catch(() => {});
+    void purgeSoftDeletedRecords(db, uploadDir, resolveUploadedDiskPath).catch(() => {});
   }, 24 * 60 * 60 * 1000);
 
   return app;

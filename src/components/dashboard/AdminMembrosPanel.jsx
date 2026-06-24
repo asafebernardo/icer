@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { api } from "@/api/client";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -819,8 +820,8 @@ export default function AdminMembrosPanel({ adminUser, serverControlsEnabled }) 
               Isto remove{" "}
               <span className="font-medium text-foreground">{deleteTarget?.label || "—"}</span>
               {serverControlsEnabled
-                ? " da base de dados e invalida as sessões. Não pode ser desfeito."
-                : " da lista de membros. Não pode ser desfeito."}
+                ? ` da lista de utilizadores activos e invalida as sessões. ${SOFT_DELETE_CONFIRM_DESCRIPTION}`
+                : " da lista de membros."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

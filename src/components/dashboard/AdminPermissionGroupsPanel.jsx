@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -375,7 +375,8 @@ export default function AdminPermissionGroupsPanel() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar grupo?</AlertDialogTitle>
             <AlertDialogDescription>
-              «{deleteRow?.name}» será removido. Só é possível se nenhum utilizador estiver associado.
+              «{deleteRow?.name}» será removido da lista activa. Só é possível se nenhum utilizador
+              estiver associado. {SOFT_DELETE_CONFIRM_DESCRIPTION}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

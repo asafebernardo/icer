@@ -19,6 +19,7 @@ import {
   normalizeTagKey,
 } from "@/lib/posts";
 import { POST_CATEGORIA_LABELS, resolvePostCategoria } from "@/lib/postCategories";
+import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
 
 export default function PostPage() {
   const { id } = useParams();
@@ -246,7 +247,9 @@ export default function PostPage() {
             {String(post.conteudo || "").trim() ? (
               <div
                 className="prose prose-sm dark:prose-invert max-w-none text-foreground"
-                dangerouslySetInnerHTML={{ __html: String(post.conteudo) }}
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeRichHtml(post.conteudo),
+                }}
               />
             ) : null}
 

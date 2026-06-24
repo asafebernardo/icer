@@ -30,12 +30,19 @@ import {
 } from "@/lib/publicWorkspace";
 import { hydrateMemberRegistryFromPublicWorkspace } from "@/lib/memberRegistry";
 import {
-  buildGoogleLoginStartUrl,
   forgetGoogleLoginHintOnServer,
   getGoogleLoginHint,
   setGoogleLoginHint,
   syncGoogleLoginHintFromServer,
 } from "@/lib/googleLoginHint";
+import {
+  RECAPTCHA_ACTIONS,
+  executeRecaptcha,
+  getRecaptchaConfig,
+  isRecaptchaEnabled,
+  loadRecaptchaV3,
+  recaptchaErrorMessagePt,
+} from "@/lib/recaptcha";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 import { setLoginIntent } from "@/lib/loginIntent";
 import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
@@ -352,12 +359,55 @@ export function AuthProvider({ children }) {
         const noSilent =
           opts.noSilent === true || googleReauthPendingRef.current;
         googleReauthPendingRef.current = false;
-        const r = await fetch(
-          buildGoogleLoginStartUrl({ ...opts, noSilent }),
-          { credentials: "include" },
-        );
+
+        if (isRecaptchaEnabled()) {
+          const cfg = getRecaptchaConfig();
+          if (cfg.site_key) await loadRecaptchaV3(cfg.site_key);
+        }
+
+        let recaptcha_token = opts.recaptcha_token;
+        if (!recaptcha_token && isRecaptchaEnabled()) {
+          recaptcha_token = await executeRecaptcha(RECAPTCHA_ACTIONS.GOOGLE_LOGIN);
+          if (!recaptcha_token) {
+            toast.error("Não foi possível validar a verificação de segurança.");
+            return;
+          }
+        }
+
+        /** @type {Record<string, unknown>} */
+        const body = {
+          pick_account: opts.pickAccount === true,
+          no_silent: noSilent,
+        };
+        if (recaptcha_token) body.recaptcha_token = recaptcha_token;
+        if (!opts.pickAccount) {
+          const hint = getGoogleLoginHint();
+          if (hint) body.login_hint = hint;
+        }
+        if (typeof window !== "undefined") {
+          const { hostname } = window.location;
+          if (hostname === "localhost" || hostname === "127.0.0.1") {
+            body.public_origin = window.location.origin;
+          }
+        }
+
+        const r = await fetch("/api/auth/google-login/start", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(body),
+        });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.message || r.statusText);
+        if (!r.ok) {
+          const msg =
+            recaptchaErrorMessagePt(j.message) ||
+            j.message ||
+            r.statusText;
+          throw new Error(msg);
+        }
         if (j.remembered_email) {
           syncGoogleLoginHintFromServer(j.remembered_email);
           setRememberedGoogleEmail(j.remembered_email);
@@ -398,12 +448,12 @@ export function AuthProvider({ children }) {
     return { ok: false };
   }, [applySessionUser, fetchSessionUser, checkUserAuth, invalidateStaleServerSession]);
 
-  const login = useCallback(async (email, senha) => {
+  const login = useCallback(async (email, senha, recaptchaToken) => {
     sessionValidationGenRef.current += 1;
     homologBootstrapAttemptedRef.current = false;
     loginInProgressRef.current = true;
     try {
-      const result = await authLogin(email, senha);
+      const result = await authLogin(email, senha, recaptchaToken);
       if (!result.ok) return result;
       const u = await fetchSessionUser();
       if (!u) {

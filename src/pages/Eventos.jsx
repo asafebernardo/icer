@@ -36,7 +36,7 @@ import {
 import { motion } from "framer-motion";
 import PageHeader from "../components/shared/PageHeader";
 import EmptyState from "../components/shared/EmptyState";
-import ConfirmDialog from "../components/shared/ConfirmDialog";
+import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import EventoFormPanel from "../components/agenda/EventoFormPanel";
 import { canMenuAction, MENU, isAdminUser } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
@@ -951,7 +951,7 @@ export default function Eventos({ embedded = false } = {}) {
           if (!open) setEventoDeleteId(null);
         }}
         title="Excluir evento?"
-        description="Esta ação não pode ser desfeita."
+        description={SOFT_DELETE_CONFIRM_DESCRIPTION}
         confirmLabel="Excluir"
         cancelLabel="Cancelar"
         onConfirm={() => {
