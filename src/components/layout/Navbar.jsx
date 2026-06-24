@@ -38,7 +38,6 @@ import {
 } from "@/lib/siteConfig";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
-import { useAuth } from "@/lib/AuthContext";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import SiteLogoMark, {
@@ -51,20 +50,22 @@ import {
   getAdminNavGroups,
 } from "@/lib/adminNavConfig";
 import { cn } from "@/lib/utils";
+import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB_PATH } from "@/lib/postsNavPath";
 
 // Menus base (sempre visíveis)
 const BASE_LINKS = [
   { label: "Início", path: "/Home" },
-  { label: "Posts", path: "/Posts" },
+  { label: "Cultos", path: "/Cultos" },
+  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH },
+  { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH },
+  { label: "História", path: "/Historia" },
+  { label: "Contato", path: "/Contato" },
 ];
-
-const ADMIN_ONLY_NAV_LINKS = [{ label: "História", path: "/Historia" }];
 
 export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
-  const { googleLoginAvailable } = useAuth();
   const sessionUser = useSyncedAuthUser();
 
   const isLoggedIn = !!sessionUser;
@@ -109,10 +110,7 @@ export default function Navbar() {
   );
   const adminTabHref = (id) => (id === "profile" ? "/Admin" : `/Admin?tab=${id}`);
 
-  const mainNavLinks = useMemo(
-    () => [...BASE_LINKS, ...(isAdmin ? ADMIN_ONLY_NAV_LINKS : [])],
-    [isAdmin],
-  );
+  const mainNavLinks = useMemo(() => BASE_LINKS, []);
 
   return (
     <nav
@@ -261,11 +259,11 @@ export default function Navbar() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            ) : googleLoginAvailable ? (
+            ) : (
               <div className="hidden sm:flex">
                 <GoogleSignInButton size="sm" compact />
               </div>
-            ) : null}
+            )}
 
             {/* Mobile menu */}
             <div className="lg:hidden">
@@ -420,17 +418,13 @@ export default function Navbar() {
                             </button>
                           </div>
                         ) : (
-                          <>
-                            {googleLoginAvailable ? (
-                              <div className="px-4 py-2">
-                                <GoogleSignInButton
-                                  className="w-full min-h-[44px] justify-center"
-                                  size="default"
-                                  onClick={() => setOpen(false)}
-                                />
-                              </div>
-                            ) : null}
-                          </>
+                          <div className="px-4 py-2">
+                            <GoogleSignInButton
+                              className="w-full min-h-[44px] justify-center"
+                              size="default"
+                              onClick={() => setOpen(false)}
+                            />
+                          </div>
                         )}
                       </div>
                     </nav>

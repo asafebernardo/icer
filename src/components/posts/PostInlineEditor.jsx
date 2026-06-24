@@ -312,7 +312,7 @@ export default function PostInlineEditor({
             asChild
           >
             <Link
-              to={`/Posts/editar/${postId}`}
+              to={`/Eventos/editar/${postId}`}
               state={returnPath ? { from: returnPath } : undefined}
             >
               Editor completo
@@ -480,7 +480,7 @@ export default function PostInlineEditor({
               Esta publicação usa galeria por secções. Para alterar imagens,
               use o{" "}
               <Link
-                to={`/Posts/editar/${postId}`}
+                to={`/Eventos/editar/${postId}`}
                 state={returnPath ? { from: returnPath } : undefined}
                 className="text-[#93C5FD] hover:underline"
               >

@@ -14,7 +14,7 @@ import {
 
 function PostYearTileSkeleton() {
   return (
-    <div className="post-category-tile post-category-tile--skeleton post-year-group-tile h-[220px] rounded-[20px] sm:h-[260px] md:h-[280px] lg:h-[320px]" />
+    <div className="post-category-tile post-category-tile--skeleton post-year-group-tile h-[272px] rounded-[20px] sm:h-[320px] md:h-[360px] lg:h-[400px]" />
   );
 }
 
@@ -131,6 +131,34 @@ export function PostsCategoryYearMosaic({
           location={location}
           fallbackThumb={fallbackThumb}
           opensPostDirectly={opensPostDirectly}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Mosaico de anos no grupo Eventos (antes das 16 categorias). */
+export function PostsGroupYearMosaic({ posts, groupPath, location }) {
+  const yearGroups = useMemo(
+    () =>
+      groupPostsByPublicationYear(posts, {
+        presetYears: POST_CATEGORY_PRESET_YEARS,
+      }),
+    [posts],
+  );
+  const fallbackThumb = POST_CATEGORIA_MOSAIC_THUMBS.culto_dominical || null;
+
+  return (
+    <div className="posts-category-grid posts-category-grid--years">
+      {yearGroups.map((group) => (
+        <PostYearGroupCard
+          key={group.year ?? "sem-data"}
+          year={group.year}
+          posts={group.posts}
+          categoryPath={groupPath}
+          location={location}
+          fallbackThumb={fallbackThumb}
+          opensPostDirectly={false}
         />
       ))}
     </div>

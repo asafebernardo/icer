@@ -376,7 +376,7 @@
   .post-category-tile {
     position: relative;
     display: block;
-    height: 200px;
+    height: 240px;
     overflow: hidden;
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -394,7 +394,7 @@
 
   @media (min-width: 640px) {
     .post-category-tile {
-      height: 210px;
+      height: 260px;
     }
   }
 
@@ -573,9 +573,27 @@
     border-color: rgba(251, 146, 60, 0.42);
   }
 
+  .post-category-tile__tag--eventos {
+    background: rgba(192, 38, 211, 0.45);
+    border-color: rgba(232, 121, 249, 0.28);
+  }
+
+  .post-category-tile:hover .post-category-tile__tag--eventos {
+    background: rgba(192, 38, 211, 0.62);
+    border-color: rgba(232, 121, 249, 0.42);
+  }
+
+  .post-category-tile--tag-eventos {
+    border-color: rgba(192, 38, 211, 0.22);
+  }
+
+  .post-category-tile--tag-eventos:hover {
+    border-color: rgba(232, 121, 249, 0.35);
+  }
+
   /* Oficiais — realce premium no card inteiro */
   .post-category-tile--tag-oficiais {
-    height: 216px;
+    height: 252px;
     border-color: rgba(56, 189, 248, 0.28);
     box-shadow:
       0 0 0 1px rgba(56, 189, 248, 0.1) inset,
@@ -585,7 +603,7 @@
 
   @media (min-width: 640px) {
     .post-category-tile--tag-oficiais {
-      height: 232px;
+      height: 276px;
     }
   }
 
@@ -827,17 +845,19 @@
 
   .post-group-tile,
   .posts-category-grid--categories .post-category-tile,
+  .posts-category-grid--eventos-hub .post-category-tile,
   .posts-category-grid--years .post-year-group-tile,
   .posts-category-grid--dates .post-publication-date-tile {
-    height: 220px;
+    height: 272px;
   }
 
   @media (min-width: 640px) {
     .post-group-tile,
     .posts-category-grid--categories .post-category-tile,
+    .posts-category-grid--eventos-hub .post-category-tile,
     .posts-category-grid--years .post-year-group-tile,
     .posts-category-grid--dates .post-publication-date-tile {
-      height: 260px;
+      height: 320px;
     }
 
     .posts-category-grid--groups,
@@ -859,9 +879,15 @@
   @media (min-width: 768px) {
     .post-group-tile,
     .posts-category-grid--categories .post-category-tile,
+    .posts-category-grid--eventos-hub .post-category-tile,
     .posts-category-grid--years .post-year-group-tile,
     .posts-category-grid--dates .post-publication-date-tile {
-      height: 280px;
+      height: 360px;
+    }
+
+    .posts-category-grid--groups > * {
+      flex: 0 1 calc((100% - 1.125rem) / 2);
+      max-width: calc((100% - 1.125rem) / 2);
     }
   }
 
@@ -925,6 +951,69 @@
     gap: 0.875rem;
   }
 
+  /** Hub /Eventos — grelha fixa de 4 colunas a partir de tablet landscape. */
+  .posts-category-grid--eventos-hub {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+
+  /** Hub Informações — três cartões numa linha, mais altos. */
+  .posts-category-grid--informacoes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.625rem;
+    width: 100%;
+  }
+
+  .posts-category-grid--informacoes .post-category-tile {
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+  }
+
+  .posts-category-grid--informacoes .post-category-tile__content {
+    padding: 0.75rem 0.875rem 0.875rem;
+  }
+
+  .posts-category-grid--informacoes .post-category-tile__title {
+    font-size: 0.875rem;
+  }
+
+  @media (min-width: 640px) {
+    .posts-category-grid--informacoes {
+      gap: 1rem;
+    }
+
+    .posts-category-grid--informacoes .post-category-tile {
+      aspect-ratio: 4 / 5;
+      border-radius: 14px;
+    }
+
+    .posts-category-grid--informacoes .post-category-tile__content {
+      padding: 0.875rem 1rem 1rem;
+    }
+
+    .posts-category-grid--informacoes .post-category-tile__title {
+      font-size: 1rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .posts-category-grid--informacoes {
+      gap: 1.125rem;
+    }
+
+    .posts-category-grid--informacoes .post-category-tile {
+      aspect-ratio: 3 / 4;
+      min-height: clamp(260px, 36vh, 400px);
+    }
+
+    .posts-category-grid--informacoes .post-category-tile__title {
+      font-size: 1.0625rem;
+    }
+  }
+
   .posts-category-grid--groups,
   .posts-category-grid--categories,
   .posts-category-grid--years,
@@ -953,6 +1042,18 @@
     border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
 
+  .posts-category-mosaic-group__title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.95);
+  }
+
+  .posts-category-mosaic-group__title--solo {
+    margin-bottom: 0.875rem;
+  }
+
   @media (min-width: 640px) {
     .posts-category-mosaic-stack {
       gap: 1.75rem;
@@ -977,12 +1078,25 @@
     .posts-category-grid {
       gap: 1rem;
     }
+
+    .posts-category-grid--eventos-hub {
+      gap: 1rem;
+    }
   }
 
   @media (min-width: 768px) {
     .posts-category-grid {
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 1.125rem;
+    }
+
+    .posts-category-grid--eventos-hub {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1.125rem;
+    }
+
+    .posts-category-grid--informacoes {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .posts-category-grid--cols-3 {
@@ -1001,13 +1115,17 @@
     .posts-category-grid--categories > *,
     .posts-category-grid--years > *,
     .posts-category-grid--dates > * {
-      flex: 0 1 calc((100% - 2.25rem) / 3);
-      max-width: calc((100% - 2.25rem) / 3);
+      flex: 0 1 calc((100% - 1.125rem) / 2);
+      max-width: calc((100% - 1.125rem) / 2);
     }
   }
 
   @media (min-width: 1024px) {
     .posts-category-grid {
+      gap: 1.25rem;
+    }
+
+    .posts-category-grid--eventos-hub {
       gap: 1.25rem;
     }
 
@@ -1019,8 +1137,12 @@
     }
 
     .posts-category-grid--groups > *,
+    .posts-category-grid--years > * {
+      flex: 0 1 calc((100% - 1.5rem) / 2);
+      max-width: calc((100% - 1.5rem) / 2);
+    }
+
     .posts-category-grid--categories > *,
-    .posts-category-grid--years > *,
     .posts-category-grid--dates > * {
       flex: 0 1 calc((100% - 3rem) / 3);
       max-width: calc((100% - 3rem) / 3);
@@ -1028,18 +1150,21 @@
 
     .post-group-tile,
     .posts-category-grid--categories .post-category-tile,
+    .posts-category-grid--eventos-hub .post-category-tile,
     .posts-category-grid--years .post-year-group-tile,
     .posts-category-grid--dates .post-publication-date-tile {
-      height: 320px;
+      height: 400px;
     }
 
     .posts-category-grid--groups .post-category-tile__title,
-    .posts-category-grid--categories .post-category-tile__title {
+    .posts-category-grid--categories .post-category-tile__title,
+    .posts-category-grid--eventos-hub .post-category-tile__title {
       font-size: 1.375rem;
     }
 
     .posts-category-grid--groups .post-category-tile__meta,
-    .posts-category-grid--categories .post-category-tile__meta {
+    .posts-category-grid--categories .post-category-tile__meta,
+    .posts-category-grid--eventos-hub .post-category-tile__meta {
       font-size: 0.8125rem;
     }
 
@@ -1135,6 +1260,25 @@
     }
   }
 
+  .posts-hub-tag-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.25rem;
+    padding: 0.375rem 1rem;
+    border-radius: 9999px;
+    border-width: 1px;
+    border-style: solid;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
   .posts-hub-tag-pill--idle {
     border-color: rgba(255, 255, 255, 0.06);
     background: rgba(8, 17, 31, 0.6);
@@ -1218,7 +1362,7 @@
       background: rgba(8, 17, 31, 0.92);
       contain: layout style paint;
       content-visibility: auto;
-      contain-intrinsic-size: 200px;
+      contain-intrinsic-size: 272px;
       box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.03) inset,
         0 4px 16px -10px rgba(0, 0, 0, 0.45);
@@ -1226,7 +1370,7 @@
     }
 
     .post-category-tile--tag-oficiais {
-      height: 200px;
+      height: 252px;
       box-shadow:
         0 0 0 1px rgba(56, 189, 248, 0.08) inset,
         0 4px 16px -10px rgba(0, 0, 0, 0.45);

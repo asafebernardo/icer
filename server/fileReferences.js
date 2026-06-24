@@ -71,8 +71,8 @@ export async function findFileReferences(db, fileId) {
       kind: "material",
       id: m.id,
       label: titulo ? `Material: ${titulo}` : `Material #${m.id}`,
-      href: "/Home#recursos",
-      meta: "Edição em Recursos / cadastros",
+      href: "/Posts/categoria/aplicativos",
+      meta: "Edição em Posts › Informações › Aplicativos",
     });
   }
 

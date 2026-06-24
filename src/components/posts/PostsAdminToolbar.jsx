@@ -4,10 +4,11 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** Ações admin na página de uma categoria de posts (Novo post). */
+/** Ações admin na página de uma categoria de posts (Novo …). */
 export default function PostsAdminToolbar({
   canCreate,
-  createHref = "/Posts/nova",
+  createHref = "/Eventos/nova",
+  createLabel = "Novo post",
   needsEditMode = false,
   compact = false,
   className,
@@ -23,7 +24,7 @@ export default function PostsAdminToolbar({
       <Button size="sm" className="h-8 px-3 text-xs" asChild>
         <Link to={createHref} state={{ from: returnPath }}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Novo post
+          {createLabel}
         </Link>
       </Button>
     ) : null;
@@ -51,7 +52,7 @@ export default function PostsAdminToolbar({
           <Button size="sm" className="h-8 px-3 text-xs" asChild>
             <Link to={createHref} state={{ from: returnPath }}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Novo post
+              {createLabel}
             </Link>
           </Button>
         ) : null}

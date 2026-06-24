@@ -11,7 +11,7 @@ const PERMS_KEY = "icer_member_permissions";
 /** Menus do site com permissões granulares (criar / editar / deletar) */
 export const SITE_MENUS = [
   { key: "home", label: "Início" },
-  { key: "postagens", label: "Posts" },
+  { key: "postagens", label: "Eventos" },
   { key: "recursos", label: "Recursos" },
   { key: "agenda", label: "Agenda" },
   { key: "eventos", label: "Eventos" },

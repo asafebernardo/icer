@@ -151,7 +151,7 @@ export default function PostFeedCard({
               asChild
             >
               <Link
-                to={`/Posts/editar/${post.id}`}
+                to={`/Eventos/editar/${post.id}`}
                 state={{
                   from: location.pathname + (location.search || ""),
                 }}

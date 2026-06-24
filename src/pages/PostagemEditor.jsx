@@ -96,7 +96,7 @@ import {
   POST_CATEGORIAS,
   normalizeStoredPostCategoria,
 } from "@/lib/postCategories";
-import { resolvePostsReturnPath } from "@/lib/postsNavPath";
+import { buildPostsNavPath, getPostCategoryLabel, resolvePostsReturnPath, getPostCategoryPath, POSTS_HUB_PATH } from "@/lib/postsNavPath";
 import {
   FieldHintMessage,
   MSG_CAMPO_OBRIGATORIO,
@@ -263,9 +263,7 @@ function sortFieldHintKeysForScroll(keys) {
 
 function getPostEditorBackTo(from, categoriaSlug) {
   const cat = normalizeStoredPostCategoria(categoriaSlug);
-  const fallback = cat
-    ? `/Posts/categoria/${encodeURIComponent(cat)}`
-    : "/Posts";
+  const fallback = cat ? getPostCategoryPath(cat) : POSTS_HUB_PATH;
   return resolvePostsReturnPath(from, fallback);
 }
 
@@ -301,18 +299,20 @@ export default function PostagemEditor() {
   const autorEmail = sessionUser?.email || "";
 
   const isEditMode = Number.isFinite(postId) && postId > 0;
+  const categoriaLocked =
+    !isEditMode && Boolean(categoriaPresetRef.current);
 
   useEffect(() => {
-    if (invalidEditId) navigate("/Posts", { replace: true });
+    if (invalidEditId) navigate("/Eventos", { replace: true });
   }, [invalidEditId, navigate]);
 
   useEffect(() => {
     if (!isEditMode && !canCreate) {
-      navigate("/Posts", { replace: true });
+      navigate("/Eventos", { replace: true });
       return;
     }
     if (isEditMode && !canEdit) {
-      navigate("/Posts", { replace: true });
+      navigate("/Eventos", { replace: true });
     }
   }, [isEditMode, canCreate, canEdit, navigate]);
 
@@ -443,6 +443,15 @@ export default function PostagemEditor() {
     () => getPostEditorBackTo(from, categoria),
     [from, categoria],
   );
+
+  const editorBreadcrumbItems = useMemo(() => {
+    const cat = normalizeStoredPostCategoria(categoria);
+    const base = cat
+      ? buildPostsNavPath({ categoryKey: cat })
+      : buildPostsNavPath();
+    const editorLabel = isEditMode ? "Editar publicação" : "Nova publicação";
+    return [...base, { label: editorLabel, href: null }];
+  }, [categoria, isEditMode]);
 
   /** URL de uma imagem anexa ou "" = usar primeira imagem na ordem */
   const [imagemDestaqueUrl, setImagemDestaqueUrl] = useState("");
@@ -1175,10 +1184,7 @@ export default function PostagemEditor() {
               <PostsNavBreadcrumb
                 centered
                 tone="default"
-                items={[
-                  { label: "Posts", href: "/Posts" },
-                  { label: "Editar publicação", href: null },
-                ]}
+                items={editorBreadcrumbItems}
               />
             }
           />
@@ -1198,13 +1204,7 @@ export default function PostagemEditor() {
             <PostsNavBreadcrumb
               centered
               tone="default"
-              items={[
-                { label: "Posts", href: "/Posts" },
-                {
-                  label: isEditMode ? "Editar publicação" : "Nova publicação",
-                  href: null,
-                },
-              ]}
+              items={editorBreadcrumbItems}
             />
           }
         />
@@ -1352,24 +1352,34 @@ export default function PostagemEditor() {
 
           <div className="space-y-2">
             <Label htmlFor="post-categoria">Categoria</Label>
-            <Select
-              value={categoria || "__none__"}
-              onValueChange={(value) =>
-                setCategoria(value === "__none__" ? "" : value)
-              }
-            >
-              <SelectTrigger id="post-categoria" className="w-full">
-                <SelectValue placeholder="Selecione a categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">—</SelectItem>
-                {POST_CATEGORIAS.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {categoriaLocked ? (
+              <Input
+                id="post-categoria"
+                value={getPostCategoryLabel(categoria) || categoria}
+                readOnly
+                disabled
+                className="bg-muted/50"
+              />
+            ) : (
+              <Select
+                value={categoria || "__none__"}
+                onValueChange={(value) =>
+                  setCategoria(value === "__none__" ? "" : value)
+                }
+              >
+                <SelectTrigger id="post-categoria" className="w-full">
+                  <SelectValue placeholder="Selecione a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">—</SelectItem>
+                  {POST_CATEGORIAS.filter((item) => item.value !== "aplicativos").map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-2">

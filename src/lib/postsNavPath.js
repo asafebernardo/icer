@@ -3,7 +3,7 @@ import {
   POST_FEED_SECTION_LABELS,
   categoryUsesYearPostList,
   getPostCategoryGroupId,
-  getPostMosaicGroup,
+  isEventosYearFirstGroup,
   resolvePostCategoria,
 } from "@/lib/postCategories";
 import {
@@ -13,10 +13,70 @@ import {
   postYearToQueryValue,
 } from "@/lib/posts";
 
+/** Publicações de eventos (cultos, encontros, festividades, etc.). */
+export const POSTS_HUB_PATH = "/Eventos";
+export const POSTS_HUB_LABEL = "Eventos";
+export const POSTS_HUB_TITLE = "Encontros e memórias";
+export const POSTS_HUB_DESCRIPTION =
+  "Registros de cultos, encontros, festividades e conferências.";
+
+/** Notícias, agenda, aplicativos e programação. */
+export const INFORMACOES_HUB_PATH = "/Informacoes";
+export const INFORMACOES_HUB_LABEL = "Informações";
+export const INFORMACOES_HUB_TITLE = "Notícias e recursos";
+export const INFORMACOES_HUB_DESCRIPTION =
+  "Agenda, aplicativos, programação e avisos da comunidade.";
+
+/** Agenda em Informações (calendário + programação). */
+export const INFORMACOES_AGENDA_PATH = `${INFORMACOES_HUB_PATH}/categoria/agenda`;
+
+/** @param {{ tab?: "eventos" | "configuracoes"; novo?: boolean }} [opts] */
+export function getInformacoesAgendaPath({ tab, novo = false } = {}) {
+  const params = new URLSearchParams();
+  if (tab === "configuracoes") params.set("tab", "configuracoes");
+  else if (tab === "eventos") params.set("tab", "eventos");
+  if (novo) params.set("novo", "1");
+  const q = params.toString();
+  return q ? `${INFORMACOES_AGENDA_PATH}?${q}` : INFORMACOES_AGENDA_PATH;
+}
+
 /** @param {string} catKey */
 export function getPostCategoryLabel(catKey) {
   const k = String(catKey || "").trim().toLowerCase();
   return POST_FEED_SECTION_LABELS[k] || POST_CATEGORIA_LABELS[k] || k;
+}
+
+/** Rótulo do botão «Novo …» conforme a categoria actual. */
+export function getPostCreateButtonLabel(catKey) {
+  const k = String(catKey || "").trim().toLowerCase();
+  if (!k) return "Novo post";
+  return `Novo ${getPostCategoryLabel(k)}`;
+}
+
+/** @param {string | null | undefined} groupId */
+export function getPostsHubForGroup(groupId) {
+  const id = String(groupId || "").trim().toLowerCase();
+  if (id === "informacoes") {
+    return { path: INFORMACOES_HUB_PATH, label: INFORMACOES_HUB_LABEL };
+  }
+  return { path: POSTS_HUB_PATH, label: POSTS_HUB_LABEL };
+}
+
+/** @param {string | null | undefined} categoryKey */
+export function getPostsHubForCategory(categoryKey) {
+  return getPostsHubForGroup(getPostCategoryGroupId(categoryKey));
+}
+
+/**
+ * @param {string} categoryKey
+ * @param {{ search?: string }} [opts]
+ */
+export function getPostCategoryPath(categoryKey, { search = "" } = {}) {
+  const catKey = String(categoryKey || "").trim().toLowerCase();
+  const hub = getPostsHubForCategory(catKey);
+  const base = `${hub.path}/categoria/${encodeURIComponent(catKey)}`;
+  if (!search) return base;
+  return search.startsWith("?") ? `${base}${search}` : `${base}?${search}`;
 }
 
 /**
@@ -30,28 +90,42 @@ export function buildPostsNavPath({
   includeYear,
   postTitle,
 } = {}) {
-  /** @type {Array<{ label: string, href?: string | null }>} */
-  const items = [{ label: "Posts", href: "/Posts" }];
-
   const catKey = String(categoryKey || "").trim().toLowerCase();
   const resolvedGroupId =
     String(groupId || "").trim().toLowerCase() ||
     (catKey ? getPostCategoryGroupId(catKey) : "");
+  const hub = getPostsHubForGroup(resolvedGroupId);
 
-  if (resolvedGroupId) {
-    const group = getPostMosaicGroup(resolvedGroupId);
-    if (group) {
+  /** @type {Array<{ label: string, href?: string | null }>} */
+  const items = [{ label: hub.label, href: hub.path }];
+
+  if (isEventosYearFirstGroup(resolvedGroupId)) {
+    const showYear =
+      includeYear !== false && year !== undefined;
+
+    if (catKey) {
+      const categoryHref =
+        showYear
+          ? getPostCategoryPath(catKey, {
+              search: `ano=${encodeURIComponent(postYearToQueryValue(year))}`,
+            })
+          : getPostCategoryPath(catKey);
       items.push({
-        label: group.label,
-        href: `/Posts/grupo/${encodeURIComponent(resolvedGroupId)}`,
+        label: getPostCategoryLabel(catKey),
+        href: categoryHref,
       });
-    }
-  }
 
-  if (catKey) {
+      if (showYear) {
+        items.push({
+          label: year == null ? "Sem data" : String(year),
+          href: categoryHref,
+        });
+      }
+    }
+  } else if (catKey) {
     items.push({
       label: getPostCategoryLabel(catKey),
-      href: `/Posts/categoria/${encodeURIComponent(catKey)}`,
+      href: getPostCategoryPath(catKey),
     });
 
     const showYear =
@@ -61,7 +135,9 @@ export function buildPostsNavPath({
 
     if (showYear) {
       const yearHref = categoryUsesYearPostList(catKey)
-        ? `/Posts/categoria/${encodeURIComponent(catKey)}?ano=${encodeURIComponent(postYearToQueryValue(year))}`
+        ? getPostCategoryPath(catKey, {
+            search: `ano=${encodeURIComponent(postYearToQueryValue(year))}`,
+          })
         : null;
       items.push({
         label: year == null ? "Sem data" : String(year),
@@ -100,9 +176,9 @@ export function formatPostsNavPathPlain(items) {
 /**
  * Caminho de retorno após editor ou ações auxiliares.
  * @param {unknown} from
- * @param {string} [fallback="/Posts"]
+ * @param {string} [fallback=POSTS_HUB_PATH]
  */
-export function resolvePostsReturnPath(from, fallback = "/Posts") {
+export function resolvePostsReturnPath(from, fallback = POSTS_HUB_PATH) {
   if (typeof from === "string" && from.startsWith("/")) {
     return from;
   }

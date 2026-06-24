@@ -50,7 +50,7 @@ export function normalizeStoredPostCategoria(value) {
 /** Categorias temáticas de culto (exclui Notícias e hubs Eventos/Agenda). */
 export const WORSHIP_POST_CATEGORY_KEYS = new Set(
   POST_CATEGORIAS.filter(
-    (c) => !["noticias", "eventos", "agenda"].includes(c.value),
+    (c) => !["noticias", "eventos", "agenda", "aplicativos"].includes(c.value),
   ).map((c) => c.value),
 );
 
@@ -62,13 +62,47 @@ export const SPECIFIC_ENCONTRO_CATEGORY_KEYS = new Set([
   "encontro_de_jovens",
 ]);
 
-/** Ordem das secções no mosaico (Informações → Oficiais → Festividade → Encontros → Especiais). */
+/** Categorias temáticas agrupadas em Eventos (exceto Informações). */
+export const POST_MOSAIC_EVENTOS_CATEGORY_KEYS = [
+  "culto_dominical",
+  "ceia",
+  "oracao",
+  "batismo",
+  "acao_de_gracas",
+  "encontro_de_casais",
+  "encontro_feminino",
+  "encontro_masculino",
+  "encontro_de_jovens",
+  "dia_das_maes",
+  "dia_das_pais",
+  "natal",
+  "pascoa",
+  "conferencias",
+  "clube_biblico",
+  "estudos_biblicos",
+];
+
+/** Ordem das secções no mosaico raiz (Informações → Eventos). */
 export const POST_MOSAIC_TAG_GROUPS = [
   {
     id: "informacoes",
     label: "Informações",
-    categories: ["noticias", "eventos", "agenda"],
+    categories: ["noticias", "agenda", "aplicativos"],
   },
+  {
+    id: "eventos",
+    label: "Eventos",
+    categories: POST_MOSAIC_EVENTOS_CATEGORY_KEYS,
+    yearFirst: true,
+  },
+];
+
+export const POST_FEED_SECTION_ORDER = POST_MOSAIC_TAG_GROUPS.flatMap(
+  (group) => group.categories,
+);
+
+/** Subgrupos dentro de Eventos › ano (estrutura anterior do mosaico). */
+export const POST_MOSAIC_EVENTOS_SUBGROUPS = [
   {
     id: "oficiais",
     label: "Oficiais",
@@ -107,18 +141,23 @@ export const POST_MOSAIC_TAG_GROUPS = [
   },
 ];
 
-export const POST_FEED_SECTION_ORDER = POST_MOSAIC_TAG_GROUPS.flatMap(
-  (group) => group.categories,
-);
+const EVENTOS_CATEGORY_KEY_SET = new Set(POST_MOSAIC_EVENTOS_CATEGORY_KEYS);
 
-/** Tag do mosaico por chave de categoria. */
-export const POST_CATEGORIA_MOSAIC_TAG = Object.fromEntries(
-  POST_MOSAIC_TAG_GROUPS.flatMap((group) =>
-    group.categories.map((key) => [
+/** Tag visual por subgrupo (Oficiais, Festividade, …). */
+export const POST_EVENTOS_SUBGROUP_TAG = Object.fromEntries(
+  POST_MOSAIC_EVENTOS_SUBGROUPS.flatMap((subgroup) =>
+    subgroup.categories.map((key) => [
       key,
-      { id: group.id, label: group.label },
+      { id: subgroup.id, label: subgroup.label },
     ]),
   ),
+);
+
+/** Tag do mosaico por chave de categoria (Informações). */
+export const POST_CATEGORIA_MOSAIC_TAG = Object.fromEntries(
+  (POST_MOSAIC_TAG_GROUPS.find((g) => g.id === "informacoes")?.categories ??
+    []
+  ).map((key) => [key, { id: "informacoes", label: "Informações" }]),
 );
 
 /** @param {string} groupId */
@@ -130,38 +169,54 @@ export function getPostMosaicGroup(groupId) {
 /** @param {string} categoryKey */
 export function getPostCategoryGroupId(categoryKey) {
   const key = String(categoryKey || "").trim().toLowerCase();
+  if (EVENTOS_CATEGORY_KEY_SET.has(key)) return "eventos";
   return POST_CATEGORIA_MOSAIC_TAG[key]?.id ?? null;
 }
 
-/** Grupos em que o clique no ano abre a lista de publicações (Oficiais, Encontros, Especiais). */
-export const POST_MOSAIC_YEAR_LIST_GROUP_IDS = new Set([
-  "oficiais",
-  "encontros",
-  "especiais",
-]);
+/** @param {string} categoryKey */
+export function getPostEventosSubgroup(categoryKey) {
+  const key = String(categoryKey || "").trim().toLowerCase();
+  return POST_EVENTOS_SUBGROUP_TAG[key] ?? null;
+}
 
-/** Categorias oficiais sem navegação a partir do mosaico do grupo. */
-export const POST_OFICIAIS_BLOCKED_CATEGORY_KEYS = new Set([
+/** Categorias em que o clique no ano abre a lista de publicações (não o post principal). */
+export const POST_CATEGORY_YEAR_LIST_KEYS = new Set([
   "culto_dominical",
   "ceia",
   "oracao",
+  "encontro_de_casais",
+  "encontro_feminino",
+  "encontro_masculino",
+  "encontro_de_jovens",
+  "conferencias",
+  "batismo",
+  "clube_biblico",
+  "estudos_biblicos",
 ]);
 
-/** @param {string} categoryKey */
-export function isOficiaisCategoryNavigationBlocked(categoryKey) {
-  const key = String(categoryKey || "").trim().toLowerCase();
-  return POST_OFICIAIS_BLOCKED_CATEGORY_KEYS.has(key);
+const ENCONTRO_CATEGORY_KEYS = new Set([
+  "encontro_de_casais",
+  "encontro_feminino",
+  "encontro_masculino",
+  "encontro_de_jovens",
+]);
+
+/** @param {string} groupId */
+export function isEventosYearFirstGroup(groupId) {
+  return String(groupId || "").trim().toLowerCase() === "eventos";
 }
 
 /** @param {string} categoryKey */
 export function categoryUsesYearPostList(categoryKey) {
-  const groupId = getPostCategoryGroupId(categoryKey);
-  return groupId != null && POST_MOSAIC_YEAR_LIST_GROUP_IDS.has(groupId);
+  const key = String(categoryKey || "").trim().toLowerCase();
+  return POST_CATEGORY_YEAR_LIST_KEYS.has(key);
 }
 
 /** Encontros: lista por ano em cards embaçados com data dia/mês. */
 export function categoryUsesBlurredDatePostCards(categoryKey) {
-  return getPostCategoryGroupId(categoryKey) === "encontros";
+  return ENCONTRO_CATEGORY_KEYS.has(
+    String(categoryKey || "").trim().toLowerCase(),
+  );
 }
 
 /** @param {string} categoryKey */
@@ -269,6 +324,11 @@ export const POST_CATEGORIA_ACCENT = {
     glow: "from-indigo-500/10 to-transparent",
     border: "group-hover:border-indigo-500/25",
   },
+  aplicativos: {
+    dot: "bg-emerald-400",
+    glow: "from-emerald-500/10 to-transparent",
+    border: "group-hover:border-emerald-500/25",
+  },
   noticias: {
     dot: "bg-orange-400",
     glow: "from-orange-500/10 to-transparent",
@@ -302,6 +362,7 @@ export const POST_CATEGORIA_EMOJI = {
   estudos_biblicos: "📚",
   eventos: "📋",
   agenda: "📅",
+  aplicativos: "📱",
   noticias: "📰",
   outros: "📄",
 };

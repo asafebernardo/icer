@@ -25,6 +25,7 @@ import {
   categoryUsesYearMosaic,
 } from "@/lib/posts";
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
+import { getPostCategoryPath, POSTS_HUB_PATH } from "@/lib/postsNavPath";
 import { cn } from "@/lib/utils";
 
 function resolvePostBackTo(post, from) {
@@ -33,14 +34,15 @@ function resolvePostBackTo(post, from) {
   }
 
   const catKey = resolvePostCategoria(post) || "noticias";
-  const categoryPath = `/Posts/categoria/${encodeURIComponent(catKey)}`;
   const year = getPostPublicationYear(post);
 
   if (categoryUsesYearMosaic(catKey) && year != null) {
-    return `${categoryPath}?ano=${encodeURIComponent(postYearToQueryValue(year))}`;
+    return getPostCategoryPath(catKey, {
+      search: `ano=${encodeURIComponent(postYearToQueryValue(year))}`,
+    });
   }
 
-  return categoryPath;
+  return getPostCategoryPath(catKey);
 }
 
 export default function PostPage() {
@@ -82,7 +84,7 @@ export default function PostPage() {
   const groupId = catKey ? getPostCategoryGroupId(catKey) : null;
   const publicationYear = post ? getPostPublicationYear(post) : undefined;
   const usesYearMosaic = catKey ? categoryUsesYearMosaic(catKey) : false;
-  const backTo = post ? resolvePostBackTo(post, from) : "/Posts";
+  const backTo = post ? resolvePostBackTo(post, from) : POSTS_HUB_PATH;
 
   const headerActions =
     post && canEditPosts ? (

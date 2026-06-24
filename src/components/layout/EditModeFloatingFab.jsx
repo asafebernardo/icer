@@ -1,7 +1,5 @@
 import { Pencil } from "lucide-react";
 
-import useSiteContactDetails from "@/hooks/useSiteContactDetails";
-import { hasSiteContactDetails } from "@/lib/contactDetails";
 import { isAdminUser, getUser } from "@/lib/auth";
 import { useEditMode } from "@/lib/EditModeContext";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
@@ -16,12 +14,7 @@ import { cn } from "@/lib/utils";
 export default function EditModeFloatingFab() {
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
   const sessionUser = useSyncedAuthUser() ?? getUser();
-  const contactDetails = useSiteContactDetails();
-  const hasContactFab = hasSiteContactDetails(contactDetails);
-  const stackSlot = getMobileEditFabSlot({
-    hasContactFab,
-    isAdmin: isAdminUser(sessionUser),
-  });
+  const stackSlot = getMobileEditFabSlot(isAdminUser(sessionUser));
 
   if (stackSlot == null) return null;
 

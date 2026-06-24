@@ -22,6 +22,8 @@ import AppErrorBoundary from "@/components/shared/AppErrorBoundary";
 import Layout from "./components/layout/Layout";
 import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
+import Cultos from "./pages/Cultos";
+import Contato from "./pages/Contato";
 import { ThemeProvider } from "./lib/ThemeContext";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
@@ -29,6 +31,7 @@ import EventoPage from "./pages/EventoPage";
 import EventosRotinasAgendar from "./pages/EventosRotinasAgendar";
 import PostsGrupoPage from "./pages/PostsGrupoPage";
 import Postagens from "./pages/Postagens";
+import Informacoes from "./pages/Informacoes";
 import PostsCategoriaPage from "./pages/PostsCategoriaPage";
 import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
@@ -39,7 +42,14 @@ import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
 function RedirectLegacyPostagensEdit() {
   const { id } = useParams();
-  return <Navigate to={`/Posts/editar/${id}`} replace />;
+  return <Navigate to={`/Eventos/editar/${id}`} replace />;
+}
+
+function RedirectLegacyPostsPath() {
+  const location = useLocation();
+  const rest = location.pathname.replace(/^\/Posts\/?/, "");
+  const target = rest ? `/Eventos/${rest}` : "/Eventos";
+  return <Navigate to={`${target}${location.search}`} replace />;
 }
 
 // Rotas privadas — inicia login Google se não houver sessão
@@ -121,12 +131,14 @@ const AppRoutes = () => {
 
       <Route element={<Layout />}>
         <Route path="Home" element={<Home />} />
-        <Route path="Recursos" element={<Navigate to="/Home#recursos" replace />} />
+        <Route path="Cultos" element={<Cultos />} />
+        <Route path="Contato" element={<Contato />} />
+        <Route path="Recursos" element={<Navigate to="/Informacoes/categoria/aplicativos" replace />} />
         <Route
           path="LinksUteis"
-          element={<Navigate to="/Home#recursos" replace />}
+          element={<Navigate to="/Informacoes/categoria/aplicativos" replace />}
         />
-        <Route path="Agenda" element={<Navigate to="/Posts/categoria/agenda" replace />} />
+        <Route path="Agenda" element={<Navigate to="/Informacoes/categoria/agenda" replace />} />
 
         <Route
           path="Dashboard"
@@ -145,24 +157,23 @@ const AppRoutes = () => {
           }
         />
         <Route path="Evento/:id" element={<EventoPage />} />
-        <Route path="Eventos" element={<Navigate to="/Posts/categoria/eventos" replace />} />
-        <Route
-          path="Eventos/rotinas"
-          element={<Navigate to="/Posts/categoria/eventos?tab=configuracoes" replace />}
-        />
         <Route path="Eventos/rotinas/agendar/:id" element={<AdminRoute><EventosRotinasAgendar /></AdminRoute>} />
         <Route path="Eventos/rotinas/agendar" element={<AdminRoute><EventosRotinasAgendar /></AdminRoute>} />
         <Route
-          path="Posts/novo-evento"
+          path="Eventos/rotinas"
+          element={<Navigate to="/Informacoes/categoria/agenda?tab=configuracoes" replace />}
+        />
+        <Route
+          path="Eventos/novo-evento"
           element={
             <Navigate
-              to="/Posts/categoria/eventos?tab=eventos&novo=1"
+              to="/Informacoes/categoria/agenda?tab=eventos&novo=1"
               replace
             />
           }
         />
         <Route
-          path="Posts/nova"
+          path="Eventos/nova"
           element={
             <PrivateRoute>
               <PostagemEditor />
@@ -170,31 +181,27 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="Posts/editar/:id"
+          path="Eventos/editar/:id"
           element={
             <PrivateRoute>
               <PostagemEditor />
             </PrivateRoute>
           }
         />
-        <Route path="Posts/grupo/:grupo" element={<PostsGrupoPage />} />
-        <Route path="Posts/categoria/:categoria" element={<PostsCategoriaPage />} />
-        <Route path="Posts" element={<Postagens />} />
-        <Route path="Postagens/nova" element={<Navigate to="/Posts/nova" replace />} />
+        <Route path="Eventos/grupo/:grupo" element={<PostsGrupoPage />} />
+        <Route path="Eventos/categoria/:categoria" element={<PostsCategoriaPage />} />
+        <Route path="Informacoes/categoria/:categoria" element={<PostsCategoriaPage />} />
+        <Route path="Informacoes" element={<Informacoes />} />
+        <Route path="Eventos" element={<Postagens />} />
+        <Route path="Posts/*" element={<RedirectLegacyPostsPath />} />
+        <Route path="Postagens/nova" element={<Navigate to="/Eventos/nova" replace />} />
         <Route
           path="Postagens/editar/:id"
           element={<RedirectLegacyPostagensEdit />}
         />
-        <Route path="Postagens" element={<Navigate to="/Posts" replace />} />
+        <Route path="Postagens" element={<Navigate to="/Eventos" replace />} />
         <Route path="Post/:id" element={<PostPage />} />
-        <Route
-          path="Historia"
-          element={
-            <AdminRoute>
-              <Historia />
-            </AdminRoute>
-          }
-        />
+        <Route path="Historia" element={<Historia />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />

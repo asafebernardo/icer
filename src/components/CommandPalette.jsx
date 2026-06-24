@@ -5,12 +5,14 @@ import {
   Home as HomeIcon,
   Newspaper,
   Library,
-  ScrollText,
   LayoutDashboard,
   ShieldCheck,
   FileText,
   CalendarPlus,
+  Church,
+  Phone,
   Landmark,
+  Info,
 } from "lucide-react";
 
 import {
@@ -25,17 +27,26 @@ import {
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { isAdminUser } from "@/lib/auth";
 import { listEventosMerged } from "@/lib/eventosQuery";
+import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB_PATH } from "@/lib/postsNavPath";
 
 const NAV_ROUTES = [
   { label: "Início", path: "/Home", icon: HomeIcon },
-  { label: "Posts", path: "/Posts", icon: Newspaper },
-  { label: "Recursos", path: "/Home#recursos", icon: Library },
+  { label: "Cultos", path: "/Cultos", icon: Church },
+  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: Info },
+  { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
+  { label: "Contato", path: "/Contato", icon: Phone },
+  { label: "História", path: "/Historia", icon: Landmark },
+  { label: "Aplicativos", path: "/Informacoes/categoria/aplicativos", icon: Library },
 ];
 
 /** Rotas já cobertas pelos ícones da barra inferior (mobile). */
 const MOBILE_BOTTOM_NAV_PATHS = new Set([
   "/Home",
-  "/Posts",
+  "/Cultos",
+  INFORMACOES_HUB_PATH,
+  POSTS_HUB_PATH,
+  "/Contato",
+  "/Historia",
 ]);
 
 const MOBILE_MAX = "(max-width: 639px)";
@@ -74,13 +85,10 @@ export default function CommandPalette({ open, onOpenChange }) {
     (!isMobileSearchLayout || mobileSearch.trim().length > 0);
 
   const cmdkNavRoutes = useMemo(() => {
-    const adminOnly = isAdmin
-      ? [{ label: "História", path: "/Historia", icon: Landmark }]
-      : [];
-    const base = [...NAV_ROUTES, ...adminOnly];
+    const base = [...NAV_ROUTES];
     if (!isMobileSearchLayout) return base;
     return base.filter((r) => !MOBILE_BOTTOM_NAV_PATHS.has(r.path));
-  }, [isMobileSearchLayout, isAdmin]);
+  }, [isMobileSearchLayout]);
 
   const { data: postsData } = useQuery({
     queryKey: ["cmdk", "posts"],
@@ -167,7 +175,7 @@ export default function CommandPalette({ open, onOpenChange }) {
         {posts.length > 0 ? (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Posts">
+            <CommandGroup heading={POSTS_HUB_LABEL}>
               {posts.slice(0, 25).map((p) => (
                 <CommandItem
                   key={`post-${p.id}`}
@@ -213,13 +221,9 @@ export default function CommandPalette({ open, onOpenChange }) {
         <CommandGroup heading="Atalhos">
           <CommandItem
             value="atalho contato sobre"
-            onSelect={() =>
-              runAndClose(() =>
-                window.dispatchEvent(new Event("icer-open-contato")),
-              )
-            }
+            onSelect={() => runAndClose(() => navigate("/Contato"))}
           >
-            <ScrollText className="mr-2" />
+            <Phone className="mr-2" />
             <span>Contato</span>
           </CommandItem>
         </CommandGroup>

@@ -86,7 +86,7 @@ export default function PostYearMosaicCard({
               title="Editar"
               asChild
             >
-              <Link to={`/Posts/editar/${post.id}`}>
+              <Link to={`/Eventos/editar/${post.id}`}>
                 <Pencil className="h-3.5 w-3.5" />
               </Link>
             </Button>

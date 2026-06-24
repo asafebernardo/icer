@@ -17,12 +17,14 @@ import {
   Table2,
   Check,
   Eye,
+  List,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import MonthlyCalendar from "../components/agenda/MonthlyCalendar";
 import MonthlyAgendaSimple from "../components/agenda/MonthlyAgendaSimple";
 import AgendaMensalMobile from "@/components/agenda/mobile-monthly/AgendaMensalMobile";
+import AgendaEventosPanel from "@/components/agenda/AgendaEventosPanel";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
@@ -37,7 +39,14 @@ type Evento = {
   [key: string]: any;
 };
 
-type AgendaView = "mensal" | "simples";
+type AgendaView = "mensal" | "simples" | "eventos";
+
+function resolveAgendaViewFromTab(tab: string | null, embedded: boolean): AgendaView {
+  if (!embedded) return "mensal";
+  const t = String(tab || "").trim().toLowerCase();
+  if (t === "eventos" || t === "configuracoes") return "eventos";
+  return "mensal";
+}
 
 function AgendaToolbar({
   view,
@@ -69,41 +78,14 @@ function AgendaToolbar({
 }) {
   return (
     <>
-      {canCreateEvento && !embedded ? (
-        <>
-          <p className="mb-4 hidden max-w-2xl text-sm text-muted-foreground sm:block">
-            A agenda só usa a{" "}
-            <span className="font-medium text-foreground">data</span> de cada evento
-            para posicioná-lo no calendário.{" "}
-            <Link
-              to="/Posts/categoria/eventos"
-              className="font-medium text-accent underline-offset-4 hover:underline"
-            >
-              Cadastre e edite eventos na página Eventos
-            </Link>
-            .
-          </p>
-          <p className="mb-4 text-xs leading-relaxed text-muted-foreground sm:hidden">
-            <span className="font-medium text-foreground">Data</span> de cada evento na
-            grelha.{" "}
-            <Link
-              to="/Posts/categoria/eventos"
-              className="font-medium text-accent underline-offset-2 hover:underline"
-            >
-              Editar em Eventos
-            </Link>
-            .
-          </p>
-        </>
-      ) : null}
-
       <div className="mb-6 flex flex-col gap-4 items-center sm:items-stretch sm:flex-row sm:flex-wrap sm:justify-between">
-        <div
-          className={cn(
-            "flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3",
-            hidePeriodRowOnMobile && "hidden",
-          )}
-        >
+        {view !== "eventos" ? (
+          <div
+            className={cn(
+              "flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-start sm:gap-3",
+              hidePeriodRowOnMobile && "hidden",
+            )}
+          >
           <Button variant="outline" size="icon" onClick={prevPeriod} aria-label="Período anterior">
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -125,9 +107,10 @@ function AgendaToolbar({
             Hoje
           </Button>
         </div>
+        ) : null}
 
         <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-end">
-          {view !== "simples" && !hidePreletorToggle ? (
+          {view !== "simples" && view !== "eventos" && !hidePreletorToggle ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -189,6 +172,21 @@ function AgendaToolbar({
               <Table2 className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
               Simples
             </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "eventos"}
+              onClick={() => setView("eventos")}
+              className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-0 sm:px-3 ${
+                view === "eventos"
+                  ? "bg-background font-semibold text-foreground shadow-sm ring-1 ring-border/60"
+                  : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+              }`}
+            >
+              <List className="h-3.5 w-3.5 shrink-0 opacity-90" aria-hidden />
+              Eventos
+            </button>
           </div>
         </div>
       </div>
@@ -203,7 +201,11 @@ export default function Agenda({
   embedded?: boolean;
   onClose?: () => void;
 } = {}) {
-  const [view, setView] = useState<AgendaView>("mensal");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = embedded ? searchParams.get("tab") : null;
+  const [view, setViewState] = useState<AgendaView>(() =>
+    resolveAgendaViewFromTab(tabParam, embedded),
+  );
   const [simpleModalOpen, setSimpleModalOpen] = useState(false);
   const prevViewRef = useRef<AgendaView>("mensal");
   const [showPreletorCards, setShowPreletorCards] = useState(false);
@@ -262,6 +264,30 @@ export default function Agenda({
 
   const periodLabel = format(monthDate, "MMMM 'de' yyyy", { locale: ptBR });
 
+  const eventosSubTab =
+    tabParam === "configuracoes" ? "configuracoes" : "eventos";
+
+  const setView = (next: AgendaView) => {
+    setViewState(next);
+    if (!embedded) return;
+    if (next === "eventos") {
+      setSearchParams({ tab: "eventos" }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+  };
+
+  const setEventosSubTab = (value: "eventos" | "configuracoes") => {
+    if (!embedded) return;
+    setSearchParams({ tab: value }, { replace: true });
+  };
+
+  useEffect(() => {
+    if (!embedded) return;
+    const next = resolveAgendaViewFromTab(tabParam, true);
+    setViewState(next);
+  }, [embedded, tabParam]);
+
   return (
     <div>
       {!embedded ? (
@@ -287,11 +313,16 @@ export default function Agenda({
               setShowPreletorCards={setShowPreletorCards}
               canCreateEvento={canCreateEvento}
               hidePreletorToggle={view === "mensal"}
-              hidePeriodRowOnMobile={view === "mensal"}
+              hidePeriodRowOnMobile={view === "mensal" || view === "eventos"}
               embedded={embedded}
             />
             {isLoading ? (
               <div className="h-72 rounded-2xl bg-muted animate-pulse" />
+            ) : view === "eventos" ? (
+              <AgendaEventosPanel
+                activeSubTab={eventosSubTab}
+                onSubTabChange={setEventosSubTab}
+              />
             ) : view === "mensal" ? (
               <AgendaMensalMobile
                 events={eventos}
@@ -332,6 +363,11 @@ export default function Agenda({
 
             {isLoading ? (
               <div className="h-[500px] rounded-2xl bg-muted animate-pulse" />
+            ) : view === "eventos" ? (
+              <AgendaEventosPanel
+                activeSubTab={eventosSubTab}
+                onSubTabChange={setEventosSubTab}
+              />
             ) : view === "mensal" ? (
               <MonthlyCalendar
                 monthDate={monthDate}

@@ -1,8 +1,6 @@
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2, LogIn, LogOut } from "lucide-react";
 
-import GoogleLogo from "@/components/auth/GoogleLogo";
-import useSiteContactDetails from "@/hooks/useSiteContactDetails";
-import { hasSiteContactDetails } from "@/lib/contactDetails";
+import { SITE_LOGIN_BUTTON_CLASS } from "@/components/auth/GoogleSignInButton";
 import {
   logout as authLogout,
   isAdminUser,
@@ -23,30 +21,30 @@ export default function SessionFloatingFab() {
   const { googleLoginAvailable, startGoogleLogin, googleLoginBusy } = useAuth();
   const sessionUser = useSyncedAuthUser() ?? getUser();
   const isLoggedIn = !!sessionUser;
-  const contactDetails = useSiteContactDetails();
-  const hasContactFab = hasSiteContactDetails(contactDetails);
   const isAdmin = isAdminUser(sessionUser);
-  const stackSlot = getMobileSessionFabSlot({ hasContactFab, isAdmin });
-
-  if (!isLoggedIn && (!isServerAuthEnabled() || !googleLoginAvailable)) {
-    return null;
-  }
+  const stackSlot = getMobileSessionFabSlot(isAdmin);
+  const loginBlocked = !isServerAuthEnabled() || !googleLoginAvailable;
+  const blockedTitle = !isServerAuthEnabled()
+    ? "Autenticação do servidor desactivada"
+    : "Login indisponível — integração não configurada";
 
   const handleLogout = () => {
     authLogout();
   };
 
-  const handleGoogleLogin = () => {
+  const handleLogin = () => {
+    if (loginBlocked || googleLoginBusy) return;
     void startGoogleLogin();
   };
 
   return (
     <button
       type="button"
-      onClick={isLoggedIn ? handleLogout : handleGoogleLogin}
-      disabled={!isLoggedIn && googleLoginBusy}
-      aria-label={isLoggedIn ? "Sair da sessão" : "Entrar com Google"}
-      title={isLoggedIn ? "Sair" : "Entrar com Google"}
+      onClick={isLoggedIn ? handleLogout : handleLogin}
+      disabled={!isLoggedIn && (googleLoginBusy || loginBlocked)}
+      aria-label={isLoggedIn ? "Sair da sessão" : "Entrar"}
+      aria-disabled={!isLoggedIn && loginBlocked}
+      title={isLoggedIn ? "Sair" : loginBlocked ? blockedTitle : "Entrar"}
       className={cn(
         "fixed z-40",
         MOBILE_FAB_BUTTON_CLASS,
@@ -54,7 +52,13 @@ export default function SessionFloatingFab() {
         mobileFabBottomClass(stackSlot),
         isLoggedIn
           ? "border-destructive/30 bg-destructive/35 text-destructive-foreground"
-          : "border-[#dadce0]/50 bg-white/90 text-[#3c4043] dark:border-[#5f6368]/50 dark:bg-[#131314]/90 dark:text-[#e8eaed]",
+          : cn(
+              SITE_LOGIN_BUTTON_CLASS,
+              "border-white/10 bg-background/35 text-foreground/80",
+            ),
+        !isLoggedIn &&
+          loginBlocked &&
+          "cursor-not-allowed opacity-50 hover:scale-100 active:scale-100",
       )}
     >
       {isLoggedIn ? (
@@ -62,7 +66,7 @@ export default function SessionFloatingFab() {
       ) : googleLoginBusy ? (
         <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
       ) : (
-        <GoogleLogo className="h-5 w-5 shrink-0" />
+        <LogIn className="h-5 w-5" aria-hidden />
       )}
     </button>
   );

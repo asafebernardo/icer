@@ -9,22 +9,20 @@ export const MOBILE_FAB_BOTTOM = {
   2: "bottom-[calc(8.5rem+7.5rem+env(safe-area-inset-bottom,0px))]",
 };
 
-/** @param {number} stackSlot 0 = contacto, 1 = editar, 2 = sessão */
+/** @param {number} stackSlot 0 = editar, 1 = sessão */
 export function mobileFabBottomClass(stackSlot) {
   return MOBILE_FAB_BOTTOM[stackSlot] ?? MOBILE_FAB_BOTTOM[0];
 }
 
-/** @param {{ hasContactFab: boolean, isAdmin: boolean }} opts */
-export function getMobileEditFabSlot({ hasContactFab, isAdmin }) {
+/** @param {boolean} isAdmin */
+export function getMobileEditFabSlot(isAdmin) {
   if (!isAdmin) return null;
-  return hasContactFab ? 1 : 0;
+  return 0;
 }
 
-/** @param {{ hasContactFab: boolean, isAdmin: boolean }} opts */
-export function getMobileSessionFabSlot({ hasContactFab, isAdmin }) {
-  const editSlot = getMobileEditFabSlot({ hasContactFab, isAdmin });
-  if (editSlot != null) return editSlot + 1;
-  return hasContactFab ? 1 : 0;
+/** @param {boolean} isAdmin */
+export function getMobileSessionFabSlot(isAdmin) {
+  return isAdmin ? 1 : 0;
 }
 
 export const MOBILE_FAB_BUTTON_CLASS =

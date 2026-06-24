@@ -2,9 +2,11 @@ import { test, expect } from "@playwright/test";
 
 const PUBLIC_PAGES = [
   "/Home",
-  "/Posts",
-  "/Agenda",
+  "/Cultos",
   "/Eventos",
+  "/Contato",
+  "/Historia",
+  "/Agenda",
   "/Eventos/rotinas",
   "/accept-invite",
 ];
@@ -40,10 +42,12 @@ test.describe("Páginas públicas", () => {
     await expect(page).toHaveURL(/\/Home$/);
   });
 
-  test("Recursos redireciona para a secção na Home", async ({ page }) => {
+  test("Recursos redireciona para Aplicativos em Eventos", async ({ page }) => {
     await page.goto("/Recursos");
-    await expect(page).toHaveURL(/\/Home#recursos$/);
-    await expect(page.locator("#recursos")).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/Eventos\/categoria\/aplicativos$/);
+    await expect(page.getByText("Aplicativos").first()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("404 para rota inexistente", async ({ page }) => {

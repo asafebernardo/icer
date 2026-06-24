@@ -4,17 +4,23 @@ import { LayoutGrid } from "lucide-react";
 
 import SafeImg from "@/components/shared/SafeImg";
 import EmptyState from "@/components/shared/EmptyState";
+import { usePostsList } from "@/hooks/usePostsList";
 import {
   POST_CATEGORIA_MOSAIC_TAG,
   POST_CATEGORIA_MOSAIC_THUMBS,
   POST_FEED_SECTION_LABELS,
+  POST_MOSAIC_EVENTOS_SUBGROUPS,
+  getPostEventosSubgroup,
   getPostMosaicGroup,
-  isOficiaisCategoryNavigationBlocked,
+  isEventosYearFirstGroup,
+  resolvePostCategoria,
 } from "@/lib/postCategories";
 import {
   formatPostCount,
   usePostCategoryCounts,
 } from "@/hooks/usePostCategoryCounts";
+import { getPostPublicationYear, normalizePost, postYearToQueryValue } from "@/lib/posts";
+import { getPostCategoryPath } from "@/lib/postsNavPath";
 import { cn } from "@/lib/utils";
 
 function PostCategoryTile({
@@ -22,20 +28,25 @@ function PostCategoryTile({
   index,
   counts,
   countsLoading,
-  navigationBlocked = false,
+  year,
 }) {
   const label = POST_FEED_SECTION_LABELS[categoryKey];
   const image = POST_CATEGORIA_MOSAIC_THUMBS[categoryKey];
   const count = counts[categoryKey] ?? 0;
-  const mosaicTag = POST_CATEGORIA_MOSAIC_TAG[categoryKey];
+  const mosaicTag =
+    getPostEventosSubgroup(categoryKey) || POST_CATEGORIA_MOSAIC_TAG[categoryKey];
   const countLabel = countsLoading ? "…" : formatPostCount(count);
+  const href =
+    year !== undefined
+      ? getPostCategoryPath(categoryKey, {
+          search: `ano=${encodeURIComponent(postYearToQueryValue(year))}`,
+        })
+      : getPostCategoryPath(categoryKey);
 
   const tileClassName = cn(
-    "post-category-tile group",
-    !navigationBlocked && "focus-ring",
+    "post-category-tile group focus-ring",
     `post-category-tile--${categoryKey}`,
     mosaicTag && `post-category-tile--tag-${mosaicTag.id}`,
-    navigationBlocked && "post-category-tile--nav-blocked",
   );
 
   const content = (
@@ -62,29 +73,110 @@ function PostCategoryTile({
     </>
   );
 
-  if (navigationBlocked) {
-    return (
-      <article
-        className={tileClassName}
-        aria-label={`${label} — indisponível`}
-        aria-disabled="true"
-      >
-        {content}
-      </article>
-    );
-  }
-
   return (
-    <Link to={`/Posts/categoria/${categoryKey}`} className={tileClassName}>
+    <Link to={href} className={tileClassName}>
       {content}
     </Link>
   );
 }
 
-/** Mosaico de categorias dentro de um grupo (ex.: Oficiais → Culto, Ceia, Oração). */
-export default function PostsCategoryMosaic({ groupId }) {
+function CategoryGrid({
+  categories,
+  counts,
+  countsLoading,
+  year,
+  indexOffset = 0,
+  variant = "default",
+}) {
+  return (
+    <div
+      className={cn(
+        "posts-category-grid",
+        variant === "informacoes"
+          ? "posts-category-grid--informacoes"
+          : "posts-category-grid--categories",
+      )}
+    >
+      {categories.map((key, index) => (
+        <PostCategoryTile
+          key={key}
+          categoryKey={key}
+          index={indexOffset + index}
+          counts={counts}
+          countsLoading={countsLoading}
+          year={year}
+        />
+      ))}
+    </div>
+  );
+}
+
+function EventosYearCategoryMosaic({ year }) {
+  const { posts, isLoading: postsLoading } = usePostsList();
+
+  const yearCounts = useMemo(() => {
+    const map = Object.fromEntries(
+      POST_MOSAIC_EVENTOS_SUBGROUPS.flatMap((subgroup) =>
+        subgroup.categories.map((key) => [key, 0]),
+      ),
+    );
+
+    for (const post of posts) {
+      const cat = resolvePostCategoria(post);
+      if (!cat || map[cat] === undefined) continue;
+      if (getPostPublicationYear(normalizePost(post)) !== year) continue;
+      map[cat] += 1;
+    }
+
+    return map;
+  }, [posts, year]);
+
+  const countsLoading = postsLoading;
+
+  return (
+    <div className="posts-category-mosaic-stack">
+      {POST_MOSAIC_EVENTOS_SUBGROUPS.map((subgroup, groupIndex) => {
+        let tileIndex = 0;
+        for (let i = 0; i < groupIndex; i += 1) {
+          tileIndex += POST_MOSAIC_EVENTOS_SUBGROUPS[i].categories.length;
+        }
+
+        return (
+          <section
+            key={subgroup.id}
+            className={cn(
+              "posts-category-mosaic-group",
+              groupIndex > 0 && "posts-category-mosaic-group--break",
+            )}
+            aria-labelledby={`eventos-subgroup-${subgroup.id}-${year ?? "all"}`}
+          >
+            <h3
+              id={`eventos-subgroup-${subgroup.id}-${year ?? "all"}`}
+              className="posts-category-mosaic-group__title posts-category-mosaic-group__title--solo"
+            >
+              {subgroup.label}
+            </h3>
+
+            <CategoryGrid
+              categories={subgroup.categories}
+              counts={yearCounts}
+              countsLoading={countsLoading}
+              year={year}
+              indexOffset={tileIndex}
+            />
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Mosaico de categorias dentro de um grupo (ex.: Informações ou Eventos › ano). */
+export default function PostsCategoryMosaic({ groupId, year }) {
   const { counts, isLoading: countsLoading } = usePostCategoryCounts();
   const group = getPostMosaicGroup(groupId);
+  const showEventosSubgroups =
+    isEventosYearFirstGroup(groupId) && year !== undefined;
 
   const categories = useMemo(() => {
     if (!group) return [];
@@ -111,18 +203,17 @@ export default function PostsCategoryMosaic({ groupId }) {
     );
   }
 
+  if (showEventosSubgroups) {
+    return <EventosYearCategoryMosaic year={year} />;
+  }
+
   return (
-    <div className="posts-category-grid posts-category-grid--categories">
-      {categories.map((key, index) => (
-        <PostCategoryTile
-          key={key}
-          categoryKey={key}
-          index={index}
-          counts={counts}
-          countsLoading={countsLoading}
-          navigationBlocked={isOficiaisCategoryNavigationBlocked(key)}
-        />
-      ))}
-    </div>
+    <CategoryGrid
+      categories={categories}
+      counts={counts}
+      countsLoading={countsLoading}
+      year={year}
+      variant={groupId === "informacoes" ? "informacoes" : "default"}
+    />
   );
 }

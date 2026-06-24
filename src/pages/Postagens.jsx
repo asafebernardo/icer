@@ -1,27 +1,58 @@
 import { useEffect, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 
-import PostsGroupMosaic from "../components/posts/PostsGroupMosaic";
-import PostsHubHeader from "../components/posts/PostsHubHeader";
-import PostsNavBreadcrumb from "../components/posts/PostsNavBreadcrumb";
-
+import PostsEventosGroupView from "../components/posts/PostsEventosGroupView";
+import { PostsCategoryFeedSkeleton } from "../components/posts/PostsCategoryFeed";
+import PostsAdminToolbar from "../components/posts/PostsAdminToolbar";
+import PageSectionIntro from "@/components/shared/PageSectionIntro";
 import { useAuth } from "@/lib/AuthContext";
-import { formatPostCount, usePostCategoryCounts } from "@/hooks/usePostCategoryCounts";
+import useRuntimeEnv from "@/hooks/useRuntimeEnv";
+import { getUser, canMenuAction, MENU } from "@/lib/auth";
+import { useEditMode } from "@/lib/EditModeContext";
+import { usePostsList } from "@/hooks/usePostsList";
+import {
+  POST_MOSAIC_EVENTOS_CATEGORY_KEYS,
+  resolvePostCategoria,
+} from "@/lib/postCategories";
+import {
+  POSTS_HUB_DESCRIPTION,
+  POSTS_HUB_LABEL,
+  POSTS_HUB_PATH,
+  POSTS_HUB_TITLE,
+} from "@/lib/postsNavPath";
 import { cn } from "@/lib/utils";
 
+const EVENTOS_CATEGORY_SET = new Set(POST_MOSAIC_EVENTOS_CATEGORY_KEYS);
+
 export default function Postagens() {
-  const location = useLocation();
-  const { checkUserAuth } = useAuth();
-  const { counts, isLoading } = usePostCategoryCounts();
+  const [searchParams] = useSearchParams();
+  const { user: authUser, checkUserAuth } = useAuth();
+  const { enabled: editMode } = useEditMode();
+  const { isHomolog } = useRuntimeEnv();
+  const { posts, isLoading: postsLoading } = usePostsList();
+
+  const sessionUser = authUser ?? getUser();
+  const canCreate =
+    canMenuAction(sessionUser, MENU.POSTAGENS, "create") && editMode;
+  const needsEditMode =
+    canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
+    !editMode &&
+    !isHomolog;
 
   useEffect(() => {
     checkUserAuth?.();
-  }, [location.pathname, checkUserAuth]);
+  }, [checkUserAuth]);
 
-  const totalPosts = useMemo(
-    () => Object.values(counts).reduce((sum, n) => sum + (n ?? 0), 0),
-    [counts],
-  );
+  const eventosPosts = useMemo(() => {
+    return posts.filter((post) => {
+      const cat = resolvePostCategoria(post);
+      return cat && EVENTOS_CATEGORY_SET.has(cat);
+    });
+  }, [posts]);
+
+  if (searchParams.has("ano")) {
+    return <Navigate to={POSTS_HUB_PATH} replace />;
+  }
 
   return (
     <div className="posts-hub min-h-screen">
@@ -33,23 +64,25 @@ export default function Postagens() {
           "max-w-[1280px]",
         )}
       >
-        <PostsHubHeader
-          breadcrumb={
-            <PostsNavBreadcrumb
-              centered
-              items={[{ label: "Posts", href: null }]}
-            />
-          }
+        <PageSectionIntro
+          tag={POSTS_HUB_LABEL}
+          title={POSTS_HUB_TITLE}
+          description={POSTS_HUB_DESCRIPTION}
         />
 
-        {!isLoading ? (
-          <p className="mt-2 text-center text-xs font-medium tracking-wide text-[#64748B]">
-            {formatPostCount(totalPosts)}
-          </p>
-        ) : null}
+        <PostsAdminToolbar
+          className="mb-6"
+          canCreate={canCreate}
+          createHref="/Eventos/nova"
+          needsEditMode={needsEditMode}
+        />
 
-        <div className="mt-6 sm:mt-8">
-          <PostsGroupMosaic />
+        <div>
+          {postsLoading ? (
+            <PostsCategoryFeedSkeleton count={8} variant="mosaic" />
+          ) : (
+            <PostsEventosGroupView posts={eventosPosts} isLoading={postsLoading} />
+          )}
         </div>
       </section>
     </div>

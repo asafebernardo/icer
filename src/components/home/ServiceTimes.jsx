@@ -140,7 +140,7 @@ function sortCardsDisplay(list) {
   });
 }
 
-export default function ServiceTimes() {
+export default function ServiceTimes({ standalone = false } = {}) {
   const { rotateIntervalMs, transitionMs, transitionMode } =
     useHeroBackground();
   const canEditHome = useCanEdit(MENU.HOME);
@@ -293,7 +293,11 @@ export default function ServiceTimes() {
     <>
       <HomeSectionBackdrop
         imageUrl={sectionBgUrl}
-        className="py-16 sm:py-20 lg:py-28"
+        className={cn(
+          standalone
+            ? "border-t border-border/60 py-10 sm:py-14 lg:py-20"
+            : "py-16 sm:py-20 lg:py-28",
+        )}
       >
         <div className="container-page min-w-0">
         {canEditHome && (
@@ -317,7 +321,7 @@ export default function ServiceTimes() {
           )}
         >
           <span className="text-accent font-semibold text-sm tracking-wider uppercase mb-3">
-            Nossos cultos
+            {standalone ? "Cultos" : "Nossos cultos"}
           </span>
           <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground tracking-tight">
             Horários de Funcionamento

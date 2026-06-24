@@ -1,7 +1,4 @@
-import HorizontalTimeline from "@/components/historia/HorizontalTimeline";
-import HistoriaHubHeader from "@/components/historia/HistoriaHubHeader";
 import { FEED_MAX_W } from "@/components/posts/PostsPageHero";
-import { HISTORIA_TIMELINE_EXAMPLE } from "@/lib/historiaTimelineExamples";
 import { cn } from "@/lib/utils";
 
 export default function Historia() {
@@ -15,19 +12,20 @@ export default function Historia() {
           FEED_MAX_W,
         )}
       >
-        <HistoriaHubHeader />
+        <h1 className="sr-only">História</h1>
 
-        <div className="mt-6 sm:mt-8">
-          <header className="mb-8 max-w-2xl">
-            <h2 className="font-display text-xl font-semibold text-foreground sm:text-2xl">
-              Timeline horizontal
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Visão panorâmica dos marcos; em telemóvel desliza-se para o lado para
-              ver todos os anos.
-            </p>
-          </header>
-          <HorizontalTimeline items={HISTORIA_TIMELINE_EXAMPLE} />
+        <div
+          className={cn(
+            "mx-auto max-w-lg rounded-2xl border border-border/60",
+            "bg-card/40 px-6 py-10 text-center backdrop-blur-sm",
+          )}
+        >
+          <p className="font-display text-lg font-semibold text-foreground sm:text-xl">
+            Página em desenvolvimento
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            A timeline da história da ICER Chapecó estará disponível em breve.
+          </p>
         </div>
       </section>
     </div>

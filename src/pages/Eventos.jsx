@@ -627,7 +627,7 @@ export default function Eventos({ embedded = false } = {}) {
                     aria-label="Rotinas"
                     asChild
                   >
-                    <Link to="/Posts/categoria/eventos?tab=configuracoes">
+                    <Link to="/Informacoes/categoria/agenda?tab=configuracoes">
                       <History className="w-4 h-4 shrink-0" />
                       <span className="sm:hidden text-xs font-medium">Rotinas</span>
                       <span className="hidden sm:inline">Rotinas</span>

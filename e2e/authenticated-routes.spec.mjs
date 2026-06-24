@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const PRIVATE_PAGES = ["/Dashboard", "/Admin", "/Historia", "/Posts/nova"];
+const PRIVATE_PAGES = ["/Dashboard", "/Admin", "/Eventos/nova"];
 
 test.describe("Páginas autenticadas (admin)", () => {
   for (const path of PRIVATE_PAGES) {
@@ -22,18 +22,18 @@ test.describe("Páginas autenticadas (admin)", () => {
     expect(body.email).toContain("@");
   });
 
-  test("Posts/nova e editar sem erro JavaScript", async ({ page }) => {
+  test("Eventos/nova e editar sem erro JavaScript", async ({ page }) => {
     const errors = [];
     page.on("pageerror", (err) => errors.push(String(err)));
 
-    const nova = await page.goto("/Posts/nova", {
+    const nova = await page.goto("/Eventos/nova", {
       waitUntil: "domcontentloaded",
     });
     expect(nova?.ok()).toBeTruthy();
     await expect(page.locator("#main-content")).toBeVisible({ timeout: 15_000 });
     expect(errors).toEqual([]);
 
-    const edit = await page.goto("/Posts/editar/1", {
+    const edit = await page.goto("/Eventos/editar/1", {
       waitUntil: "domcontentloaded",
     });
     expect(edit?.status()).toBeLessThan(500);
@@ -43,7 +43,7 @@ test.describe("Páginas autenticadas (admin)", () => {
   test("navegação principal a partir da Home", async ({ page }) => {
     await page.goto("/Home");
     await expect(page).toHaveURL(/^https?:\/\/[^/]+\/?$/);
-    await page.getByRole("link", { name: "Posts", exact: true }).first().click();
+    await page.getByRole("link", { name: "Eventos", exact: true }).first().click();
     await expect(page.locator("#main-content")).toBeVisible({ timeout: 15_000 });
     await page.getByRole("link", { name: "Agenda", exact: true }).first().click();
     await expect(page.locator("#main-content")).toBeVisible({ timeout: 15_000 });

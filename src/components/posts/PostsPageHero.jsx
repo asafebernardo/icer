@@ -65,7 +65,7 @@ export default function PostsPageHero({
             ) : null}
             {canCreate ? (
               <Button size="sm" className="h-8 px-3 text-xs" asChild>
-                <Link to="/Posts/nova">
+                <Link to="/Eventos/nova">
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Novo
                 </Link>

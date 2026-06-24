@@ -4,6 +4,8 @@ import {
   Home as HomeIcon,
   Newspaper,
   Landmark,
+  Church,
+  Phone,
   Settings,
   Users,
   Shield,
@@ -14,12 +16,14 @@ import {
   Server,
   Sparkles,
   FileStack,
+  Info,
 } from "lucide-react";
 
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import { isAdminUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB_PATH } from "@/lib/postsNavPath";
 import AdminNavLinks from "@/components/admin/AdminNavLinks";
 import {
   DEFAULT_EXTRA_ADMIN_NAV_ITEMS,
@@ -28,12 +32,24 @@ import {
 
 const PRIMARY_ITEMS = [
   { label: "Início", path: "/Home", icon: HomeIcon },
-  { label: "Posts", path: "/Posts", icon: Newspaper },
+  { label: "Cultos", path: "/Cultos", icon: Church },
+  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: Info },
+  { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
+  { label: "História", path: "/Historia", icon: Landmark },
+  { label: "Contato", path: "/Contato", icon: Phone },
 ];
 
-const ADMIN_PRIMARY_ITEMS = [
-  { label: "História", path: "/Historia", icon: Landmark },
-];
+function isBottomNavActive(pathname, itemPath) {
+  if (
+    itemPath === INFORMACOES_HUB_PATH ||
+    itemPath === POSTS_HUB_PATH
+  ) {
+    return (
+      pathname === itemPath || pathname.startsWith(`${itemPath}/`)
+    );
+  }
+  return pathname === itemPath;
+}
 
 function BottomNavLink({ item, active }) {
   const Icon = item.icon;
@@ -99,27 +115,17 @@ export default function BottomNav() {
       <ul
         className={cn(
           "relative z-10 grid h-[64px]",
-          isAdmin ? "grid-cols-4" : "grid-cols-2",
+          isAdmin ? "grid-cols-7" : "grid-cols-6",
         )}
       >
         {PRIMARY_ITEMS.map((item) => (
           <li key={item.path} className="contents">
             <BottomNavLink
               item={item}
-              active={location.pathname === item.path}
+              active={isBottomNavActive(location.pathname, item.path)}
             />
           </li>
         ))}
-        {isAdmin
-          ? ADMIN_PRIMARY_ITEMS.map((item) => (
-              <li key={item.path} className="contents">
-                <BottomNavLink
-                  item={item}
-                  active={location.pathname === item.path}
-                />
-              </li>
-            ))
-          : null}
         {isAdmin ? (
           <li className="flex min-w-0 flex-col justify-stretch">
             <button
