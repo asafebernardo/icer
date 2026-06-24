@@ -11,7 +11,7 @@ import { listEventosMerged } from "@/lib/eventosQuery";
 import { usePostsList } from "@/hooks/usePostsList";
 
 /**
- * Contagem de posts publicados por categoria (inclui exemplos quando aplicável).
+ * Contagem de posts publicados por categoria.
  */
 export function usePostCategoryCounts({ showDrafts = false } = {}) {
   const { posts, isLoading: postsLoading } = usePostsList({ showDrafts });
@@ -38,7 +38,9 @@ export function usePostCategoryCounts({ showDrafts = false } = {}) {
         map.noticias = (map.noticias || 0) + 1;
       }
     }
-    map.eventos = Array.isArray(eventos) ? eventos.length : 0;
+    const eventCount = Array.isArray(eventos) ? eventos.length : 0;
+    map.eventos = eventCount;
+    map.agenda = eventCount;
     return map;
   }, [posts, eventos]);
 

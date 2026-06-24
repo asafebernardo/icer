@@ -13,6 +13,13 @@ const LABEL_TO_VALUE = Object.fromEntries(
   DEFAULT_POST_CATEGORIES.map((c) => [c.label.toLowerCase(), c.value]),
 );
 
+const SPECIFIC_ENCONTRO_SLUGS = new Set([
+  "encontro_de_casais",
+  "encontro_feminino",
+  "encontro_masculino",
+  "encontro_de_jovens",
+]);
+
 /** Aliases legados → categorias actuais do mosaico /Posts. */
 const CATEGORY_ALIASES = {
   culto: "culto_dominical",
@@ -26,6 +33,13 @@ const CATEGORY_ALIASES = {
   "ação de graças": "acao_de_gracas",
   encontro_de_casais: "encontro_de_casais",
   "encontro de casais": "encontro_de_casais",
+  encontro_feminino: "encontro_feminino",
+  "encontro feminino": "encontro_feminino",
+  encontro_masculino: "encontro_masculino",
+  "encontro masculino": "encontro_masculino",
+  encontro_de_jovens: "encontro_de_jovens",
+  "encontro de jovens": "encontro_de_jovens",
+  jovens: "encontro_de_jovens",
   dia_das_maes: "dia_das_maes",
   "dia das maes": "dia_das_maes",
   "dia das mães": "dia_das_maes",
@@ -86,13 +100,48 @@ function resolveFromToken(token) {
   return null;
 }
 
+/** Inferência de slug de encontro a partir do título (sem categoria genérica «encontros»). */
+function inferEncontroSlugFromTitle(titulo) {
+  const t = normalizeToken(titulo);
+  if (!t || !/^encontro/.test(t)) return null;
+  if (/\bfeminino\b|mulher|mulheres/.test(t)) return "encontro_feminino";
+  if (/\bmasculino\b|homem|homens/.test(t)) return "encontro_masculino";
+  if (/\bjovens\b|jovem/.test(t)) return "encontro_de_jovens";
+  if (/\bcasais\b|casal/.test(t)) return "encontro_de_casais";
+  return null;
+}
+
 /**
- * Normaliza `categoria` explícita em posts (body_json). Não infere a partir de tags.
+ * Normaliza `categoria` explícita em posts (body_json).
+ * Títulos «encontro…» → slug específico; se estava em `eventos`, limpa.
  * @param {Record<string, unknown> | null | undefined} body
  * @returns {string | null} slug válido, `""` para limpar inválido, `null` = não alterar
  */
 export function resolveTargetPostCategory(body) {
+  if (!body || typeof body !== "object") return null;
+
+  const current = normalizeStoredPostCategoria(body.categoria);
+  if (current && SPECIFIC_ENCONTRO_SLUGS.has(current)) {
+    return current;
+  }
+
+  const inferred = inferEncontroSlugFromTitle(body.titulo);
+  if (inferred) {
+    return inferred;
+  }
+
+  const tituloKey = normalizeToken(body.titulo);
   const rawCat = String(body?.categoria ?? "").trim();
+  const rawCatKey = normalizeToken(rawCat);
+
+  if (
+    tituloKey &&
+    /^encontro/.test(tituloKey) &&
+    (rawCatKey === "eventos" || rawCatKey === "encontros")
+  ) {
+    return "";
+  }
+
   if (!rawCat) return null;
 
   const direct = resolveFromToken(rawCat);

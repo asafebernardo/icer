@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { normalizePost } from "@/lib/posts";
 import { resolvePostCategoria } from "@/lib/postCategories";
 import { belongsToNoticiasFeed } from "@/lib/noticiasFeed";
-import { EXAMPLE_POSTS } from "@/data/posts.examples";
 
 const FETCH_LIMIT = 500;
 
@@ -37,7 +36,7 @@ export function usePostsList({ showDrafts = false, categoriaKey = null } = {}) {
 
   const posts = useMemo(() => {
     const api = Array.isArray(data?.items) ? data.items : [];
-    const source = showDrafts ? api : [...api, ...EXAMPLE_POSTS];
+    const source = api;
 
     if (categoriaKey === "noticias") {
       return source.filter(belongsToNoticiasFeed).sort(sortFeedItems);

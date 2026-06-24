@@ -36,6 +36,36 @@ describe("resolveTargetPostCategory", () => {
     );
   });
 
+  it("título encontro feminino → encontro_feminino", () => {
+    assert.equal(
+      resolveTargetPostCategory({
+        titulo: "Encontro de oração feminino",
+        categoria: "eventos",
+      }),
+      "encontro_feminino",
+    );
+  });
+
+  it("título encontro sem tipo inferível + categoria eventos → limpar", () => {
+    assert.equal(
+      resolveTargetPostCategory({
+        titulo: "Encontro de oração",
+        categoria: "eventos",
+      }),
+      "",
+    );
+  });
+
+  it("mantém slug específico de encontro", () => {
+    assert.equal(
+      resolveTargetPostCategory({
+        titulo: "Encontro Feminino 2026",
+        categoria: "encontro_feminino",
+      }),
+      "encontro_feminino",
+    );
+  });
+
   it("sem categoria nem tag reconhecível → null", () => {
     assert.equal(resolveTargetPostCategory({ titulo: "Olá" }), null);
     assert.equal(resolveTargetPostCategory({ tags: ["geral"] }), null);
@@ -45,7 +75,7 @@ describe("resolveTargetPostCategory", () => {
 describe("mergeWorkspacePostCategories", () => {
   it("preenche defaults quando vazio", () => {
     const merged = mergeWorkspacePostCategories([]);
-    assert.ok(merged.length >= 15);
+    assert.ok(merged.length >= 19);
     assert.ok(merged.some((c) => c.value === "conferencias"));
   });
 

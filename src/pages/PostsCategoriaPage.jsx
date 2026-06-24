@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen } from "lucide-react";
 
+import PostsAgendaHubPage from "./PostsAgendaHubPage";
 import PostsEventosHubPage from "./PostsEventosHubPage";
 import { Button } from "@/components/ui/button";
 import EmptyState from "../components/shared/EmptyState";
@@ -72,6 +73,10 @@ export default function PostsCategoriaPage() {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
+
+  if (catKey === "agenda") {
+    return <PostsAgendaHubPage />;
+  }
 
   if (catKey === "eventos") {
     return <PostsEventosHubPage />;

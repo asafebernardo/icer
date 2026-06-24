@@ -495,7 +495,7 @@
     }
   }
 
-  .post-category-tile__tag--principais {
+  .post-category-tile__tag--oficiais {
     background: linear-gradient(
       135deg,
       rgba(2, 132, 199, 0.92),
@@ -514,15 +514,25 @@
   }
 
   @media (min-width: 640px) {
-    .post-category-tile__tag--principais {
+    .post-category-tile__tag--oficiais {
       font-size: 0.75rem;
       padding: 0.4375rem 0.75rem;
     }
   }
 
-  .post-category-tile__tag--eventos {
+  .post-category-tile__tag--festividade {
     background: rgba(124, 58, 237, 0.45);
     border-color: rgba(167, 139, 250, 0.28);
+  }
+
+  .post-category-tile__tag--encontros {
+    background: rgba(13, 148, 136, 0.48);
+    border-color: rgba(45, 212, 191, 0.32);
+  }
+
+  .post-category-tile__tag--especiais {
+    background: rgba(180, 83, 9, 0.48);
+    border-color: rgba(251, 191, 36, 0.32);
   }
 
   .post-category-tile__tag--informacoes {
@@ -530,7 +540,7 @@
     border-color: rgba(251, 146, 60, 0.28);
   }
 
-  .post-category-tile:hover .post-category-tile__tag--principais {
+  .post-category-tile:hover .post-category-tile__tag--oficiais {
     background: linear-gradient(
       135deg,
       rgba(3, 105, 161, 0.98),
@@ -543,9 +553,19 @@
       0 0 28px -4px rgba(56, 189, 248, 0.45);
   }
 
-  .post-category-tile:hover .post-category-tile__tag--eventos {
+  .post-category-tile:hover .post-category-tile__tag--festividade {
     background: rgba(124, 58, 237, 0.62);
     border-color: rgba(167, 139, 250, 0.42);
+  }
+
+  .post-category-tile:hover .post-category-tile__tag--encontros {
+    background: rgba(13, 148, 136, 0.65);
+    border-color: rgba(45, 212, 191, 0.45);
+  }
+
+  .post-category-tile:hover .post-category-tile__tag--especiais {
+    background: rgba(180, 83, 9, 0.65);
+    border-color: rgba(251, 191, 36, 0.45);
   }
 
   .post-category-tile:hover .post-category-tile__tag--informacoes {
@@ -553,8 +573,8 @@
     border-color: rgba(251, 146, 60, 0.42);
   }
 
-  /* Principais — realce premium no card inteiro */
-  .post-category-tile--tag-principais {
+  /* Oficiais — realce premium no card inteiro */
+  .post-category-tile--tag-oficiais {
     height: 216px;
     border-color: rgba(56, 189, 248, 0.28);
     box-shadow:
@@ -564,12 +584,12 @@
   }
 
   @media (min-width: 640px) {
-    .post-category-tile--tag-principais {
+    .post-category-tile--tag-oficiais {
       height: 232px;
     }
   }
 
-  .post-category-tile--tag-principais::before {
+  .post-category-tile--tag-oficiais::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -585,11 +605,11 @@
     box-shadow: inset 0 1px 0 rgba(186, 230, 253, 0.22);
   }
 
-  .post-category-tile--tag-principais .post-category-tile__img {
+  .post-category-tile--tag-oficiais .post-category-tile__img {
     filter: brightness(0.8) saturate(0.92) blur(0);
   }
 
-  .post-category-tile--tag-principais:hover {
+  .post-category-tile--tag-oficiais:hover {
     border-color: rgba(56, 189, 248, 0.42);
     box-shadow:
       0 0 0 1px rgba(56, 189, 248, 0.16) inset,
@@ -597,28 +617,28 @@
       0 0 64px -18px rgba(56, 189, 248, 0.38);
   }
 
-  .post-category-tile--tag-principais:hover .post-category-tile__img {
+  .post-category-tile--tag-oficiais:hover .post-category-tile__img {
     filter: brightness(0.88) saturate(1) blur(0);
   }
 
-  .post-category-tile--tag-principais .post-category-tile__title {
+  .post-category-tile--tag-oficiais .post-category-tile__title {
     font-size: 1rem;
     font-weight: 700;
     color: #ffffff;
   }
 
   @media (min-width: 640px) {
-    .post-category-tile--tag-principais .post-category-tile__title {
+    .post-category-tile--tag-oficiais .post-category-tile__title {
       font-size: 1.1875rem;
     }
   }
 
-  .post-category-tile--tag-principais .post-category-tile__meta {
+  .post-category-tile--tag-oficiais .post-category-tile__meta {
     color: rgba(186, 230, 253, 0.9);
     font-weight: 600;
   }
 
-  .post-category-tile--tag-principais .post-category-tile__shine {
+  .post-category-tile--tag-oficiais .post-category-tile__shine {
     opacity: 0.4;
     background: radial-gradient(
       ellipse 90% 70% at 50% 100%,
@@ -627,7 +647,7 @@
     );
   }
 
-  .post-category-tile--tag-principais:hover .post-category-tile__shine {
+  .post-category-tile--tag-oficiais:hover .post-category-tile__shine {
     opacity: 1;
   }
 
@@ -785,7 +805,7 @@
 
   @media (min-width: 768px) {
     .posts-category-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 1.125rem;
     }
   }
@@ -844,18 +864,32 @@
     box-shadow: 0 0 24px -14px rgba(56, 189, 248, 0.5);
   }
 
-  .posts-hub-tag-pill--active-principais {
+  .posts-hub-tag-pill--active-oficiais {
     border-color: rgba(56, 189, 248, 0.38);
     background: rgba(14, 165, 233, 0.2);
     color: #e0f2fe;
     box-shadow: 0 0 24px -14px rgba(56, 189, 248, 0.45);
   }
 
-  .posts-hub-tag-pill--active-eventos {
+  .posts-hub-tag-pill--active-festividade {
     border-color: rgba(167, 139, 250, 0.38);
     background: rgba(124, 58, 237, 0.2);
     color: #ede9fe;
     box-shadow: 0 0 24px -14px rgba(124, 58, 237, 0.4);
+  }
+
+  .posts-hub-tag-pill--active-encontros {
+    border-color: rgba(45, 212, 191, 0.38);
+    background: rgba(13, 148, 136, 0.22);
+    color: #ccfbf1;
+    box-shadow: 0 0 24px -14px rgba(13, 148, 136, 0.35);
+  }
+
+  .posts-hub-tag-pill--active-especiais {
+    border-color: rgba(251, 191, 36, 0.38);
+    background: rgba(180, 83, 9, 0.22);
+    color: #fef3c7;
+    box-shadow: 0 0 24px -14px rgba(251, 191, 36, 0.35);
   }
 
   .posts-hub-tag-pill--active-informacoes {
@@ -902,14 +936,14 @@
       transition: none;
     }
 
-    .post-category-tile--tag-principais {
+    .post-category-tile--tag-oficiais {
       height: 200px;
       box-shadow:
         0 0 0 1px rgba(56, 189, 248, 0.08) inset,
         0 4px 16px -10px rgba(0, 0, 0, 0.45);
     }
 
-    .post-category-tile--tag-principais::before,
+    .post-category-tile--tag-oficiais::before,
     .post-category-tile__shine {
       display: none;
     }

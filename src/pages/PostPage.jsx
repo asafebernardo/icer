@@ -18,7 +18,6 @@ import {
   normalizePost,
   normalizeTagKey,
 } from "@/lib/posts";
-import { getExamplePostById, isExamplePostId } from "@/data/posts.examples";
 import { POST_CATEGORIA_LABELS, resolvePostCategoria } from "@/lib/postCategories";
 
 export default function PostPage() {
@@ -33,11 +32,6 @@ export default function PostPage() {
   const { data: postRaw, isLoading } = useQuery({
     queryKey: ["post", id],
     queryFn: async () => {
-      if (isExamplePostId(id)) {
-        const example = getExamplePostById(id);
-        if (!example) throw new Error("Post não encontrado.");
-        return example;
-      }
       const r = await fetch(`/api/data/posts/${id}`, {
         method: "GET",
         credentials: "include",
@@ -95,8 +89,7 @@ export default function PostPage() {
   const inlineGalleryAdmin =
     canEditPosts &&
     hasGalleryImages &&
-    !post?.usar_galeria_por_dia &&
-    !isExamplePostId(post?.id);
+    !post?.usar_galeria_por_dia;
 
   const updateGalleryMutation = useMutation({
     mutationFn: async () => {
@@ -223,11 +216,6 @@ export default function PostPage() {
           {!isLoading && post && resolvePostCategoria(post) ? (
             <Badge variant="secondary" className="text-xs">
               {POST_CATEGORIA_LABELS[resolvePostCategoria(post)]}
-            </Badge>
-          ) : null}
-          {!isLoading && post && isExamplePostId(post.id) ? (
-            <Badge variant="outline" className="text-xs uppercase tracking-wide">
-              Exemplo
             </Badge>
           ) : null}
         </div>

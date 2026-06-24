@@ -76,7 +76,7 @@ function AgendaToolbar({
             <span className="font-medium text-foreground">data</span> de cada evento
             para posicioná-lo no calendário.{" "}
             <Link
-              to="/Posts/categoria/eventos?tab=eventos"
+              to="/Posts/categoria/eventos"
               className="font-medium text-accent underline-offset-4 hover:underline"
             >
               Cadastre e edite eventos na página Eventos
@@ -87,7 +87,7 @@ function AgendaToolbar({
             <span className="font-medium text-foreground">Data</span> de cada evento na
             grelha.{" "}
             <Link
-              to="/Posts/categoria/eventos?tab=eventos"
+              to="/Posts/categoria/eventos"
               className="font-medium text-accent underline-offset-2 hover:underline"
             >
               Editar em Eventos

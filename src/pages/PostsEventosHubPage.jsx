@@ -1,8 +1,7 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CalendarDays, List, Plus, Settings2 } from "lucide-react";
+import { ArrowLeft, List, Plus, Settings2 } from "lucide-react";
 
-import Agenda from "@/pages/Agenda";
 import Eventos from "@/pages/Eventos";
 import EventosRotinas from "@/pages/EventosRotinas";
 import { Button } from "@/components/ui/button";
@@ -16,7 +15,7 @@ import { useAuth } from "@/lib/AuthContext";
 import useRuntimeEnv from "@/hooks/useRuntimeEnv";
 import { cn } from "@/lib/utils";
 
-const TAB_VALUES = ["agenda", "eventos", "configuracoes"];
+const TAB_VALUES = ["eventos", "configuracoes"];
 
 export default function PostsEventosHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -25,7 +24,11 @@ export default function PostsEventosHubPage() {
   const { isHomolog } = useRuntimeEnv();
 
   const tabParam = String(searchParams.get("tab") || "").trim().toLowerCase();
-  const activeTab = TAB_VALUES.includes(tabParam) ? tabParam : "agenda";
+  if (tabParam === "agenda") {
+    return <Navigate to="/Posts/categoria/agenda" replace />;
+  }
+
+  const activeTab = TAB_VALUES.includes(tabParam) ? tabParam : "eventos";
 
   const sessionUser = authUser ?? getUser();
   const canCreateEventoReal = canMenuAction(sessionUser, MENU.EVENTOS, "create");
@@ -40,7 +43,7 @@ export default function PostsEventosHubPage() {
   });
 
   const setTab = (value) => {
-    setSearchParams(value === "agenda" ? {} : { tab: value }, { replace: true });
+    setSearchParams(value === "eventos" ? {} : { tab: value }, { replace: true });
   };
 
   const handleNovoEvento = () => {
@@ -106,11 +109,7 @@ export default function PostsEventosHubPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-6 grid h-auto min-h-11 w-full grid-cols-3 rounded-xl p-1 sm:inline-flex sm:w-auto">
-            <TabsTrigger value="agenda" className="gap-1.5 px-2 sm:gap-2 sm:px-4">
-              <CalendarDays className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">Agenda</span>
-            </TabsTrigger>
+          <TabsList className="mb-6 grid h-auto min-h-11 w-full grid-cols-2 rounded-xl p-1 sm:inline-flex sm:w-auto">
             <TabsTrigger value="eventos" className="gap-1.5 px-2 sm:gap-2 sm:px-4">
               <List className="h-4 w-4 shrink-0" aria-hidden />
               <span className="truncate">Eventos</span>
@@ -120,10 +119,6 @@ export default function PostsEventosHubPage() {
               <span className="truncate">Configurações</span>
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="agenda" className="mt-0 outline-none">
-            <Agenda embedded />
-          </TabsContent>
 
           <TabsContent value="eventos" className="mt-0 outline-none">
             <Eventos embedded />

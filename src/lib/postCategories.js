@@ -47,43 +47,62 @@ export function normalizeStoredPostCategoria(value) {
   return isValidPostCategoria(slug) ? slug : "";
 }
 
-/** Categorias temáticas de culto (exclui Notícias e hub de Eventos). */
+/** Categorias temáticas de culto (exclui Notícias e hubs Eventos/Agenda). */
 export const WORSHIP_POST_CATEGORY_KEYS = new Set(
   POST_CATEGORIAS.filter(
-    (c) => !["noticias", "eventos"].includes(c.value),
+    (c) => !["noticias", "eventos", "agenda"].includes(c.value),
   ).map((c) => c.value),
 );
 
-/** Ordem das secções no mosaico e feeds (grupos: Informações → Principais → Eventos). */
+/** Slugs de encontros específicos (não sobrescrever pela regra genérica do título). */
+export const SPECIFIC_ENCONTRO_CATEGORY_KEYS = new Set([
+  "encontro_de_casais",
+  "encontro_feminino",
+  "encontro_masculino",
+  "encontro_de_jovens",
+]);
+
+/** Ordem das secções no mosaico (Informações → Oficiais → Festividade → Encontros → Especiais). */
 export const POST_MOSAIC_TAG_GROUPS = [
   {
     id: "informacoes",
     label: "Informações",
-    categories: ["noticias", "eventos"],
+    categories: ["noticias", "eventos", "agenda"],
   },
   {
-    id: "principais",
-    label: "Principais",
-    categories: [
-      "culto_dominical",
-      "ceia",
-      "oracao",
-      "clube_biblico",
-      "estudos_biblicos",
-    ],
+    id: "oficiais",
+    label: "Oficiais",
+    categories: ["culto_dominical", "ceia", "oracao"],
   },
   {
-    id: "eventos",
-    label: "Eventos",
+    id: "festividade",
+    label: "Festividade",
     categories: [
       "acao_de_gracas",
       "dia_das_maes",
       "dia_das_pais",
       "natal",
       "pascoa",
-      "batismo",
+    ],
+  },
+  {
+    id: "encontros",
+    label: "Encontros",
+    categories: [
       "encontro_de_casais",
+      "encontro_feminino",
+      "encontro_masculino",
+      "encontro_de_jovens",
+    ],
+  },
+  {
+    id: "especiais",
+    label: "Especiais",
+    categories: [
       "conferencias",
+      "batismo",
+      "clube_biblico",
+      "estudos_biblicos",
     ],
   },
 ];
@@ -140,6 +159,21 @@ export const POST_CATEGORIA_ACCENT = {
     glow: "from-rose-500/10 to-transparent",
     border: "group-hover:border-rose-500/25",
   },
+  encontro_feminino: {
+    dot: "bg-pink-400",
+    glow: "from-pink-500/10 to-transparent",
+    border: "group-hover:border-pink-500/25",
+  },
+  encontro_masculino: {
+    dot: "bg-blue-400",
+    glow: "from-blue-500/10 to-transparent",
+    border: "group-hover:border-blue-500/25",
+  },
+  encontro_de_jovens: {
+    dot: "bg-lime-400",
+    glow: "from-lime-500/10 to-transparent",
+    border: "group-hover:border-lime-500/25",
+  },
   dia_das_maes: {
     dot: "bg-pink-400",
     glow: "from-pink-500/10 to-transparent",
@@ -180,6 +214,11 @@ export const POST_CATEGORIA_ACCENT = {
     glow: "from-fuchsia-500/10 to-transparent",
     border: "group-hover:border-fuchsia-500/25",
   },
+  agenda: {
+    dot: "bg-indigo-400",
+    glow: "from-indigo-500/10 to-transparent",
+    border: "group-hover:border-indigo-500/25",
+  },
   noticias: {
     dot: "bg-orange-400",
     glow: "from-orange-500/10 to-transparent",
@@ -201,6 +240,9 @@ export const POST_CATEGORIA_EMOJI = {
   batismo: "💧",
   acao_de_gracas: "🙌",
   encontro_de_casais: "💑",
+  encontro_feminino: "👩",
+  encontro_masculino: "👨",
+  encontro_de_jovens: "🧑‍🤝‍🧑",
   dia_das_maes: "💐",
   dia_das_pais: "👨‍👧",
   natal: "🎄",
@@ -208,7 +250,8 @@ export const POST_CATEGORIA_EMOJI = {
   conferencias: "🎤",
   clube_biblico: "📖",
   estudos_biblicos: "📚",
-  eventos: "📅",
+  eventos: "📋",
+  agenda: "📅",
   noticias: "📰",
   outros: "📄",
 };

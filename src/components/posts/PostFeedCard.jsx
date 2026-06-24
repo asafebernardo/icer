@@ -5,7 +5,6 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SafeImg from "@/components/shared/SafeImg";
 import { normalizePost, getPostFeedThumbnailUrl } from "@/lib/posts";
-import { isExamplePostId } from "@/data/posts.examples";
 import {
   POST_CATEGORIA_LABELS,
   resolvePostCategoria,
@@ -74,7 +73,6 @@ export default function PostFeedCard({
   onDelete,
 }) {
   const p = normalizePost(post);
-  const example = isExamplePostId(post.id);
   const categoria = resolvePostCategoria(p);
   const categoriaLabel = categoria
     ? POST_CATEGORIA_LABELS[categoria] || categoria
@@ -115,14 +113,11 @@ export default function PostFeedCard({
             {isDraft ? (
               <span className="text-[#64748B]/60"> · Rascunho</span>
             ) : null}
-            {example ? (
-              <span className="text-[#64748B]/60"> · Exemplo</span>
-            ) : null}
           </p>
         </div>
       </Link>
 
-      {(canEdit || canDelete) && !example ? (
+      {(canEdit || canDelete) ? (
         <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           {canEdit ? (
             <Button

@@ -23,7 +23,6 @@ import Layout from "./components/layout/Layout";
 import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import { ThemeProvider } from "./lib/ThemeContext";
-import Agenda from "./pages/Agenda.jsx";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
@@ -143,7 +142,7 @@ const AppRoutes = () => {
           path="LinksUteis"
           element={<Navigate to="/Home#recursos" replace />}
         />
-        <Route path="Agenda" element={<Agenda />} />
+        <Route path="Agenda" element={<Navigate to="/Posts/categoria/agenda" replace />} />
 
         <Route
           path="Dashboard"
@@ -162,7 +161,7 @@ const AppRoutes = () => {
           }
         />
         <Route path="Evento/:id" element={<EventoPage />} />
-        <Route path="Eventos" element={<Navigate to="/Posts/categoria/eventos?tab=eventos" replace />} />
+        <Route path="Eventos" element={<Navigate to="/Posts/categoria/eventos" replace />} />
         <Route
           path="Eventos/rotinas"
           element={<Navigate to="/Posts/categoria/eventos?tab=configuracoes" replace />}

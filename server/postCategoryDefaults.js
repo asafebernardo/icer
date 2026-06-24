@@ -2,6 +2,7 @@
 export const DEFAULT_POST_CATEGORIES = [
   { value: "noticias", label: "Notícias" },
   { value: "eventos", label: "Eventos" },
+  { value: "agenda", label: "Agenda" },
   { value: "culto_dominical", label: "Culto Dominical" },
   { value: "ceia", label: "Ceia" },
   { value: "oracao", label: "Oração" },
@@ -14,6 +15,9 @@ export const DEFAULT_POST_CATEGORIES = [
   { value: "pascoa", label: "Páscoa" },
   { value: "batismo", label: "Batismo" },
   { value: "encontro_de_casais", label: "Encontro de casais" },
+  { value: "encontro_feminino", label: "Encontro Feminino" },
+  { value: "encontro_masculino", label: "Encontro Masculino" },
+  { value: "encontro_de_jovens", label: "Encontro de Jovens" },
   { value: "conferencias", label: "Conferências" },
 ];
 

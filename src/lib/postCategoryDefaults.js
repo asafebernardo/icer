@@ -5,6 +5,7 @@
 export const DEFAULT_POST_CATEGORIES = [
   { value: "noticias", label: "Notícias" },
   { value: "eventos", label: "Eventos" },
+  { value: "agenda", label: "Agenda" },
   { value: "culto_dominical", label: "Culto Dominical" },
   { value: "ceia", label: "Ceia" },
   { value: "oracao", label: "Oração" },
@@ -17,6 +18,9 @@ export const DEFAULT_POST_CATEGORIES = [
   { value: "pascoa", label: "Páscoa" },
   { value: "batismo", label: "Batismo" },
   { value: "encontro_de_casais", label: "Encontro de casais" },
+  { value: "encontro_feminino", label: "Encontro Feminino" },
+  { value: "encontro_masculino", label: "Encontro Masculino" },
+  { value: "encontro_de_jovens", label: "Encontro de Jovens" },
   { value: "conferencias", label: "Conferências" },
 ];
 
@@ -28,6 +32,9 @@ export const DEFAULT_POST_CATEGORIA_MOSAIC_THUMBS = {
   batismo: "/images/post-categories/batismo.webp",
   acao_de_gracas: "/images/post-categories/acao-de-gracas.webp",
   encontro_de_casais: "/images/post-categories/encontro-de-casais.webp",
+  encontro_feminino: "/images/post-categories/encontro-feminino.png",
+  encontro_masculino: "/images/post-categories/encontro-masculino.png",
+  encontro_de_jovens: "/images/post-categories/encontro-de-jovens.png",
   dia_das_maes: "/images/post-categories/dia-das-maes.webp",
   dia_das_pais: "/images/post-categories/dia-dos-pais.webp",
   natal: "/images/post-categories/natal.webp",
@@ -40,6 +47,8 @@ export const DEFAULT_POST_CATEGORIA_MOSAIC_THUMBS = {
     "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=800&h=450&fit=crop&q=85",
   eventos:
     "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&h=450&fit=crop&q=85",
+  agenda:
+    "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=800&h=450&fit=crop&q=85",
   noticias:
     "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=450&fit=crop&q=85",
 };

@@ -10,7 +10,6 @@ import {
   feedItemYear,
   isEventoFeedItem,
 } from "@/lib/noticiasFeed";
-import { isExamplePostId } from "@/data/posts.examples";
 import { cn } from "@/lib/utils";
 
 export default function PostYearMosaicCard({
@@ -21,7 +20,6 @@ export default function PostYearMosaicCard({
   onDelete,
 }) {
   const isEvento = isEventoFeedItem(post);
-  const example = !isEvento && isExamplePostId(post.id);
   const p = isEvento ? post : normalizePost(post);
   const year = feedItemYear(post) ?? getPostPublicationYear(p);
   const yearLabel = year != null ? String(year) : "—";
@@ -62,12 +60,11 @@ export default function PostYearMosaicCard({
 
         <div className="post-category-tile__content">
           <h2 className="post-category-tile__title">{yearLabel}</h2>
-          {isEvento || isDraft || example ? (
+          {isEvento || isDraft ? (
             <p className="post-category-tile__meta">
               {[
                 isEvento ? "Evento" : null,
                 isDraft ? "Rascunho" : null,
-                example ? "Exemplo" : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -78,7 +75,7 @@ export default function PostYearMosaicCard({
         <div className="post-category-tile__shine" aria-hidden />
       </Link>
 
-      {(canEdit || canDelete) && !example && !isEvento ? (
+      {(canEdit || canDelete) && !isEvento ? (
         <div className="absolute right-2 top-2 z-10 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           {canEdit ? (
             <Button
