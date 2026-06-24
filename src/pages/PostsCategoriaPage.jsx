@@ -7,6 +7,7 @@ import PostsAgendaHubPage from "./PostsAgendaHubPage";
 import PostsEventosHubPage from "./PostsEventosHubPage";
 import { Button } from "@/components/ui/button";
 import EmptyState from "../components/shared/EmptyState";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import PostsCategoryFeed, {
   PostsCategoryFeedSkeleton,
