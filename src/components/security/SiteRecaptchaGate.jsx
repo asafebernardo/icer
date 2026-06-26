@@ -12,6 +12,7 @@ import {
   recaptchaErrorMessagePt,
   refreshRecaptchaConfig,
 } from "@/lib/recaptcha";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 /**
  * Bloqueia o site público até passar reCAPTCHA v3 (cookie httpOnly no servidor).
@@ -32,7 +33,7 @@ export default function SiteRecaptchaGate({ children }) {
         return;
       }
 
-      const statusRes = await fetch("/api/recaptcha/site-access", {
+      const statusRes = await fetchWithTimeout("/api/recaptcha/site-access", {
         credentials: "include",
         cache: "no-store",
       });
@@ -56,7 +57,7 @@ export default function SiteRecaptchaGate({ children }) {
         return;
       }
 
-      const verifyRes = await fetch("/api/recaptcha/site-access", {
+      const verifyRes = await fetchWithTimeout("/api/recaptcha/site-access", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

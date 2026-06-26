@@ -6,17 +6,15 @@ import {
   refreshPublicSiteConfig,
   syncDocumentBrandingFromSiteConfig,
 } from "@/lib/siteConfig";
-import { applySiteTheme } from "@/lib/siteTheme";
+import { initSiteTheme } from "@/lib/siteTheme";
 import { purgeLegacyDemoStorage } from "@/lib/purgeLegacyDemoStorage";
 import { refreshRecaptchaConfig } from "@/lib/recaptcha";
 
 purgeLegacyDemoStorage();
 
-// Tema escuro institucional (#08111F …) — sempre ativo.
-document.documentElement.classList.add("dark");
+initSiteTheme();
 
 const initialCfg = getSiteConfig();
-applySiteTheme();
 syncDocumentBrandingFromSiteConfig(initialCfg);
 
 // Carrega config pública do servidor (se existir) e re-hidrata UI.

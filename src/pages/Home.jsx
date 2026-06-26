@@ -1,13 +1,15 @@
 import HeroSection from "../components/home/HeroSection";
 import EventoDestaquePopup from "../components/home/EventoDestaquePopup";
-import WelcomeSection from "../components/home/WelcomeSection";
 
 export default function Home() {
   return (
-    <div>
+    <div className="relative">
       <HeroSection />
+      <div
+        className="pointer-events-none mx-auto h-px max-w-5xl bg-gradient-to-r from-transparent via-primary/25 to-transparent"
+        aria-hidden
+      />
       <EventoDestaquePopup />
-      <WelcomeSection />
     </div>
   );
 }

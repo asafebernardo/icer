@@ -1,28 +1,75 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { useAuth } from "@/lib/AuthContext";
-import { applySiteTheme } from "@/lib/siteTheme";
+import { applySiteColorPalette } from "@/lib/colorPalettes";
+import {
+  getActiveSiteTheme,
+  initSiteTheme,
+  resolveSiteTheme,
+  setSiteTheme,
+} from "@/lib/siteTheme";
 
-const ThemeContext = createContext(null);
+/** @typedef {"light" | "dark"} SiteThemeMode */
+
+const ThemeContext = createContext({
+  /** @type {SiteThemeMode} */
+  theme: "dark",
+  /** @type {(theme: SiteThemeMode) => void} */
+  setTheme: () => {},
+  /** @type {() => void} */
+  toggleTheme: () => {},
+  isDark: false,
+});
 
 export function ThemeProvider({ children }) {
   const { user } = useAuth();
+  const [theme, setThemeState] = useState(() =>
+    typeof document !== "undefined" ? getActiveSiteTheme() : resolveSiteTheme(),
+  );
+
+  const setTheme = useCallback((next) => {
+    const applied = setSiteTheme(next);
+    setThemeState(applied);
+    applySiteColorPalette();
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  }, [setTheme, theme]);
 
   useEffect(() => {
-    document.documentElement.classList.add("dark");
-    localStorage.setItem("church-theme", "dark");
-    applySiteTheme();
+    initSiteTheme();
+    setThemeState(getActiveSiteTheme());
+    applySiteColorPalette();
   }, [user?.id]);
 
   useEffect(() => {
-    const syncPalette = () => {
-      applySiteTheme();
+    const onPalette = () => applySiteColorPalette();
+    const onTheme = (e) => {
+      const next = e?.detail?.theme;
+      if (next === "light" || next === "dark") setThemeState(next);
     };
-    window.addEventListener("icer-user-color-palette", syncPalette);
-    return () => window.removeEventListener("icer-user-color-palette", syncPalette);
+    window.addEventListener("icer-user-color-palette", onPalette);
+    window.addEventListener("icer-theme-change", onTheme);
+    return () => {
+      window.removeEventListener("icer-user-color-palette", onPalette);
+      window.removeEventListener("icer-theme-change", onTheme);
+    };
   }, [user?.id]);
 
-  return <ThemeContext.Provider value={{ theme: "dark" }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider
+      value={{ theme, setTheme, toggleTheme, isDark: theme === "dark" }}
+    >
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
-export const useTheme = () => useContext(ThemeContext);
+export function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) {
+    throw new Error("useTheme must be used within ThemeProvider");
+  }
+  return ctx;
+}

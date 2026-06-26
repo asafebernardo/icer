@@ -7,7 +7,7 @@ module.exports = {
       boxShadow: {
         soft: "0 1px 2px hsl(var(--foreground) / 0.04), 0 8px 24px -6px hsl(var(--foreground) / 0.08)",
         card: "0 2px 8px -2px hsl(var(--foreground) / 0.06), 0 12px 40px -12px hsl(var(--foreground) / 0.1)",
-        nav: "0 1px 0 hsl(var(--foreground) / 0.06), 0 12px 32px -12px hsl(var(--foreground) / 0.08)",
+        nav: "0 1px 0 hsl(var(--foreground) / 0.06), 0 12px 32px -12px hsl(217 91% 60% / 0.1)",
         glow: "0 0 32px -8px hsl(var(--accent) / 0.28)",
         "glow-sm": "0 0 20px -10px hsl(var(--accent) / 0.2)",
         premium:
@@ -111,10 +111,26 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "aurora-drift": {
+          "0%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(2%, -1.5%) scale(1.03)" },
+          "100%": { transform: "translate(-1.5%, 2%) scale(1.05)" },
+        },
+        "glow-float": {
+          "0%, 100%": { opacity: "0.45", transform: "translateY(0)" },
+          "50%": { opacity: "0.7", transform: "translateY(-8px)" },
+        },
+        "fade-in-up": {
+          from: { opacity: "0", transform: "translateY(16px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "aurora-drift": "aurora-drift 28s ease-in-out infinite alternate",
+        "glow-float": "glow-float 12s ease-in-out infinite",
+        "fade-in-up": "fade-in-up 0.7s ease-out forwards",
       },
     },
   },

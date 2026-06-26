@@ -5,7 +5,6 @@ import {
   Newspaper,
   Landmark,
   Church,
-  Phone,
   Settings,
   Users,
   Shield,
@@ -35,7 +34,6 @@ const PRIMARY_ITEMS = [
   { label: "Cultos", path: "/Cultos", icon: Church },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
   { label: "História", path: "/Historia", icon: Landmark },
-  { label: "Contato", path: "/Contato", icon: Phone },
   { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: Info },
 ];
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:all": "concurrently -n server,vite -c bgMagenta.bold,bgCyan.bold --prefix \"[{name}]\" \"npm run dev:server\" \"npm run dev\"",
-    "dev:server": "node server/index.js",
+    "dev:server": "MONGODB_SRV_HOST= MONGODB_SRV_USER= MONGODB_SRV_PASSWORD= node server/index.js",
     "clear-login-blocks": "node scripts/clear-login-blocks.mjs",
     "migrate:post-categories": "node scripts/migrate-post-categories.mjs",
     "seed:post-examples": "node scripts/seed-post-examples.mjs",

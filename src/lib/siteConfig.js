@@ -6,8 +6,11 @@ import { withCsrfHeaderAsync } from "@/lib/csrf";
 const KEY = "icer_site_config";
 const SERVER_CACHE_KEY = "icer_site_config_server_cache";
 
-/** Ícone da aba quando não há logo personalizada (alinhado ao fallback da navbar). */
-export const DEFAULT_SITE_FAVICON = "/favicon.svg";
+/** Ícone da aba quando não há logo personalizada (cantos arredondados). */
+export const DEFAULT_SITE_FAVICON = "/favicon.png";
+
+/** Apple touch icon padrão (cantos arredondados). */
+export const DEFAULT_SITE_APPLE_TOUCH_ICON = "/apple-touch-icon.png";
 
 /** Logo da navbar/rodapé quando `logoUrl` está vazio — ficheiro estático em `public/`. */
 export const DEFAULT_SITE_LOGO_URL = "/logo-default.webp";
@@ -62,8 +65,9 @@ export function syncDocumentBrandingFromSiteConfig(config) {
   if (typeof document === "undefined") return;
   const raw =
     config && typeof config.logoUrl === "string" ? config.logoUrl.trim() : "";
-  const href = raw || DEFAULT_SITE_LOGO_URL;
+  const href = raw || DEFAULT_SITE_FAVICON;
   const type = faviconMimeForUrl(href);
+  const appleHref = raw || DEFAULT_SITE_APPLE_TOUCH_ICON;
 
   let icon = document.getElementById(FAVICON_LINK_ID);
   if (!icon) {
@@ -82,7 +86,7 @@ export function syncDocumentBrandingFromSiteConfig(config) {
     /** @type {HTMLLinkElement} */ (apple).rel = "apple-touch-icon";
     document.head.appendChild(apple);
   }
-  /** @type {HTMLLinkElement} */ (apple).href = href;
+  /** @type {HTMLLinkElement} */ (apple).href = appleHref;
 }
 
 export function getSiteConfig() {

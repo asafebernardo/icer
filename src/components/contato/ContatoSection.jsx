@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 function ContactCard({ icon: Icon, title, children, href, external }) {
   const content = (
     <>
-      <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-[#08111F]/60 text-[#38BDF8]">
+      <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-primary/15 bg-primary/8 text-primary">
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       <h3 className="font-display text-base font-semibold text-foreground">{title}</h3>
@@ -30,8 +30,8 @@ function ContactCard({ icon: Icon, title, children, href, external }) {
   );
 
   const className = cn(
-    "flex h-full flex-col rounded-2xl border border-white/[0.06] bg-card/80 p-5 shadow-sm backdrop-blur-sm",
-    "transition-colors hover:border-[#38BDF8]/20",
+    "contact-card-premium flex h-full flex-col rounded-2xl p-5 transition-all duration-300",
+    "hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_14px_36px_rgba(15,23,42,0.1)]",
   );
 
   if (href) {
@@ -74,7 +74,10 @@ export default function ContatoSection() {
     socialLinks.instagram || socialLinks.facebook || socialLinks.whatsapp;
 
   return (
-    <section className="relative min-h-[calc(100vh-4.75rem)] border-t border-border/60 bg-card/25 py-10 sm:py-14 lg:py-20">
+    <section
+      id="contato"
+      className="relative scroll-mt-[4.75rem] border-t border-border/30 py-12 sm:py-16 lg:py-20"
+    >
       <div className="container-page min-w-0">
         {canEditSite && isAdmin ? (
           <div className="mb-6 flex flex-wrap justify-end gap-2">
@@ -91,9 +94,9 @@ export default function ContatoSection() {
           <span className="mb-3 inline-block text-sm font-semibold uppercase tracking-wider text-accent">
             Contato
           </span>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             Fale conosco
-          </h1>
+          </h2>
           <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-accent/60" />
           <p className="mx-auto mt-5 max-w-xl text-muted-foreground">
             {footerDescricao || FOOTER_SITE_CONFIG_DEFAULTS.footerDescricao}

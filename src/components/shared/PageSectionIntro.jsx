@@ -18,19 +18,19 @@ export default function PageSectionIntro({
       )}
     >
       {tag ? (
-        <span className="mb-3 inline-block text-sm font-semibold uppercase tracking-wider text-accent">
+        <span className="eyebrow-premium mb-3 inline-block">
           {tag}
         </span>
       ) : null}
-      <TitleTag className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+      <TitleTag className="heading-premium text-3xl sm:text-4xl lg:text-[2.5rem]">
         {title}
       </TitleTag>
       <div
-        className="mx-auto mt-4 h-1 w-16 rounded-full bg-accent/60"
+        className="mx-auto mt-4 h-0.5 w-12 rounded-full bg-primary/50"
         aria-hidden
       />
       {description ? (
-        <p className="mx-auto mt-5 max-w-xl text-muted-foreground">
+        <p className="prose-premium-lead mx-auto mt-5 max-w-xl text-foreground/70">
           {description}
         </p>
       ) : null}

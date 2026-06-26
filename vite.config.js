@@ -59,9 +59,10 @@ export default defineConfig(({ mode }) => {
   const useImplicitDevProxy =
     mode === "development" && !serverAuth && !proxyTarget;
   const shouldProxyApi = serverAuth || proxyTarget || useImplicitDevProxy;
-  /** Evita 504 «Gateway Timeout» no dev quando Mongo (sessão + dados) demora (ex.: Atlas a aquecer). */
+  /** Evita página presa quando a API local está offline (proxy Vite). */
+  const defaultProxyTimeoutMs = mode === "development" ? 15_000 : 300_000;
   const apiProxyTimeoutMs = Number(
-    env.VITE_DEV_API_PROXY_TIMEOUT_MS || env.VITE_API_PROXY_TIMEOUT_MS || 300_000,
+    env.VITE_DEV_API_PROXY_TIMEOUT_MS || env.VITE_API_PROXY_TIMEOUT_MS || defaultProxyTimeoutMs,
   );
   const proxyTimeout =
     Number.isFinite(apiProxyTimeoutMs) && apiProxyTimeoutMs > 0

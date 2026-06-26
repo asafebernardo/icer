@@ -23,8 +23,8 @@ import Layout from "./components/layout/Layout";
 import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import Cultos from "./pages/Cultos";
-import Contato from "./pages/Contato";
 import { ThemeProvider } from "./lib/ThemeContext";
+import { INFORMACOES_CONTATO_PATH } from "@/lib/postsNavPath";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
@@ -132,7 +132,7 @@ const AppRoutes = () => {
       <Route element={<Layout />}>
         <Route path="Home" element={<Home />} />
         <Route path="Cultos" element={<Cultos />} />
-        <Route path="Contato" element={<Contato />} />
+        <Route path="Contato" element={<Navigate to={INFORMACOES_CONTATO_PATH} replace />} />
         <Route path="Recursos" element={<Navigate to="/Informacoes/categoria/aplicativos" replace />} />
         <Route
           path="LinksUteis"

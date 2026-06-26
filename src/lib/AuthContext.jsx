@@ -45,6 +45,7 @@ import {
 } from "@/lib/recaptcha";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 const AuthContext = createContext(null);
 
@@ -134,7 +135,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const fetchSessionUser = useCallback(async () => {
-    const r = await fetch("/api/auth/me", {
+    const r = await fetchWithTimeout("/api/auth/me", {
       credentials: "include",
       cache: "no-store",
     });
@@ -194,6 +195,9 @@ export function AuthProvider({ children }) {
         setIsValidatingSession(false);
         if (sessionValidationGenRef.current === genAtStart) {
           checkUserAuth();
+        } else {
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
         }
       }
     })();

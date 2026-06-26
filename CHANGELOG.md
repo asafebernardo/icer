@@ -3,6 +3,21 @@
 ### Features
 
 * hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
+* melhora modo de edição, reCAPTCHA e novo post em Notícias ([7f5b4bd](https://github.com/asafebernardo/icer/commit/7f5b4bd23f1daacb1d87bad49f2e78a9ebf5da19))
+* **posts:** hub hierárquico, FABs mobile e fim do auto-login homolog ([8837f89](https://github.com/asafebernardo/icer/commit/8837f89e6202f1b893ac2a7f21c0f0889ac1f4b0))
+* reorganiza Informações, Eventos e navegação de posts ([dcc03d4](https://github.com/asafebernardo/icer/commit/dcc03d415e1c949f98a1c8b9e1842437e5947d4c))
+* tema premium, contato em Informações e estabilidade em dev ([c7c392d](https://github.com/asafebernardo/icer/commit/c7c392d85eb505fab62fe9875c3e0ddf220c9c1b))
+
+### Bug Fixes
+
+* **auth:** sessão, login Google mobile e dev local ([c2a2f05](https://github.com/asafebernardo/icer/commit/c2a2f051a1ac8ca282c46f13e9385b23bf425d39))
+* coloca Informações à direita de Contato na navegação ([afc2d11](https://github.com/asafebernardo/icer/commit/afc2d1180f97ba1d1aa397409d4d3a55f976eb79))
+* correções gerais de sessão e performance mobile ([5614d55](https://github.com/asafebernardo/icer/commit/5614d559787e95db69e3b150dd32d6df5955af0c))
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-06-26)
+
+### Features
+
+* hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
 * melhora modo de edição, reCAPTCHA e novo post em Notícias ([95fddcb](https://github.com/asafebernardo/icer/commit/95fddcb24455b9f2ef214fd6b7f92650cf6231e6))
 * **posts:** hub hierárquico, FABs mobile e fim do auto-login homolog ([8837f89](https://github.com/asafebernardo/icer/commit/8837f89e6202f1b893ac2a7f21c0f0889ac1f4b0))
 * reorganiza Informações, Eventos e navegação de posts ([dcc03d4](https://github.com/asafebernardo/icer/commit/dcc03d415e1c949f98a1c8b9e1842437e5947d4c))

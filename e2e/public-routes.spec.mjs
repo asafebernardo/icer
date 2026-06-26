@@ -4,7 +4,7 @@ const PUBLIC_PAGES = [
   "/Home",
   "/Cultos",
   "/Eventos",
-  "/Contato",
+  "/Informacoes",
   "/Historia",
   "/Agenda",
   "/Eventos/rotinas",
@@ -40,6 +40,14 @@ test.describe("Páginas públicas", () => {
   test("/login legado redireciona para a Home", async ({ page }) => {
     await page.goto("/login");
     await expect(page).toHaveURL(/\/Home$/);
+  });
+
+  test("Contato redireciona para Informações (secção contacto)", async ({ page }) => {
+    await page.goto("/Contato");
+    await expect(page).toHaveURL(/\/Informacoes#contato$/);
+    await expect(page.getByRole("heading", { name: "Fale conosco" })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("Recursos redireciona para Aplicativos em Eventos", async ({ page }) => {

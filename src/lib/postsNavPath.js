@@ -27,6 +27,9 @@ export const INFORMACOES_HUB_TITLE = "Notícias e recursos";
 export const INFORMACOES_HUB_DESCRIPTION =
   "Agenda, aplicativos, programação e avisos da comunidade.";
 
+/** Secção de contacto no final da página Informações. */
+export const INFORMACOES_CONTATO_PATH = `${INFORMACOES_HUB_PATH}#contato`;
+
 /** Agenda em Informações (calendário + programação). */
 export const INFORMACOES_AGENDA_PATH = `${INFORMACOES_HUB_PATH}/categoria/agenda`;
 

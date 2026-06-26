@@ -1,6 +1,6 @@
 /** Paletas HSL monocromáticas (formato Tailwind/shadcn: "H S% L%" sem hsl()). */
 
-import { applySiteTheme } from "@/lib/siteTheme";
+import { applySiteTheme, getActiveSiteTheme } from "@/lib/siteTheme";
 
 /** Base institucional — só usada para derivar variantes com baixa saturação. */
 const AZUL_LIGHT = {
@@ -201,5 +201,5 @@ export const PALETTE_OPTIONS = [
  * @param {string} [_paletteId] — ignorado; paleta fixa em `siteTheme.js`.
  */
 export function applySiteColorPalette(_paletteId) {
-  applySiteTheme();
+  applySiteTheme(document.documentElement, getActiveSiteTheme());
 }

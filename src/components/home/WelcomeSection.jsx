@@ -155,7 +155,7 @@ export default function WelcomeSection() {
     <>
       <HomeSectionBackdrop
         imageUrl={sectionBgUrl}
-        className="py-16 sm:py-20 lg:py-28"
+        className="py-20 sm:py-24 lg:py-32"
       >
         <div className="container-page">
         <div className="grid min-w-0 grid-cols-1 gap-10 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:items-stretch lg:gap-x-12 lg:gap-y-8 xl:gap-x-16">
@@ -166,13 +166,11 @@ export default function WelcomeSection() {
             )}
           >
             <div className="max-w-2xl">
-              <span className="text-accent font-semibold text-sm tracking-[0.12em] uppercase">
-                {welcomeTag}
-              </span>
-              <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground mt-3 leading-tight tracking-tight">
+              <span className="eyebrow-premium">{welcomeTag}</span>
+              <h2 className="heading-premium text-3xl sm:text-4xl lg:text-5xl mt-4 leading-tight">
                 {welcomeTitle}
               </h2>
-              <p className="prose-lead mt-3">{welcomeSubtitle}</p>
+              <p className="prose-premium-lead mt-4">{welcomeSubtitle}</p>
             </div>
             {canEditHome && (
               <div className="flex flex-wrap gap-2 justify-end">
@@ -218,7 +216,7 @@ export default function WelcomeSection() {
             transition={{ duration: reduceMotion ? 0 : 0.6 }}
             className="relative flex min-h-0 w-full min-w-0 flex-col lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:h-full"
           >
-            <div className="relative z-0 flex min-h-[min(360px,58vh)] w-full flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-muted/10 shadow-card lg:min-h-0">
+            <div className="relative z-0 flex min-h-[min(360px,58vh)] w-full flex-1 flex-col overflow-hidden rounded-2xl glass-card-premium lg:min-h-0">
               <SafeImg
                 src={DEFAULT_VERSE_IMAGE_URL}
                 alt=""

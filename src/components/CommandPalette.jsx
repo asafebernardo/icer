@@ -27,14 +27,19 @@ import {
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import { isAdminUser } from "@/lib/auth";
 import { listEventosMerged } from "@/lib/eventosQuery";
-import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB_PATH } from "@/lib/postsNavPath";
+import {
+  POSTS_HUB_LABEL,
+  POSTS_HUB_PATH,
+  INFORMACOES_CONTATO_PATH,
+  INFORMACOES_HUB_LABEL,
+  INFORMACOES_HUB_PATH,
+} from "@/lib/postsNavPath";
 
 const NAV_ROUTES = [
   { label: "Início", path: "/Home", icon: HomeIcon },
   { label: "Cultos", path: "/Cultos", icon: Church },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
   { label: "História", path: "/Historia", icon: Landmark },
-  { label: "Contato", path: "/Contato", icon: Phone },
   { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: Info },
   { label: "Aplicativos", path: "/Informacoes/categoria/aplicativos", icon: Library },
 ];
@@ -45,7 +50,6 @@ const MOBILE_BOTTOM_NAV_PATHS = new Set([
   "/Cultos",
   INFORMACOES_HUB_PATH,
   POSTS_HUB_PATH,
-  "/Contato",
   "/Historia",
 ]);
 
@@ -221,7 +225,7 @@ export default function CommandPalette({ open, onOpenChange }) {
         <CommandGroup heading="Atalhos">
           <CommandItem
             value="atalho contato sobre"
-            onSelect={() => runAndClose(() => navigate("/Contato"))}
+            onSelect={() => runAndClose(() => navigate(INFORMACOES_CONTATO_PATH))}
           >
             <Phone className="mr-2" />
             <span>Contato</span>

@@ -1,15 +1,25 @@
 <!doctype html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("church-theme");
+          if (t === "light") document.documentElement.classList.remove("dark");
+          else document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="icon"
       id="icer-site-favicon"
-      type="image/svg+xml"
-      href="/favicon.svg"
+      type="image/png"
+      href="/favicon.png"
     />
+    <link rel="apple-touch-icon" id="icer-site-apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="manifest" href="/manifest.json" />
     <title>ICER Chapecó</title>

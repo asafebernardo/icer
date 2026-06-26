@@ -5,6 +5,7 @@ import BottomNav from "./BottomNav";
 import WhatsAppFab from "./WhatsAppFab";
 import EditModeFloatingFab from "./EditModeFloatingFab";
 import SessionFloatingFab from "./SessionFloatingFab";
+import ThemeFloatingFab from "./ThemeFloatingFab";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
 import SiteRecaptchaGate from "@/components/security/SiteRecaptchaGate";
@@ -36,6 +37,7 @@ export default function Layout() {
       <Footer />
       <BottomNav />
       <WhatsAppFab />
+      <ThemeFloatingFab />
       <EditModeFloatingFab />
       <SessionFloatingFab />
     </div>

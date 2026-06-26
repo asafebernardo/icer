@@ -1,5 +1,7 @@
 /** Ambiente de runtime exposto pelo servidor (`GET /api/health`) + fallback do `.env` no Vite. */
 
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+
 let cache = null;
 let inflight = null;
 
@@ -24,7 +26,7 @@ const EMPTY = normalizeRuntimeEnv({});
 export async function fetchRuntimeEnv() {
   if (cache) return cache;
   if (!inflight) {
-    inflight = fetch("/api/health", { credentials: "include", cache: "no-store" })
+    inflight = fetchWithTimeout("/api/health", { credentials: "include", cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) return { body: {}, useViteFallback: true };
         const body = await r.json();

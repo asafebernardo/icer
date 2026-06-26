@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 
 import BackgroundSlideshow from "@/components/shared/BackgroundSlideshow";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import {
   DEFAULT_HERO_TITLE,
 } from "@/lib/homeContentDefaults";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 function formatSeconds(ms) {
   const s = Math.round((ms / 1000) * 10) / 10;
@@ -66,6 +67,14 @@ export default function HeroSection() {
   const [draftEyebrow, setDraftEyebrow] = useState("");
   const [draftHeroTitle, setDraftHeroTitle] = useState("");
   const didCountRef = useRef(false);
+  const heroRef = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const imageY = useTransform(scrollYProgress, [0, 1], ["0%", "12%"]);
+  const textY = useTransform(scrollYProgress, [0, 1], ["0%", "8%"]);
+  const textOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0.35]);
 
   // Ajusta altura do hero para acompanhar o aspect ratio da imagem.
   const [heroAspect, setHeroAspect] = useState(16 / 9);
@@ -159,17 +168,18 @@ export default function HeroSection() {
   const hasSlides = slides.length > 0;
 
   return (
-    <section className="relative overflow-hidden">
-      {/* Wrapper alinhado ao conteúdo (mesma largura/padding do restante do site) */}
-      <div className="relative z-[2] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        {/* Caixa do hero com altura responsiva — usa fundo neutro do tema */}
-        <div
-          className="relative w-full max-h-[85vh] min-h-[260px] sm:min-h-[360px] overflow-hidden bg-muted/40"
-          style={{ aspectRatio: heroAspect }}
+    <section ref={heroRef} className="relative -mx-4 sm:-mx-6 lg:-mx-8 overflow-hidden">
+      <div className="hero-cinematic-wrap relative">
+        {/* Radial glow atrás da imagem */}
+        <div className="hero-cinematic-glow pointer-events-none absolute inset-0 z-[1]" aria-hidden />
+
+        {/* Media com parallax suave */}
+        <motion.div
+          className="absolute inset-0 z-[2] overflow-hidden"
+          style={{ y: reduceMotion ? 0 : imageY }}
         >
-          {/* Imagem alinhada ao conteúdo */}
-          <div className="absolute inset-0 z-[2] overflow-hidden">
-            {hasSlides ? (
+          {hasSlides ? (
+            <div className="hero-cinematic-media absolute inset-0 h-[115%] w-full -top-[7%]">
               <BackgroundSlideshow
                 urls={slides}
                 rotateIntervalMs={rotateIntervalMs}
@@ -177,32 +187,32 @@ export default function HeroSection() {
                 transitionMode={transitionMode}
                 fit="cover"
               />
-            ) : (
-              <div
-                className="pointer-events-none absolute inset-0"
-                style={{
-                  backgroundImage:
-                    "radial-gradient(ellipse 120% 80% at 20% 30%, hsl(var(--primary) / 0.18) 0%, transparent 55%), radial-gradient(ellipse 90% 50% at 90% 80%, hsl(var(--accent) / 0.14) 0%, transparent 50%)",
-                }}
-                aria-hidden
-              />
-            )}
-          </div>
+            </div>
+          ) : (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage:
+                  "radial-gradient(ellipse 120% 80% at 20% 30%, rgba(37,99,235,0.22) 0%, transparent 55%), radial-gradient(ellipse 90% 50% at 90% 80%, rgba(59,130,246,0.16) 0%, transparent 50%)",
+              }}
+              aria-hidden
+            />
+          )}
+        </motion.div>
 
-          {/* Scrim para legibilidade — só sobre imagens (mais escuro) ou sutil sobre fallback */}
-          <div
-            className={
-              hasSlides
-                ? "pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/55 via-black/15 to-transparent"
-                : "pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-background/40 via-transparent to-transparent"
-            }
-            aria-hidden
-          />
+        {/* Overlay cinematográfico */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 z-[3]",
+            hasSlides ? "hero-cinematic-scrim" : "bg-gradient-to-t from-background/50 via-transparent to-transparent",
+          )}
+          aria-hidden
+        />
 
-          {/* Conteúdo sobre a imagem */}
-          <div className="relative z-10 h-full w-full min-w-0 flex flex-col pb-6 sm:pb-8 lg:pb-10 pt-10 sm:pt-12 px-4 sm:px-6 lg:px-8">
+        {/* Conteúdo */}
+        <div className="relative z-10 flex h-full min-h-[inherit] w-full flex-col justify-end px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:px-12 lg:pb-16">
           {canEditHome && (
-            <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
+            <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-8 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
               <Button
                 type="button"
                 size="sm"
@@ -241,31 +251,34 @@ export default function HeroSection() {
           )}
 
           <motion.div
-            initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.75 }}
-            className="mt-auto max-w-3xl min-w-0 w-full"
+            transition={{ duration: reduceMotion ? 0 : 0.85, ease: [0.22, 1, 0.36, 1] }}
+            style={{
+              y: reduceMotion ? 0 : textY,
+              opacity: reduceMotion ? 1 : textOpacity,
+            }}
+            className="max-w-4xl min-w-0 w-full"
           >
             <p
-              className={
-                hasSlides
-                  ? "text-white text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]"
-                  : "text-accent text-sm sm:text-base font-semibold tracking-[0.18em] uppercase mb-3"
-              }
+              className={cn(
+                "eyebrow-premium mb-4",
+                hasSlides && "text-white/90 [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]",
+              )}
             >
               {heroEyebrow}
             </p>
             <h1
-              className={
+              className={cn(
+                "heading-premium text-4xl sm:text-5xl lg:text-7xl leading-[1.05] break-words",
                 hasSlides
-                  ? "font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight break-words [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]"
-                  : "font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-[1.1] tracking-tight break-words"
-              }
+                  ? "text-white [text-shadow:0_4px_24px_rgba(0,0,0,0.55)]"
+                  : "text-foreground",
+              )}
             >
               {heroTitle}
             </h1>
           </motion.div>
-          </div>
         </div>
       </div>
 

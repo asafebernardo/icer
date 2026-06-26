@@ -27,9 +27,12 @@ import {
   Server,
   Sparkles,
   FileStack,
+  Moon,
+  Sun,
   Pencil,
 } from "lucide-react";
 import { useEditMode } from "@/lib/EditModeContext";
+import { useTheme } from "@/lib/ThemeContext";
 import useCanEdit from "@/lib/useCanEdit";
 import {
   refreshPublicSiteConfig,
@@ -58,7 +61,6 @@ const BASE_LINKS = [
   { label: "Cultos", path: "/Cultos" },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH },
   { label: "História", path: "/Historia" },
-  { label: "Contato", path: "/Contato" },
   { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH },
 ];
 
@@ -120,6 +122,7 @@ export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const { enabled: editMode, toggle: toggleEditMode } = useEditMode();
+  const { theme, toggleTheme } = useTheme();
   const sessionUser = useSyncedAuthUser();
 
   const isLoggedIn = !!sessionUser;
@@ -169,7 +172,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/90 shadow-nav backdrop-blur-xl transition-colors duration-300 supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_1px_0_hsl(var(--border)),0_12px_40px_-16px_hsl(217_59%_4%/0.9)]"
+      className="nav-glass-premium"
       aria-label="Navegação principal"
     >
       <div className="container-page">
@@ -187,7 +190,7 @@ export default function Navbar() {
                 <span className="font-display text-base sm:text-lg font-semibold text-foreground tracking-tight truncate">
                   ICER Chapecó
                 </span>
-                <span className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground truncate">
+                <span className="text-[10px] sm:text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground truncate">
                   Casa de Oração
                 </span>
               </div>
@@ -222,11 +225,10 @@ export default function Navbar() {
                   key={link.path}
                   to={link.path}
                   aria-current={active ? "page" : undefined}
-                  className={`nav-link-pill ${
-                    active
-                      ? "bg-primary text-primary-foreground shadow-soft"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  }`}
+                  className={cn(
+                    "nav-link-pill",
+                    active ? "nav-link-pill-active" : "nav-link-pill-idle",
+                  )}
                 >
                   {link.label}
                 </Link>
@@ -236,6 +238,23 @@ export default function Navbar() {
 
           {/* Ações direita */}
           <div className="flex items-center gap-1">
+            <div className="hidden sm:flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Activar tema claro" : "Activar tema escuro"}
+                title={theme === "dark" ? "Tema claro" : "Tema escuro"}
+                className="min-h-[40px] min-w-[40px] shrink-0 rounded-full text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+              >
+                {theme === "dark" ? (
+                  <Sun className="h-4 w-4" aria-hidden />
+                ) : (
+                  <Moon className="h-4 w-4" aria-hidden />
+                )}
+              </Button>
+            </div>
             {isLoggedIn && canToggleEditMode ? (
               <div className="hidden sm:flex">
                 <EditModeNavButton
@@ -336,11 +355,12 @@ export default function Navbar() {
                             to={link.path}
                             onClick={() => setOpen(false)}
                             aria-current={active ? "page" : undefined}
-                            className={`min-h-[44px] flex items-center px-4 py-2.5 text-[14px] font-medium rounded-xl transition-all duration-200 ${
+                            className={cn(
+                              "min-h-[44px] flex items-center px-4 py-2.5 text-[14px] font-medium rounded-xl transition-all duration-300",
                               active
-                                ? "bg-primary text-primary-foreground shadow-soft"
-                                : "text-foreground/80 hover:text-foreground hover:bg-muted/50"
-                            }`}
+                                ? "nav-link-pill-active"
+                                : "text-foreground/80 hover:text-foreground hover:bg-foreground/5",
+                            )}
                           >
                             {link.label}
                           </Link>

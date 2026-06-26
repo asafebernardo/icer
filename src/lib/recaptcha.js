@@ -19,9 +19,11 @@ export function isRecaptchaEnabled() {
   return Boolean(enabled && siteKey);
 }
 
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+
 export async function refreshRecaptchaConfig() {
   try {
-    const r = await fetch("/api/recaptcha/config", {
+    const r = await fetchWithTimeout("/api/recaptcha/config", {
       method: "GET",
       cache: "no-store",
       headers: { Accept: "application/json" },

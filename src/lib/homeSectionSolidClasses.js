@@ -4,7 +4,7 @@
  * — tema escuro: azul institucional escuro.
  */
 export const homeSectionSolidFallback =
-  "border-b border-border/80 bg-gradient-to-b from-card via-muted/25 to-muted/40 dark:border-on-brand/10 dark:bg-brand-surface-dark dark:bg-gradient-to-b dark:from-brand-surface-dark dark:via-brand-surface-dark dark:to-brand-surface-dark";
+  "border-b border-border/30 bg-transparent dark:border-on-brand/10 dark:bg-brand-surface-dark dark:bg-gradient-to-b dark:from-brand-surface-dark dark:via-brand-surface-dark dark:to-brand-surface-dark";
 
 /** No claro mantém texto padrão; no escuro força texto sobre o azul */
 export const homeSectionSolidContent =

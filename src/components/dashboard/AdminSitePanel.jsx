@@ -336,7 +336,7 @@ export default function AdminSitePanel() {
           <div>
             <h2 className="text-lg font-semibold text-foreground">Contacto do site</h2>
             <p className="text-sm text-muted-foreground">
-              Endereço, telefone e e-mail no rodapé, botão flutuante e página Contato.
+              Endereço, telefone e e-mail no rodapé, botão flutuante e secção Contato em Informações.
             </p>
           </div>
         </div>
