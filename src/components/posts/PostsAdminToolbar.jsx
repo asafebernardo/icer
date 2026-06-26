@@ -19,7 +19,14 @@ export default function PostsAdminToolbar({
   if (!visible) return null;
 
   if (compact) {
-    if (needsEditMode) return null;
+    if (needsEditMode) {
+      return (
+        <p className="max-w-[10.5rem] text-right text-[10px] leading-snug text-[#64748B] sm:max-w-none sm:text-xs">
+          Ative o{" "}
+          <span className="font-medium text-[#94A3B8]">modo edição</span>
+        </p>
+      );
+    }
     return canCreate ? (
       <Button size="sm" className="h-8 px-3 text-xs" asChild>
         <Link to={createHref} state={{ from: returnPath }}>

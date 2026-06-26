@@ -207,6 +207,11 @@
     isolation: isolate;
   }
 
+  /* reCAPTCHA v3: badge oculto — aviso no rodapé (requisito Google). */
+  .grecaptcha-badge {
+    visibility: hidden !important;
+  }
+
   h1,
   h2,
   h3,

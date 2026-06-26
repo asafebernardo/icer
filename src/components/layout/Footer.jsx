@@ -1,4 +1,5 @@
 import FooterContactStrip from "@/components/layout/FooterContactStrip";
+import RecaptchaFooterNotice from "@/components/security/RecaptchaFooterNotice";
 import useSiteContactDetails from "@/hooks/useSiteContactDetails";
 import { hasSiteContactDetails } from "@/lib/contactDetails";
 
@@ -12,6 +13,7 @@ export default function Footer() {
         {showContact ? (
           <FooterContactStrip details={contactDetails} />
         ) : null}
+        <RecaptchaFooterNotice />
         <p className="text-[11px] text-muted-foreground/90">
           © {new Date().getFullYear()} ICER Chapecó. Todos os direitos reservados.
         </p>

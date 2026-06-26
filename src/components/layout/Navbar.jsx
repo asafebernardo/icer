@@ -37,7 +37,7 @@ import {
   setSiteConfig,
 } from "@/lib/siteConfig";
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
-import { logout as authLogout, MENU, isAdminUser } from "@/lib/auth";
+import { logout as authLogout, canUseEditMode, MENU, isAdminUser } from "@/lib/auth";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import SiteLogoMark, {
@@ -62,6 +62,60 @@ const BASE_LINKS = [
   { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH },
 ];
 
+function EditModeNavButton({ editMode, onToggle, className }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={onToggle}
+      aria-label={editMode ? "Desactivar modo de edição" : "Activar modo de edição"}
+      aria-pressed={editMode}
+      title="Modo de edição"
+      className={cn(
+        "min-h-[40px] min-w-[40px] shrink-0 rounded-full",
+        editMode
+          ? "bg-accent/20 text-accent hover:bg-accent/30"
+          : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+        className,
+      )}
+    >
+      <Pencil className="h-4 w-4" aria-hidden />
+    </Button>
+  );
+}
+
+function EditModeSheetRow({ editMode, onToggle }) {
+  return (
+    <div className="px-4 pb-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:bg-muted/40 min-w-0"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <Pencil className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="truncate">Modo de edição</span>
+        </span>
+        <span
+          aria-hidden
+          className={cn(
+            "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
+            editMode ? "bg-accent dark:bg-accent" : "bg-muted dark:bg-white/15",
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block h-3 w-3 transform rounded-full bg-background shadow transition-transform dark:bg-white dark:shadow-md",
+              editMode ? "translate-x-3.5" : "translate-x-0.5",
+            )}
+          />
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export default function Navbar() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -73,6 +127,7 @@ export default function Navbar() {
   const canEditLogo = useCanEdit(MENU.HOME);
   const logoUrl = useSiteLogoUrl();
   const isAdmin = isAdminUser(sessionUser);
+  const canToggleEditMode = canUseEditMode(sessionUser);
   const {
     canUseAdminTabs,
     canNavigateAdminTabs,
@@ -181,6 +236,14 @@ export default function Navbar() {
 
           {/* Ações direita */}
           <div className="flex items-center gap-1">
+            {isLoggedIn && canToggleEditMode ? (
+              <div className="hidden sm:flex">
+                <EditModeNavButton
+                  editMode={editMode}
+                  onToggle={toggleEditMode}
+                />
+              </div>
+            ) : null}
             {/* Logado: dropdown no nome | Deslogado: botão Login */}
             {isLoggedIn ? (
               <div className="hidden sm:flex items-center">
@@ -213,32 +276,6 @@ export default function Navbar() {
                           layout="dropdown"
                           getHref={adminTabHref}
                         />
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.preventDefault();
-                            toggleEditMode();
-                          }}
-                          onSelect={(e) => e.preventDefault()}
-                          className="flex cursor-pointer items-center justify-between gap-2 dark:data-[highlighted]:bg-white/18 dark:data-[highlighted]:text-foreground dark:focus:bg-white/18 dark:focus:text-foreground"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Pencil className="w-4 h-4" />
-                            Modo de edição
-                          </span>
-                          <span
-                            aria-hidden
-                            className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                              editMode ? "bg-accent dark:bg-accent" : "bg-muted dark:bg-white/15"
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-3 w-3 transform rounded-full bg-background shadow transition-transform dark:bg-white dark:shadow-md ${
-                                editMode ? "translate-x-3.5" : "translate-x-0.5"
-                              }`}
-                            />
-                          </span>
-                        </DropdownMenuItem>
                       </>
                     ) : (
                       <DropdownMenuItem asChild>
@@ -371,40 +408,24 @@ export default function Navbar() {
                                     </details>
                                   ) : null}
                                 </div>
-                                <div className="px-4 pb-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleEditMode()}
-                                    className="flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:bg-muted/40 min-w-0"
-                                  >
-                                    <span className="flex min-w-0 items-center gap-2">
-                                      <Pencil className="h-4 w-4 shrink-0" aria-hidden />
-                                      <span className="truncate">Modo de edição</span>
-                                    </span>
-                                    <span
-                                      aria-hidden
-                                      className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-                                        editMode ? "bg-accent dark:bg-accent" : "bg-muted dark:bg-white/15"
-                                      }`}
-                                    >
-                                      <span
-                                        className={`inline-block h-3 w-3 transform rounded-full bg-background shadow transition-transform dark:bg-white dark:shadow-md ${
-                                          editMode ? "translate-x-3.5" : "translate-x-0.5"
-                                        }`}
-                                      />
-                                    </span>
-                                  </button>
-                                </div>
                               </>
                             ) : (
-                              <Link
-                                to={accountAreaPath}
-                                onClick={() => setOpen(false)}
-                                className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-muted-foreground hover:bg-muted/30 hover:text-foreground min-w-0"
-                              >
-                                <UserAvatar user={user} className="h-8 w-8 shrink-0" />
-                                <span className="truncate">{accountAreaLabel}</span>
-                              </Link>
+                              <>
+                                <Link
+                                  to={accountAreaPath}
+                                  onClick={() => setOpen(false)}
+                                  className="flex min-h-[44px] w-full items-center gap-2 rounded-xl px-4 py-2.5 text-[14px] font-medium text-muted-foreground hover:bg-muted/30 hover:text-foreground min-w-0"
+                                >
+                                  <UserAvatar user={user} className="h-8 w-8 shrink-0" />
+                                  <span className="truncate">{accountAreaLabel}</span>
+                                </Link>
+                                {canToggleEditMode ? (
+                                  <EditModeSheetRow
+                                    editMode={editMode}
+                                    onToggle={toggleEditMode}
+                                  />
+                                ) : null}
+                              </>
                             )}
                             <button
                               type="button"

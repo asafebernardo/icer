@@ -297,8 +297,9 @@ export default function PostsCategoriaPage() {
   const createPostLabel = getPostCreateButtonLabel(catKey);
 
   const showPostCreateToolbar =
-    groupId !== "informacoes" &&
-    (isEventosPostCategory || yearViewActive || usesYearMosaic);
+    catKey === "noticias" ||
+    (groupId !== "informacoes" &&
+      (isEventosPostCategory || yearViewActive || usesYearMosaic));
 
   const headerActions = showPostCreateToolbar ? (
       <PostsAdminToolbar
@@ -525,6 +526,24 @@ export default function PostsCategoriaPage() {
             icon={BookOpen}
             title="Nenhum post"
             description="Publicações gerais e avisos aparecem aqui."
+            action={
+              canCreate ? (
+                <Button size="sm" asChild>
+                  <Link
+                    to={createPostHref}
+                    state={{ from: `${location.pathname}${location.search}` }}
+                  >
+                    {createPostLabel}
+                  </Link>
+                </Button>
+              ) : canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
+                !editMode &&
+                !isHomolog ? (
+                <p className="text-xs text-[#64748B]">
+                  Ative o modo edição para criar publicações.
+                </p>
+              ) : null
+            }
           />
         ) : (
           <PostsCategoryPostList

@@ -218,6 +218,22 @@ export function canMenuAction(user, menuKey, action) {
   return !!getMenuPermBlock(perms, key, menuKey)[action];
 }
 
+/** Utilizador pode activar o modo de edição (pelo menos uma permissão de conteúdo). */
+export function canUseEditMode(user) {
+  if (!user) return false;
+  if (isAdminUser(user)) return true;
+  for (const menuKey of Object.values(MENU)) {
+    if (
+      canMenuAction(user, menuKey, "create") ||
+      canMenuAction(user, menuKey, "edit") ||
+      canMenuAction(user, menuKey, "delete")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Página Recursos (materiais + links): um único menu «recursos», com legado «materiais_tab». */
 export function canRecursosMenuAction(user, action) {
   return (

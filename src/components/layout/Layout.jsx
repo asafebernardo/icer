@@ -36,8 +36,8 @@ export default function Layout() {
       <Footer />
       <BottomNav />
       <WhatsAppFab />
-      <SessionFloatingFab />
       <EditModeFloatingFab />
+      <SessionFloatingFab />
     </div>
   );
 }

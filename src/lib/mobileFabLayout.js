@@ -9,20 +9,20 @@ export const MOBILE_FAB_BOTTOM = {
   2: "bottom-[calc(8.5rem+7.5rem+env(safe-area-inset-bottom,0px))]",
 };
 
-/** @param {number} stackSlot 0 = editar, 1 = sessão */
+/** @param {number} stackSlot 0 = sessão (mais baixo), 1 = editar (acima da sessão) */
 export function mobileFabBottomClass(stackSlot) {
   return MOBILE_FAB_BOTTOM[stackSlot] ?? MOBILE_FAB_BOTTOM[0];
 }
 
-/** @param {boolean} isAdmin */
-export function getMobileEditFabSlot(isAdmin) {
-  if (!isAdmin) return null;
-  return 0;
+/** @param {boolean} showEditFab */
+export function getMobileEditFabSlot(showEditFab) {
+  if (!showEditFab) return null;
+  return 1;
 }
 
-/** @param {boolean} isAdmin */
-export function getMobileSessionFabSlot(isAdmin) {
-  return isAdmin ? 1 : 0;
+/** Sessão fica no slot mais baixo; o editar usa slot 1 quando visível. */
+export function getMobileSessionFabSlot(_showEditFab) {
+  return 0;
 }
 
 export const MOBILE_FAB_BUTTON_CLASS =

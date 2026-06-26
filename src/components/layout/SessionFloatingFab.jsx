@@ -3,7 +3,7 @@ import { Loader2, LogIn, LogOut } from "lucide-react";
 import { SITE_LOGIN_BUTTON_CLASS } from "@/components/auth/GoogleSignInButton";
 import {
   logout as authLogout,
-  isAdminUser,
+  canUseEditMode,
   getUser,
   isServerAuthEnabled,
 } from "@/lib/auth";
@@ -21,8 +21,8 @@ export default function SessionFloatingFab() {
   const { googleLoginAvailable, startGoogleLogin, googleLoginBusy } = useAuth();
   const sessionUser = useSyncedAuthUser() ?? getUser();
   const isLoggedIn = !!sessionUser;
-  const isAdmin = isAdminUser(sessionUser);
-  const stackSlot = getMobileSessionFabSlot(isAdmin);
+  const showEditFab = canUseEditMode(sessionUser);
+  const stackSlot = getMobileSessionFabSlot(showEditFab);
   const loginBlocked = !isServerAuthEnabled() || !googleLoginAvailable;
   const blockedTitle = !isServerAuthEnabled()
     ? "Autenticação do servidor desactivada"
