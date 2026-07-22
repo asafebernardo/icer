@@ -83,6 +83,8 @@ export default defineConfig(({ mode }) => {
   };
 
   const devServer = {
+    // Windows: sem isto o Vite pode ficar só em ::1 e 127.0.0.1:5173 falha (tela branca / connection refused).
+    host: true,
     headers: devClickjackingHeaders,
     ...(shouldProxyApi
       ? {

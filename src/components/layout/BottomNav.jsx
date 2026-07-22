@@ -15,14 +15,13 @@ import {
   Server,
   Sparkles,
   FileStack,
-  Info,
 } from "lucide-react";
 
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import { isAdminUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB_PATH } from "@/lib/postsNavPath";
+import { POSTS_HUB_LABEL, POSTS_HUB_PATH } from "@/lib/postsNavPath";
 import AdminNavLinks from "@/components/admin/AdminNavLinks";
 import {
   DEFAULT_EXTRA_ADMIN_NAV_ITEMS,
@@ -34,17 +33,16 @@ const PRIMARY_ITEMS = [
   { label: "Cultos", path: "/Cultos", icon: Church },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
   { label: "História", path: "/Historia", icon: Landmark },
-  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: Info },
 ];
 
 function isBottomNavActive(pathname, itemPath) {
-  if (
-    itemPath === INFORMACOES_HUB_PATH ||
-    itemPath === POSTS_HUB_PATH
-  ) {
+  if (itemPath === POSTS_HUB_PATH) {
     return (
       pathname === itemPath || pathname.startsWith(`${itemPath}/`)
     );
+  }
+  if (itemPath === "/Home") {
+    return pathname === "/Home" || pathname === "/";
   }
   return pathname === itemPath;
 }

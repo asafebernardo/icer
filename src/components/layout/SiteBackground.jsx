@@ -38,14 +38,14 @@ export default function SiteBackground() {
         }}
       />
       <div
-        className="ambient-aurora absolute -left-[20%] top-[-10%] hidden h-[55vh] w-[70vw] rounded-full opacity-100 dark:block"
+        className="ambient-aurora absolute left-0 top-0 hidden h-[55vh] w-[70%] max-w-full rounded-full opacity-100 dark:block"
         style={{
           background:
             "radial-gradient(circle, rgba(37,99,235,0.18) 0%, transparent 65%)",
         }}
       />
       <div
-        className="ambient-aurora-delayed absolute -right-[15%] bottom-[5%] hidden h-[45vh] w-[55vw] rounded-full opacity-90 dark:block"
+        className="ambient-aurora-delayed absolute right-0 bottom-[5%] hidden h-[45vh] w-[55%] max-w-full rounded-full opacity-90 dark:block"
         style={{
           background:
             "radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 60%)",
@@ -58,7 +58,7 @@ export default function SiteBackground() {
       <img
         src={SITE_BACKGROUND_URL}
         alt=""
-        className="absolute inset-0 hidden h-full w-full scale-[1.12] object-cover opacity-[0.14] dark:block"
+        className="absolute inset-0 hidden h-full w-full object-cover opacity-[0.14] dark:block"
         style={{ filter: BG_IMAGE_FILTER_DARK }}
         decoding="async"
         fetchPriority="low"

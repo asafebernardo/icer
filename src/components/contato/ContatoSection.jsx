@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
-import { Clock, Mail, MapPin, Phone, Settings2 } from "lucide-react";
+import { Facebook, Instagram, Mail, MapPin, Phone, Settings2 } from "lucide-react";
 
-import SiteSocialLinks from "@/components/layout/SiteSocialLinks";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import useSiteContactDetails from "@/hooks/useSiteContactDetails";
@@ -18,19 +17,61 @@ import { resolveSocialLinksFromConfig } from "@/lib/socialLinks";
 import useSiteContactConfig from "@/hooks/useSiteContactConfig";
 import { cn } from "@/lib/utils";
 
-function ContactCard({ icon: Icon, title, children, href, external }) {
+function WhatsappIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
+}
+
+function ContactCard({
+  icon: Icon,
+  title,
+  children,
+  href,
+  external,
+  iconClassName,
+  /** Se false, o título só aparece a partir de `sm` (ex.: Endereço / Telefone). */
+  showTitleAlways = false,
+}) {
   const content = (
     <>
-      <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-primary/15 bg-primary/8 text-primary">
+      <span
+        className={cn(
+          "mb-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/8 text-primary sm:mb-3",
+          "max-sm:mb-0",
+          iconClassName,
+        )}
+      >
         <Icon className="h-5 w-5" aria-hidden />
       </span>
-      <h3 className="font-display text-base font-semibold text-foreground">{title}</h3>
-      <div className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{children}</div>
+      {title ? (
+        <h3
+          className={cn(
+            "font-display text-base font-semibold text-foreground",
+            !showTitleAlways && "hidden sm:block",
+          )}
+        >
+          {title}
+        </h3>
+      ) : null}
+      {children != null ? (
+        <div
+          className={cn(
+            "text-sm leading-relaxed text-muted-foreground",
+            title && showTitleAlways ? "mt-1.5 max-sm:mt-0" : "sm:mt-1.5",
+          )}
+        >
+          {children}
+        </div>
+      ) : null}
     </>
   );
 
   const className = cn(
     "contact-card-premium flex h-full flex-col rounded-2xl p-5 transition-all duration-300",
+    "max-sm:flex-row max-sm:items-center max-sm:gap-3",
     "hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_14px_36px_rgba(15,23,42,0.1)]",
   );
 
@@ -41,19 +82,23 @@ function ContactCard({ icon: Icon, title, children, href, external }) {
         target={external ? "_blank" : undefined}
         rel={external ? "noopener noreferrer" : undefined}
         className={cn(className, "focus-ring")}
+        aria-label={title}
       >
         {content}
       </a>
     );
   }
 
-  return <article className={className}>{content}</article>;
+  return (
+    <article className={className} aria-label={title}>
+      {content}
+    </article>
+  );
 }
 
 export default function ContatoSection() {
   const details = useSiteContactDetails();
-  const { footerDescricao, footerHorario1Dia, footerHorario1Desc, footerHorario2Dia, footerHorario2Desc } =
-    useSiteContactConfig();
+  const { footerDescricao } = useSiteContactConfig();
   const links = buildContactLinks(details);
   const hasDetails = hasSiteContactDetails(details);
   const user = useSyncedAuthUser();
@@ -64,14 +109,37 @@ export default function ContatoSection() {
   const phoneLink = links.find((l) => l.key === "whatsapp" || l.key === "phone");
   const emailLink = links.find((l) => l.key === "email");
 
-  const horarios = [
-    { dia: footerHorario1Dia, desc: footerHorario1Desc },
-    { dia: footerHorario2Dia, desc: footerHorario2Desc },
-  ].filter((h) => String(h.dia || "").trim() || String(h.desc || "").trim());
-
   const socialLinks = resolveSocialLinksFromConfig(mergeSiteContactConfig(getSiteConfig()));
-  const hasSocial =
-    socialLinks.instagram || socialLinks.facebook || socialLinks.whatsapp;
+  const socialItems = [
+    socialLinks.instagram
+      ? {
+          key: "ig",
+          href: socialLinks.instagram,
+          title: "Instagram",
+          Icon: Instagram,
+          iconClassName: "text-[#E4405F] border-pink-500/20 bg-pink-500/10",
+        }
+      : null,
+    socialLinks.facebook
+      ? {
+          key: "fb",
+          href: socialLinks.facebook,
+          title: "Facebook",
+          Icon: Facebook,
+          iconClassName: "text-[#0866FF] border-blue-500/20 bg-blue-500/10",
+        }
+      : null,
+    socialLinks.whatsapp
+      ? {
+          key: "wa",
+          href: socialLinks.whatsapp,
+          title: "WhatsApp",
+          Icon: WhatsappIcon,
+          iconClassName: "text-[#25D366] border-emerald-500/20 bg-emerald-500/10",
+        }
+      : null,
+  ].filter(Boolean);
+  const hasSocial = socialItems.length > 0;
 
   return (
     <section
@@ -103,14 +171,14 @@ export default function ContatoSection() {
           </p>
         </div>
 
-        {!hasDetails && horarios.length === 0 ? (
+        {!hasDetails && !hasSocial ? (
           <EmptyState
             title="Contacto em breve"
             description="Os dados de contacto ainda não foram publicados."
             compact
           />
         ) : (
-          <div className="mx-auto max-w-4xl space-y-8">
+          <div className="mx-auto max-w-4xl space-y-3">
             {hasDetails ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {details.endereco ? (
@@ -141,38 +209,22 @@ export default function ContatoSection() {
               </div>
             ) : null}
 
-            {horarios.length > 0 ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-card/80 p-5 sm:p-6">
-                <div className="mb-4 flex items-center gap-2 text-foreground">
-                  <Clock className="h-5 w-5 text-accent" aria-hidden />
-                  <h2 className="font-display text-lg font-semibold">Horários</h2>
-                </div>
-                <ul className="grid gap-3 sm:grid-cols-2">
-                  {horarios.map((item, index) => (
-                    <li
-                      key={`${item.dia}-${index}`}
-                      className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3"
-                    >
-                      {item.dia ? (
-                        <p className="text-sm font-semibold text-foreground">{item.dia}</p>
-                      ) : null}
-                      {item.desc ? (
-                        <p className="mt-0.5 text-sm text-muted-foreground">{item.desc}</p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
             {hasSocial ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-card/80 p-5 sm:p-6">
-                <h2 className="mb-3 font-display text-lg font-semibold text-foreground">
-                  Redes sociais
-                </h2>
-                <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-muted/10">
-                  <SiteSocialLinks variant="contact" />
-                </ul>
+              <div
+                className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+                aria-label="Redes sociais"
+              >
+                {socialItems.map((item) => (
+                  <ContactCard
+                    key={item.key}
+                    icon={item.Icon}
+                    title={item.title}
+                    href={item.href}
+                    external
+                    showTitleAlways
+                    iconClassName={item.iconClassName}
+                  />
+                ))}
               </div>
             ) : null}
           </div>

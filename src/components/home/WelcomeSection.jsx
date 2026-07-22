@@ -36,6 +36,7 @@ import {
   DEFAULT_WELCOME_TAG,
   DEFAULT_WELCOME_TITLE,
   DEFAULT_WELCOME_SUBTITLE,
+  resolveWelcomeSubtitle,
   DEFAULT_WELCOME_P1,
   DEFAULT_WELCOME_P2,
   DEFAULT_VERSE_TEXT,
@@ -50,7 +51,7 @@ function loadHomeCopyFromConfig() {
   return {
     welcomeTag: cfg.welcomeTag ?? DEFAULT_WELCOME_TAG,
     welcomeTitle: cfg.welcomeTitle ?? DEFAULT_WELCOME_TITLE,
-    welcomeSubtitle: cfg.welcomeSubtitle ?? DEFAULT_WELCOME_SUBTITLE,
+    welcomeSubtitle: resolveWelcomeSubtitle(cfg.welcomeSubtitle),
     welcomeP1: cfg.welcomeParagraph1 ?? DEFAULT_WELCOME_P1,
     welcomeP2: cfg.welcomeParagraph2 ?? DEFAULT_WELCOME_P2,
     verseText: cfg.verseText ?? DEFAULT_VERSE_TEXT,
@@ -110,8 +111,7 @@ export default function WelcomeSection() {
     const next = {
       welcomeTag: homeDraft.welcomeTag.trim() || DEFAULT_WELCOME_TAG,
       welcomeTitle: homeDraft.welcomeTitle.trim() || DEFAULT_WELCOME_TITLE,
-      welcomeSubtitle:
-        homeDraft.welcomeSubtitle.trim() || DEFAULT_WELCOME_SUBTITLE,
+      welcomeSubtitle: homeDraft.welcomeSubtitle.trim(),
       welcomeParagraph1: homeDraft.welcomeP1.trim() || DEFAULT_WELCOME_P1,
       welcomeParagraph2: homeDraft.welcomeP2.trim() || DEFAULT_WELCOME_P2,
       verseText: homeDraft.verseText.trim() || DEFAULT_VERSE_TEXT,
@@ -170,7 +170,9 @@ export default function WelcomeSection() {
               <h2 className="heading-premium text-3xl sm:text-4xl lg:text-5xl mt-4 leading-tight">
                 {welcomeTitle}
               </h2>
-              <p className="prose-premium-lead mt-4">{welcomeSubtitle}</p>
+              {welcomeSubtitle ? (
+                <p className="prose-premium-lead mt-4">{welcomeSubtitle}</p>
+              ) : null}
             </div>
             {canEditHome && (
               <div className="flex flex-wrap gap-2 justify-end">

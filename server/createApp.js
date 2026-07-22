@@ -3217,7 +3217,12 @@ export function createApplication(db, options = {}) {
     },
   );
 
-  if (fs.existsSync(path.join(distPath, "index.html"))) {
+  // Em `npm run dev:all` o front é o Vite (:5173). Só servir `dist/` em produção
+  // (evita tela branca quando existe um build incompleto/stale).
+  const serveSpa =
+    process.env.NODE_ENV === "production" &&
+    fs.existsSync(path.join(distPath, "index.html"));
+  if (serveSpa) {
     app.use(express.static(distPath, { index: false }));
     // Express 5 + path-to-regexp v6: não usar `app.get('*')` nem `*` em paths.
     // Fallback: middleware sem wildcard; só GET/HEAD e fora de `/api`.
@@ -3231,6 +3236,23 @@ export function createApplication(db, options = {}) {
         return;
       }
       res.sendFile(path.join(distPath, "index.html"));
+    });
+  } else if (process.env.NODE_ENV !== "production") {
+    // Quem abre :3001 em vez de :5173 via um redirect em vez de 404/página vazia.
+    const viteDevUrl = String(
+      process.env.ICER_DEV_PUBLIC_BASE_URL || "http://localhost:5173",
+    ).replace(/\/$/, "");
+    app.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        next();
+        return;
+      }
+      if (req.path.startsWith("/api") || req.path === "/health") {
+        next();
+        return;
+      }
+      const dest = `${viteDevUrl}${req.originalUrl || "/"}`;
+      res.redirect(302, dest);
     });
   }
 

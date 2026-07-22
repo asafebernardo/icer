@@ -53,7 +53,7 @@ import {
   getAdminNavGroups,
 } from "@/lib/adminNavConfig";
 import { cn } from "@/lib/utils";
-import { POSTS_HUB_LABEL, POSTS_HUB_PATH, INFORMACOES_HUB_LABEL, INFORMACOES_HUB_PATH } from "@/lib/postsNavPath";
+import { POSTS_HUB_LABEL, POSTS_HUB_PATH } from "@/lib/postsNavPath";
 
 // Menus base (sempre visíveis)
 const BASE_LINKS = [
@@ -61,7 +61,6 @@ const BASE_LINKS = [
   { label: "Cultos", path: "/Cultos" },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH },
   { label: "História", path: "/Historia" },
-  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH },
 ];
 
 function EditModeNavButton({ editMode, onToggle, className }) {

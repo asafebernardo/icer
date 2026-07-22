@@ -8,7 +8,8 @@ import {
 import usePrefersReducedMotion from "@/lib/usePrefersReducedMotion";
 
 function imgClassForFit(fit) {
-  const base = "absolute inset-0 h-full w-full object-center pointer-events-none";
+  const base =
+    "absolute inset-0 h-full w-full object-center pointer-events-none";
   if (fit === "fill") return `${base} object-fill`;
   if (fit === "contain") return `${base} object-contain`;
   return `${base} object-cover`;

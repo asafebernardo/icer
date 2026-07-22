@@ -40,7 +40,7 @@ const NAV_ROUTES = [
   { label: "Cultos", path: "/Cultos", icon: Church },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
   { label: "História", path: "/Historia", icon: Landmark },
-  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: Info },
+  { label: INFORMACOES_HUB_LABEL, path: `${INFORMACOES_HUB_PATH}#informacoes`, icon: Info },
   { label: "Aplicativos", path: "/Informacoes/categoria/aplicativos", icon: Library },
 ];
 
@@ -48,7 +48,6 @@ const NAV_ROUTES = [
 const MOBILE_BOTTOM_NAV_PATHS = new Set([
   "/Home",
   "/Cultos",
-  INFORMACOES_HUB_PATH,
   POSTS_HUB_PATH,
   "/Historia",
 ]);

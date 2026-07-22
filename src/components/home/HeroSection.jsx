@@ -35,6 +35,7 @@ import useCanEdit from "@/lib/useCanEdit";
 import {
   DEFAULT_HERO_EYEBROW,
   DEFAULT_HERO_TITLE,
+  resolveHeroCopy,
 } from "@/lib/homeContentDefaults";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,11 @@ import { cn } from "@/lib/utils";
 function formatSeconds(ms) {
   const s = Math.round((ms / 1000) * 10) / 10;
   return Number.isInteger(s) ? String(s) : s.toFixed(1);
+}
+
+function applyHeroCopyFromConfig() {
+  const c = getSiteConfig();
+  return resolveHeroCopy(c.heroEyebrow, c.heroTitle);
 }
 
 export default function HeroSection() {
@@ -61,8 +67,9 @@ export default function HeroSection() {
   const [transitionDraft, setTransitionDraft] = useState("");
   const canEditHome = useCanEdit(MENU.HOME);
   const reduceMotion = usePrefersReducedMotion();
-  const [heroEyebrow, setHeroEyebrow] = useState(DEFAULT_HERO_EYEBROW);
-  const [heroTitle, setHeroTitle] = useState(DEFAULT_HERO_TITLE);
+  const initialCopy = applyHeroCopyFromConfig();
+  const [heroEyebrow, setHeroEyebrow] = useState(initialCopy.eyebrow);
+  const [heroTitle, setHeroTitle] = useState(initialCopy.title);
   const [heroTextOpen, setHeroTextOpen] = useState(false);
   const [draftEyebrow, setDraftEyebrow] = useState("");
   const [draftHeroTitle, setDraftHeroTitle] = useState("");
@@ -72,41 +79,8 @@ export default function HeroSection() {
     target: heroRef,
     offset: ["start start", "end start"],
   });
-  const imageY = useTransform(scrollYProgress, [0, 1], ["0%", "12%"]);
   const textY = useTransform(scrollYProgress, [0, 1], ["0%", "8%"]);
   const textOpacity = useTransform(scrollYProgress, [0, 0.85], [1, 0.35]);
-
-  // Ajusta altura do hero para acompanhar o aspect ratio da imagem.
-  const [heroAspect, setHeroAspect] = useState(16 / 9);
-
-  useEffect(() => {
-    const first = slides?.[0];
-    if (!first) {
-      setHeroAspect(16 / 9);
-      return;
-    }
-    let cancelled = false;
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = () => {
-      if (cancelled) return;
-      const w = Number(img.naturalWidth) || 0;
-      const h = Number(img.naturalHeight) || 0;
-      if (w > 0 && h > 0) {
-        const r = w / h;
-        // Clamp para evitar layouts extremos.
-        const clamped = Math.min(21 / 9, Math.max(4 / 3, r));
-        setHeroAspect(clamped);
-      }
-    };
-    img.onerror = () => {
-      if (!cancelled) setHeroAspect(16 / 9);
-    };
-    img.src = first;
-    return () => {
-      cancelled = true;
-    };
-  }, [slides]);
 
   useEffect(() => {
     if (didCountRef.current) return;
@@ -125,16 +99,16 @@ export default function HeroSection() {
   }, []);
 
   useEffect(() => {
-    const c = getSiteConfig();
-    if (c.heroEyebrow != null && c.heroEyebrow !== "") setHeroEyebrow(c.heroEyebrow);
-    if (c.heroTitle != null && c.heroTitle !== "") setHeroTitle(c.heroTitle);
+    const copy = applyHeroCopyFromConfig();
+    setHeroEyebrow(copy.eyebrow);
+    setHeroTitle(copy.title);
   }, []);
 
   useEffect(() => {
     const onCfg = () => {
-      const c = getSiteConfig();
-      if (c.heroEyebrow != null && c.heroEyebrow !== "") setHeroEyebrow(c.heroEyebrow);
-      if (c.heroTitle != null && c.heroTitle !== "") setHeroTitle(c.heroTitle);
+      const copy = applyHeroCopyFromConfig();
+      setHeroEyebrow(copy.eyebrow);
+      setHeroTitle(copy.title);
     };
     window.addEventListener("icer-site-config", onCfg);
     return () => window.removeEventListener("icer-site-config", onCfg);
@@ -168,18 +142,18 @@ export default function HeroSection() {
   const hasSlides = slides.length > 0;
 
   return (
-    <section ref={heroRef} className="relative -mx-4 sm:-mx-6 lg:-mx-8 overflow-hidden">
+    <section
+      ref={heroRef}
+      className="relative w-full max-w-full overflow-hidden"
+    >
       <div className="hero-cinematic-wrap relative">
         {/* Radial glow atrás da imagem */}
         <div className="hero-cinematic-glow pointer-events-none absolute inset-0 z-[1]" aria-hidden />
 
-        {/* Media com parallax suave */}
-        <motion.div
-          className="absolute inset-0 z-[2] overflow-hidden"
-          style={{ y: reduceMotion ? 0 : imageY }}
-        >
+        {/* Media — object-cover dentro da viewport, sem scale/overflow */}
+        <div className="absolute inset-0 z-[2] overflow-hidden">
           {hasSlides ? (
-            <div className="hero-cinematic-media absolute inset-0 h-[115%] w-full -top-[7%]">
+            <div className="hero-cinematic-media">
               <BackgroundSlideshow
                 urls={slides}
                 rotateIntervalMs={rotateIntervalMs}
@@ -198,7 +172,7 @@ export default function HeroSection() {
               aria-hidden
             />
           )}
-        </motion.div>
+        </div>
 
         {/* Overlay cinematográfico */}
         <div
@@ -210,7 +184,7 @@ export default function HeroSection() {
         />
 
         {/* Conteúdo */}
-        <div className="relative z-10 flex h-full min-h-[inherit] w-full flex-col justify-end px-4 pb-10 pt-24 sm:px-8 sm:pb-14 sm:pt-28 lg:px-12 lg:pb-16">
+        <div className="relative z-10 flex h-full min-h-0 w-full max-w-full flex-col items-center justify-end px-4 pb-8 pt-20 sm:px-8 sm:pb-14 sm:pt-28 lg:px-12 lg:pb-16">
           {canEditHome && (
             <div className="absolute top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-8 z-20 flex flex-wrap gap-2 justify-end max-sm:justify-start">
               <Button
@@ -258,19 +232,21 @@ export default function HeroSection() {
               y: reduceMotion ? 0 : textY,
               opacity: reduceMotion ? 1 : textOpacity,
             }}
-            className="max-w-4xl min-w-0 w-full"
+            className="mx-auto w-full min-w-0 max-w-4xl text-center"
           >
-            <p
-              className={cn(
-                "eyebrow-premium mb-4",
-                hasSlides && "text-white/90 [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]",
-              )}
-            >
-              {heroEyebrow}
-            </p>
+            {heroEyebrow ? (
+              <p
+                className={cn(
+                  "eyebrow-premium mb-3 sm:mb-4",
+                  hasSlides && "text-white/90 [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]",
+                )}
+              >
+                {heroEyebrow}
+              </p>
+            ) : null}
             <h1
               className={cn(
-                "heading-premium text-4xl sm:text-5xl lg:text-7xl leading-[1.05] break-words",
+                "heading-premium text-3xl sm:text-5xl lg:text-7xl leading-[1.05] break-words",
                 hasSlides
                   ? "text-white [text-shadow:0_4px_24px_rgba(0,0,0,0.55)]"
                   : "text-foreground",
@@ -314,7 +290,7 @@ export default function HeroSection() {
             <Button
               variant="success"
               onClick={() => {
-                const e = draftEyebrow.trim() || DEFAULT_HERO_EYEBROW;
+                const e = draftEyebrow.trim();
                 const t = draftHeroTitle.trim() || DEFAULT_HERO_TITLE;
                 setHeroEyebrow(e);
                 setHeroTitle(t);

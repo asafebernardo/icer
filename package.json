@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:all": "concurrently -n server,vite -c bgMagenta.bold,bgCyan.bold --prefix \"[{name}]\" \"npm run dev:server\" \"npm run dev\"",
-    "dev:server": "MONGODB_SRV_HOST= MONGODB_SRV_USER= MONGODB_SRV_PASSWORD= node server/index.js",
+    "dev:server": "cross-env MONGODB_SRV_HOST= MONGODB_SRV_USER= MONGODB_SRV_PASSWORD= node server/index.js",
     "clear-login-blocks": "node scripts/clear-login-blocks.mjs",
     "migrate:post-categories": "node scripts/migrate-post-categories.mjs",
     "seed:post-examples": "node scripts/seed-post-examples.mjs",
@@ -124,6 +124,7 @@
     "concurrently": "^9.2.1",
     "conventional-changelog-cli": "^5.0.0",
     "conventional-changelog-conventionalcommits": "^9.3.1",
+    "cross-env": "^7.0.3",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.0.0",

@@ -20,18 +20,21 @@ export const POSTS_HUB_TITLE = "Encontros e memórias";
 export const POSTS_HUB_DESCRIPTION =
   "Registros de cultos, encontros, festividades e conferências.";
 
-/** Notícias, agenda, aplicativos e programação. */
-export const INFORMACOES_HUB_PATH = "/Informacoes";
+/** Notícias, agenda, aplicativos e programação (hub na página Início). */
+export const INFORMACOES_HUB_PATH = "/Home";
 export const INFORMACOES_HUB_LABEL = "Informações";
 export const INFORMACOES_HUB_TITLE = "Notícias e recursos";
 export const INFORMACOES_HUB_DESCRIPTION =
   "Agenda, aplicativos, programação e avisos da comunidade.";
 
-/** Secção de contacto no final da página Informações. */
+/** Base das rotas de categoria (mantém `/Informacoes/categoria/...`). */
+export const INFORMACOES_CATEGORY_BASE = "/Informacoes";
+
+/** Secção de contacto no final da página Início. */
 export const INFORMACOES_CONTATO_PATH = `${INFORMACOES_HUB_PATH}#contato`;
 
 /** Agenda em Informações (calendário + programação). */
-export const INFORMACOES_AGENDA_PATH = `${INFORMACOES_HUB_PATH}/categoria/agenda`;
+export const INFORMACOES_AGENDA_PATH = `${INFORMACOES_CATEGORY_BASE}/categoria/agenda`;
 
 /** @param {{ tab?: "eventos" | "configuracoes"; novo?: boolean }} [opts] */
 export function getInformacoesAgendaPath({ tab, novo = false } = {}) {
@@ -77,7 +80,11 @@ export function getPostsHubForCategory(categoryKey) {
 export function getPostCategoryPath(categoryKey, { search = "" } = {}) {
   const catKey = String(categoryKey || "").trim().toLowerCase();
   const hub = getPostsHubForCategory(catKey);
-  const base = `${hub.path}/categoria/${encodeURIComponent(catKey)}`;
+  const basePath =
+    getPostCategoryGroupId(catKey) === "informacoes"
+      ? INFORMACOES_CATEGORY_BASE
+      : hub.path;
+  const base = `${basePath}/categoria/${encodeURIComponent(catKey)}`;
   if (!search) return base;
   return search.startsWith("?") ? `${base}${search}` : `${base}?${search}`;
 }
