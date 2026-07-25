@@ -20,7 +20,6 @@ import {
   Users,
   Shield,
   Globe,
-  ShieldAlert,
   ScrollText,
   ChevronDown,
   BookMarked,
@@ -159,7 +158,7 @@ export default function Navbar() {
       google: Sparkles,
       server: Server,
       uploads: FileStack,
-      "login-blocks": ShieldAlert,
+      "pending-deletions": Trash2,
       "audit-log": ScrollText,
       "cadastros-opcoes": BookMarked,
     }),
@@ -167,7 +166,13 @@ export default function Navbar() {
   );
   const adminTabHref = (id) => (id === "profile" ? "/Admin" : `/Admin?tab=${id}`);
 
-  const mainNavLinks = useMemo(() => BASE_LINKS, []);
+  const mainNavLinks = useMemo(
+    () =>
+      isAdmin
+        ? BASE_LINKS
+        : BASE_LINKS.filter((link) => link.path !== "/Historia"),
+    [isAdmin],
+  );
 
   return (
     <nav

@@ -202,7 +202,14 @@ const AppRoutes = () => {
         />
         <Route path="Postagens" element={<Navigate to="/Eventos" replace />} />
         <Route path="Post/:id" element={<PostPage />} />
-        <Route path="Historia" element={<Historia />} />
+        <Route
+          path="Historia"
+          element={
+            <AdminRoute>
+              <Historia />
+            </AdminRoute>
+          }
+        />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />

@@ -8,7 +8,6 @@ import PendingDeletionsPanel from "@/components/dashboard/PendingDeletionsPanel"
 import GlobalAuditLogPanel from "@/components/dashboard/GlobalAuditLogPanel";
 import AdminGooglePanel from "@/components/dashboard/AdminGooglePanel";
 import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
-import LoginBlocksPanel from "@/components/dashboard/LoginBlocksPanel";
 import AdminCadastrosOpcoesPanel from "@/components/dashboard/AdminCadastrosOpcoesPanel";
 import AdminServerPanel from "@/components/dashboard/AdminServerPanel";
 import AdminUploadsPanel from "@/components/dashboard/AdminUploadsPanel";
@@ -171,9 +170,6 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           </TabsContent>
           <TabsContent value="audit-log">
             {canUseAdminTabs ? <GlobalAuditLogPanel /> : lockedNotice}
-          </TabsContent>
-          <TabsContent value="login-blocks">
-            {canUseAdminTabs ? <LoginBlocksPanel /> : lockedNotice}
           </TabsContent>
       </div>
     </Tabs>

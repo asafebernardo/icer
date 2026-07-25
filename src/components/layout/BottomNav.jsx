@@ -9,12 +9,12 @@ import {
   Users,
   Shield,
   Globe,
-  ShieldAlert,
   ScrollText,
   BookMarked,
   Server,
   Sparkles,
   FileStack,
+  Trash2,
 } from "lucide-react";
 
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
@@ -89,7 +89,7 @@ export default function BottomNav() {
       google: Sparkles,
       server: Server,
       uploads: FileStack,
-      "login-blocks": ShieldAlert,
+      "pending-deletions": Trash2,
       "audit-log": ScrollText,
       "cadastros-opcoes": BookMarked,
     }),
@@ -97,6 +97,20 @@ export default function BottomNav() {
   );
   const adminTabHref = (id) =>
     id === "profile" ? "/Admin" : `/Admin?tab=${id}`;
+
+  const primaryItems = useMemo(
+    () =>
+      isAdmin
+        ? PRIMARY_ITEMS
+        : PRIMARY_ITEMS.filter((item) => item.path !== "/Historia"),
+    [isAdmin],
+  );
+  const gridColsClass =
+    primaryItems.length + (isAdmin ? 1 : 0) === 5
+      ? "grid-cols-5"
+      : primaryItems.length === 3
+        ? "grid-cols-3"
+        : "grid-cols-4";
 
   useEffect(() => {
     setAdminDockOpen(false);
@@ -109,12 +123,9 @@ export default function BottomNav() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul
-        className={cn(
-          "relative z-10 grid h-[64px]",
-          isAdmin ? "grid-cols-7" : "grid-cols-6",
-        )}
+        className={cn("relative z-10 grid h-[64px]", gridColsClass)}
       >
-        {PRIMARY_ITEMS.map((item) => (
+        {primaryItems.map((item) => (
           <li key={item.path} className="contents">
             <BottomNavLink
               item={item}

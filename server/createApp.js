@@ -1599,26 +1599,6 @@ export function createApplication(db, options = {}) {
     res.json({ ttl_minutes });
   });
 
-  app.get("/api/admin/login-blocks", requireAdmin, async (_req, res) => {
-    const now = nowIso();
-    const rows = await db
-      .collection(LOGIN_FAIL_COLLECTION)
-      .find({ locked_until: { $gt: now } })
-      .project({
-        _id: 0,
-        key: 1,
-        count: 1,
-        hard: 1,
-        locked_until: 1,
-        last_fail_at: 1,
-        updated_at: 1,
-      })
-      .sort({ hard: -1, locked_until: -1 })
-      .limit(500)
-      .toArray();
-    res.json({ rows });
-  });
-
   app.put("/api/admin/session-ttl", requireAdmin, async (req, res) => {
     const schema = z.object({
       ttl_minutes: z.number().int(),

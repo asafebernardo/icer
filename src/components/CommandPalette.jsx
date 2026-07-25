@@ -85,10 +85,12 @@ export default function CommandPalette({ open, onOpenChange }) {
     (!isMobileSearchLayout || mobileSearch.trim().length > 0);
 
   const cmdkNavRoutes = useMemo(() => {
-    const base = [...NAV_ROUTES];
+    const base = isAdmin
+      ? [...NAV_ROUTES]
+      : NAV_ROUTES.filter((r) => r.path !== "/Historia");
     if (!isMobileSearchLayout) return base;
     return base.filter((r) => !MOBILE_BOTTOM_NAV_PATHS.has(r.path));
-  }, [isMobileSearchLayout]);
+  }, [isAdmin, isMobileSearchLayout]);
 
   const { data: postsData } = useQuery({
     queryKey: ["cmdk", "posts"],
