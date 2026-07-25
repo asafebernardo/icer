@@ -246,9 +246,20 @@ export function isGoogleLoginConfiguredValue(config) {
     cfg.enabled !== false &&
       cfg.public_base_url &&
       cfg.client_id &&
-      cfg.client_secret &&
-      cfg.allowed_emails.length > 0,
+      cfg.client_secret,
   );
+}
+
+/** Campos em falta para o OAuth (sem segredos). */
+export function googleLoginConfigMissing(config) {
+  const cfg = normalizeGoogleLoginConfig(config);
+  /** @type {string[]} */
+  const missing = [];
+  if (cfg.enabled === false) missing.push("disabled");
+  if (!cfg.public_base_url) missing.push("public_base_url");
+  if (!cfg.client_id) missing.push("client_id");
+  if (!cfg.client_secret) missing.push("client_secret");
+  return missing;
 }
 
 /**

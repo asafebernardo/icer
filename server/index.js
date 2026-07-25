@@ -301,17 +301,28 @@ const server = app.listen(PORT, HOST, () => {
   log.raw(`  ${color.bold("Próximos passos")}`);
   log.raw(`    ${arrow} Abrir o site (Front) e fazer login`);
   log.raw(
-    `    ${arrow} Ir a ${color.bold("/Dashboard")} ${color.dim("→")} separadores de administração`,
+    `    ${arrow} Ir a ${color.bold("/Admin")} ${color.dim("→")} separadores de administração`,
   );
   log.raw(rule);
   log.raw("");
 });
 
+let shuttingDown = false;
 function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log.warn(
     `${color.brightYellow(signal)} recebido — a encerrar o servidor`,
   );
-  server.close(() => process.exit(0));
+  const force = setTimeout(() => {
+    log.warn("Encerramento forçado após timeout.");
+    process.exit(0);
+  }, 8_000);
+  force.unref?.();
+  server.close(() => {
+    clearTimeout(force);
+    process.exit(0);
+  });
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));

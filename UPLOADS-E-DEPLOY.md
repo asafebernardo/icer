@@ -13,6 +13,17 @@ O `Dockerfile` está optimizado para builds mais curtos:
 
 No painel de build, active BuildKit se disponível: `DOCKER_BUILDKIT=1`.
 
+### Arranque / EasyPanel (evitar SIGTERM em loop)
+
+O checklist de startup a imprimir e a seguir um `npm error … signal SIGTERM` **não é crash da API**: o processo foi parado de fora (redeploy, restart ou healthcheck a falhar).
+
+Confirme no painel:
+
+1. **Start command:** `node server/index.js` (não `npm start` — o npm reporta SIGTERM como “error” mesmo em paragem normal).
+2. **`NODE_ENV=production`** e **`HOST=0.0.0.0`** (já vêm no `Dockerfile`; não force `development` no runtime).
+3. **`PORT=3001`** no container; o proxy público (80/443) aponta para `3001`. Se `PORT=80` e o healthcheck continua em `3001`, o orchestrator mata o container em ciclo.
+4. **Healthcheck:** `GET /health` ou `GET /api/health` na **mesma** porta do `PORT`.
+
 ### Imagens WebP
 
 Converta assets estáticos **uma vez** no desenvolvimento e faça commit dos `.webp`:

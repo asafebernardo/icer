@@ -117,6 +117,7 @@ import {
   resolveGoogleLoginPublicBase,
   isEmailAllowedForGoogleLogin,
   isGoogleLoginConfiguredValue,
+  googleLoginConfigMissing,
   parseGoogleLoginAllowedEmails,
   publicGoogleLoginConfig,
   sanitizeGoogleLoginHint,
@@ -898,12 +899,20 @@ export function createApplication(db, options = {}) {
         return;
       }
     }
-    const allowedEmails = parseGoogleLoginAllowedEmails(parsed.data.allowed_emails || "");
-    for (const email of allowedEmails) {
-      const check = z.string().email().safeParse(email);
-      if (!check.success) {
-        res.status(400).json({ message: "invalid_allowed_email" });
-        return;
+    const allowedEmailsProvided = Object.prototype.hasOwnProperty.call(
+      parsed.data,
+      "allowed_emails",
+    );
+    const allowedEmails = allowedEmailsProvided
+      ? parseGoogleLoginAllowedEmails(parsed.data.allowed_emails || "")
+      : null;
+    if (allowedEmails) {
+      for (const email of allowedEmails) {
+        const check = z.string().email().safeParse(email);
+        if (!check.success) {
+          res.status(400).json({ message: "invalid_allowed_email" });
+          return;
+        }
       }
     }
     if (
@@ -915,10 +924,14 @@ export function createApplication(db, options = {}) {
       return;
     }
 
-    const cfg = await saveGoogleLoginConfig(db, {
-      ...parsed.data,
-      allowed_emails: allowedEmails,
-    });
+    const savePayload = { ...parsed.data };
+    if (allowedEmailsProvided) {
+      savePayload.allowed_emails = allowedEmails;
+    } else {
+      delete savePayload.allowed_emails;
+    }
+
+    const cfg = await saveGoogleLoginConfig(db, savePayload);
     await recordAudit(db, {
       userId: null,
       actorUserId: req.user.id,
@@ -950,9 +963,11 @@ export function createApplication(db, options = {}) {
   app.get("/api/auth/google-login/config", async (req, res) => {
     const cfg = await getGoogleLoginConfig(db);
     const remembered_email = sanitizeGoogleLoginHint(req.cookies?.[GOOGLE_LOGIN_HINT_COOKIE]);
+    const missing = googleLoginConfigMissing(cfg);
     res.setHeader("Cache-Control", "no-store");
     res.json({
       enabled: isGoogleLoginConfiguredValue(cfg),
+      missing,
       remembered_email: remembered_email || null,
     });
   });
@@ -1103,7 +1118,10 @@ export function createApplication(db, options = {}) {
       return;
     }
 
-    if (!isEmailAllowedForGoogleLogin(email, googleConfig)) {
+    if (
+      googleConfig.allowed_emails.length > 0 &&
+      !isEmailAllowedForGoogleLogin(email, googleConfig)
+    ) {
       await recordAudit(db, {
         userId: null,
         actorUserId: null,
@@ -1116,7 +1134,7 @@ export function createApplication(db, options = {}) {
       return;
     }
 
-    const row = await db.collection("users").findOne(
+    let row = await db.collection("users").findOne(
       { email },
       {
         projection: {
@@ -1131,6 +1149,44 @@ export function createApplication(db, options = {}) {
         },
       },
     );
+
+    /* Bootstrap: e-mail na allowlist (env/admin) sem conta → cria admin Google. */
+    if (!row && isEmailAllowedForGoogleLogin(email, googleConfig)) {
+      const now = nowIso();
+      const userId = await nextSeq(db, "users");
+      const defaultName = email.includes("@") ? email.split("@")[0] : email;
+      const fullName =
+        String(googleProfile.name || "").trim() || defaultName;
+      await db.collection("users").insertOne({
+        id: userId,
+        email,
+        full_name: fullName,
+        role: "admin",
+        funcao: "",
+        password_hash: null,
+        disabled: false,
+        created_at: now,
+        updated_at: now,
+      });
+      await recordAudit(db, {
+        userId,
+        actorUserId: null,
+        action: "auth.login_google_provision",
+        details: { email, source: "allowlist_bootstrap" },
+        ip: clientIp(req),
+        ...auditCtx(req),
+      });
+      row = {
+        id: userId,
+        email,
+        full_name: fullName,
+        role: "admin",
+        disabled: false,
+        password_hash: null,
+        avatar_url: null,
+      };
+    }
+
     if (!row || row.disabled === true) {
       if (!skipLoginAttemptLock) {
         await bumpLoginFailure(db, googleFailureKeys);

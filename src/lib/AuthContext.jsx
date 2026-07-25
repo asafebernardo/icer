@@ -83,6 +83,7 @@ export function AuthProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [googleLoginBusy, setGoogleLoginBusy] = useState(false);
   const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
+  const [googleLoginMissing, setGoogleLoginMissing] = useState([]);
   const [homologLoginAvailable, setHomologLoginAvailable] = useState(false);
   const [rememberedGoogleEmail, setRememberedGoogleEmail] = useState("");
   const googleReauthPendingRef = useRef(false);
@@ -257,6 +258,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!isServerAuthEnabled()) {
       setGoogleLoginAvailable(false);
+      setGoogleLoginMissing([]);
       setHomologLoginAvailable(false);
       setRememberedGoogleEmail("");
       return;
@@ -272,6 +274,7 @@ export function AuthProvider({ children }) {
         const j = await r.json().catch(() => ({}));
         if (!cancelled && r.ok && j.enabled === true) {
           setGoogleLoginAvailable(true);
+          setGoogleLoginMissing([]);
           const remembered = String(j.remembered_email || "").trim();
           if (remembered) {
             syncGoogleLoginHintFromServer(remembered);
@@ -281,11 +284,15 @@ export function AuthProvider({ children }) {
           }
         } else if (!cancelled) {
           setGoogleLoginAvailable(false);
+          setGoogleLoginMissing(
+            Array.isArray(j?.missing) ? j.missing.map(String) : [],
+          );
           setRememberedGoogleEmail("");
         }
       } catch {
         if (!cancelled) {
           setGoogleLoginAvailable(false);
+          setGoogleLoginMissing([]);
           setRememberedGoogleEmail(getGoogleLoginHint());
         }
       }
@@ -628,6 +635,7 @@ export function AuthProvider({ children }) {
         useAnotherGoogleAccount,
         googleLoginBusy,
         googleLoginAvailable,
+        googleLoginMissing,
         homologLoginAvailable,
         rememberedGoogleEmail,
         checkUserAuth,

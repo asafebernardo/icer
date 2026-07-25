@@ -35,6 +35,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
+# Porta canónica da app no container. No EasyPanel: proxy 80→3001 e healthcheck nesta porta.
+ENV PORT=3001
 
 COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
@@ -43,4 +45,9 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3001
 
+# Evita reinícios se o painel probe a porta errada; usa o PORT do runtime.
+HEALTHCHECK --interval=20s --timeout=5s --start-period=45s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+# Preferir `node` directo (não `npm start`) — SIGTERM do orchestrator não gera "npm error".
 CMD ["node", "server/index.js"]

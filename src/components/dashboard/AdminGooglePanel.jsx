@@ -241,7 +241,10 @@ export default function AdminGooglePanel() {
               <span className="font-medium text-foreground">
                 Admin → Utilizadores
               </span>{" "}
-              (secção «Nova conta Google»).
+              (secção «Nova conta Google»), ou via{" "}
+              <code className="rounded bg-muted px-1">ICER_GOOGLE_LOGIN_ALLOWED_EMAILS</code>{" "}
+              no ambiente. Contas já existentes no Mongo podem entrar mesmo com a
+              lista vazia.
             </p>
 
             <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">

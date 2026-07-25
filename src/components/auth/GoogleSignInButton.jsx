@@ -30,6 +30,7 @@ export default function GoogleSignInButton({
     startHomologLogin,
     googleLoginBusy,
     googleLoginAvailable,
+    googleLoginMissing,
     homologLoginAvailable,
     rememberedGoogleEmail,
   } = useAuth();
@@ -38,9 +39,14 @@ export default function GoogleSignInButton({
   const canLogin =
     googleLoginAvailable || homologLoginAvailable;
   const loginBlocked = !serverAuth || !canLogin;
+  const missingHint = Array.isArray(googleLoginMissing)
+    ? googleLoginMissing.filter(Boolean)
+    : [];
   const blockedTitle = !serverAuth
     ? "Autenticação do servidor desactivada"
-    : "Login indisponível — integração não configurada";
+    : missingHint.length
+      ? `Login Google incompleto: falta ${missingHint.join(", ")}`
+      : "Login indisponível — integração não configurada";
 
   const label = "Entrar";
 
