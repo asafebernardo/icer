@@ -262,9 +262,26 @@ function sortFieldHintKeysForScroll(keys) {
 }
 
 function getPostEditorBackTo(from, categoriaSlug) {
+  if (typeof from === "string" && from.startsWith("/")) {
+    return from;
+  }
   const cat = normalizeStoredPostCategoria(categoriaSlug);
   const fallback = cat ? getPostCategoryPath(cat) : POSTS_HUB_PATH;
   return resolvePostsReturnPath(from, fallback);
+}
+
+/** Após publicar/guardar: preferir a página de origem (ex.: hub Eventos). */
+function navigateAfterPostSave(navigate, from) {
+  if (typeof from === "string" && from.startsWith("/")) {
+    navigate(from);
+    return;
+  }
+  // Sem `state.from` (ex.: link directo): volta no histórico, senão ao hub.
+  if (typeof window !== "undefined" && window.history.length > 1) {
+    navigate(-1);
+    return;
+  }
+  navigate(POSTS_HUB_PATH);
 }
 
 export default function PostagemEditor() {
@@ -368,10 +385,10 @@ export default function PostagemEditor() {
       }
       return parsed;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       toast.success("Post publicado com sucesso.");
-      navigate(getPostEditorBackTo(from, data?.categoria));
+      navigateAfterPostSave(navigate, from);
     },
   });
 
@@ -399,11 +416,11 @@ export default function PostagemEditor() {
       }
       return parsed;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
       toast.success("Post salvo com sucesso.");
-      navigate(getPostEditorBackTo(from, variables.categoria));
+      navigateAfterPostSave(navigate, from);
     },
   });
 
@@ -1372,7 +1389,7 @@ export default function PostagemEditor() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">—</SelectItem>
-                  {POST_CATEGORIAS.filter((item) => item.value !== "aplicativos").map((item) => (
+                  {POST_CATEGORIAS.map((item) => (
                     <SelectItem key={item.value} value={item.value}>
                       {item.label}
                     </SelectItem>

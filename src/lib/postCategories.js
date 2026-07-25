@@ -47,10 +47,10 @@ export function normalizeStoredPostCategoria(value) {
   return isValidPostCategoria(slug) ? slug : "";
 }
 
-/** Categorias temáticas de culto (exclui Notícias e hubs Eventos/Agenda). */
+/** Categorias temáticas de culto (exclui hubs e categorias retiradas). */
 export const WORSHIP_POST_CATEGORY_KEYS = new Set(
   POST_CATEGORIAS.filter(
-    (c) => !["noticias", "eventos", "agenda", "aplicativos"].includes(c.value),
+    (c) => !["eventos"].includes(c.value),
   ).map((c) => c.value),
 );
 
@@ -82,13 +82,8 @@ export const POST_MOSAIC_EVENTOS_CATEGORY_KEYS = [
   "estudos_biblicos",
 ];
 
-/** Ordem das secções no mosaico raiz (Informações → Eventos). */
+/** Ordem das secções no mosaico raiz (Eventos). Aplicativos ficam no Home. */
 export const POST_MOSAIC_TAG_GROUPS = [
-  {
-    id: "informacoes",
-    label: "Informações",
-    categories: ["noticias", "agenda", "aplicativos"],
-  },
   {
     id: "eventos",
     label: "Eventos",
@@ -153,12 +148,10 @@ export const POST_EVENTOS_SUBGROUP_TAG = Object.fromEntries(
   ),
 );
 
-/** Tag do mosaico por chave de categoria (Informações). */
-export const POST_CATEGORIA_MOSAIC_TAG = Object.fromEntries(
-  (POST_MOSAIC_TAG_GROUPS.find((g) => g.id === "informacoes")?.categories ??
-    []
-  ).map((key) => [key, { id: "informacoes", label: "Informações" }]),
-);
+/** Tag do mosaico por chave de categoria (legado Informações). */
+export const POST_CATEGORIA_MOSAIC_TAG = {
+  aplicativos: { id: "informacoes", label: "Informações" },
+};
 
 /** @param {string} groupId */
 export function getPostMosaicGroup(groupId) {
@@ -222,7 +215,6 @@ export function categoryUsesBlurredDatePostCards(categoryKey) {
 /** @param {string} categoryKey */
 export function categoryOpensPostDirectlyOnYearClick(categoryKey) {
   const key = String(categoryKey || "").trim().toLowerCase();
-  if (key === "noticias") return false;
   return !categoryUsesYearPostList(key);
 }
 
@@ -388,8 +380,8 @@ export function groupPostsByCategoria(posts) {
   for (const post of posts) {
     const cat = resolvePostCategoria(post);
     if (!cat || !WORSHIP_POST_CATEGORY_KEYS.has(cat)) {
-      if (!buckets.has("noticias")) buckets.set("noticias", []);
-      buckets.get("noticias").push(post);
+      if (!buckets.has("outros")) buckets.set("outros", []);
+      buckets.get("outros").push(post);
       continue;
     }
     if (!buckets.has(cat)) buckets.set(cat, []);
@@ -403,6 +395,14 @@ export function groupPostsByCategoria(posts) {
       items: buckets.get(key),
     }),
   );
+
+  if (buckets.has("outros")) {
+    sections.push({
+      key: "outros",
+      label: POST_FEED_SECTION_LABELS.outros || "Outros",
+      items: buckets.get("outros"),
+    });
+  }
 
   return sections;
 }

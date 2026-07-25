@@ -18,12 +18,19 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function SessionFloatingFab() {
-  const { googleLoginAvailable, startGoogleLogin, googleLoginBusy } = useAuth();
+  const {
+    googleLoginAvailable,
+    homologLoginAvailable,
+    startGoogleLogin,
+    startHomologLogin,
+    googleLoginBusy,
+  } = useAuth();
   const sessionUser = useSyncedAuthUser() ?? getUser();
   const isLoggedIn = !!sessionUser;
   const showEditFab = canUseEditMode(sessionUser);
   const stackSlot = getMobileSessionFabSlot(showEditFab);
-  const loginBlocked = !isServerAuthEnabled() || !googleLoginAvailable;
+  const canLogin = googleLoginAvailable || homologLoginAvailable;
+  const loginBlocked = !isServerAuthEnabled() || !canLogin;
   const blockedTitle = !isServerAuthEnabled()
     ? "Autenticação do servidor desactivada"
     : "Login indisponível — integração não configurada";
@@ -34,7 +41,11 @@ export default function SessionFloatingFab() {
 
   const handleLogin = () => {
     if (loginBlocked || googleLoginBusy) return;
-    void startGoogleLogin();
+    if (googleLoginAvailable) {
+      void startGoogleLogin();
+      return;
+    }
+    void startHomologLogin();
   };
 
   return (
@@ -44,7 +55,15 @@ export default function SessionFloatingFab() {
       disabled={!isLoggedIn && (googleLoginBusy || loginBlocked)}
       aria-label={isLoggedIn ? "Sair da sessão" : "Entrar"}
       aria-disabled={!isLoggedIn && loginBlocked}
-      title={isLoggedIn ? "Sair" : loginBlocked ? blockedTitle : "Entrar"}
+      title={
+        isLoggedIn
+          ? "Sair"
+          : loginBlocked
+            ? blockedTitle
+            : homologLoginAvailable && !googleLoginAvailable
+              ? "Entrar (homologação)"
+              : "Entrar"
+      }
       className={cn(
         "fixed z-40",
         MOBILE_FAB_BUTTON_CLASS,

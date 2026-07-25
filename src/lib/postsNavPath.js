@@ -20,12 +20,13 @@ export const POSTS_HUB_TITLE = "Encontros e memórias";
 export const POSTS_HUB_DESCRIPTION =
   "Registros de cultos, encontros, festividades e conferências.";
 
-/** Notícias, agenda, aplicativos e programação (hub na página Início). */
+/** Aplicativos e contacto (hub na página Início). */
 export const INFORMACOES_HUB_PATH = "/Home";
 export const INFORMACOES_HUB_LABEL = "Informações";
-export const INFORMACOES_HUB_TITLE = "Notícias e recursos";
+export const INFORMACOES_HUB_TITLE = "Aplicativos";
 export const INFORMACOES_HUB_DESCRIPTION =
-  "Agenda, aplicativos, programação e avisos da comunidade.";
+  "Materiais e links úteis da comunidade.";
+export const INFORMACOES_APLICATIVOS_PATH = `${INFORMACOES_HUB_PATH}#informacoes`;
 
 /** Base das rotas de categoria (mantém `/Informacoes/categoria/...`). */
 export const INFORMACOES_CATEGORY_BASE = "/Informacoes";
@@ -33,8 +34,8 @@ export const INFORMACOES_CATEGORY_BASE = "/Informacoes";
 /** Secção de contacto no final da página Início. */
 export const INFORMACOES_CONTATO_PATH = `${INFORMACOES_HUB_PATH}#contato`;
 
-/** Agenda em Informações (calendário + programação). */
-export const INFORMACOES_AGENDA_PATH = `${INFORMACOES_CATEGORY_BASE}/categoria/agenda`;
+/** Agenda (calendário) — rota directa, fora do hub Informações. */
+export const AGENDA_PATH = "/Agenda";
 
 /** @param {{ tab?: "eventos" | "configuracoes"; novo?: boolean }} [opts] */
 export function getInformacoesAgendaPath({ tab, novo = false } = {}) {
@@ -43,7 +44,7 @@ export function getInformacoesAgendaPath({ tab, novo = false } = {}) {
   else if (tab === "eventos") params.set("tab", "eventos");
   if (novo) params.set("novo", "1");
   const q = params.toString();
-  return q ? `${INFORMACOES_AGENDA_PATH}?${q}` : INFORMACOES_AGENDA_PATH;
+  return q ? `${AGENDA_PATH}?${q}` : AGENDA_PATH;
 }
 
 /** @param {string} catKey */
@@ -166,7 +167,7 @@ export function buildPostsNavPath({
 /** @param {object | null | undefined} post */
 export function buildPostsNavPathFromPost(post) {
   const p = normalizePost(post);
-  const catKey = resolvePostCategoria(p) || "noticias";
+  const catKey = resolvePostCategoria(p) || "culto_dominical";
   const year = categoryUsesYearMosaic(catKey)
     ? getPostPublicationYear(p)
     : undefined;

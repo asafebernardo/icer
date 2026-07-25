@@ -46,6 +46,7 @@ import {
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { tryHomologDevLogin } from "@/lib/homologDevLogin";
 
 const AuthContext = createContext(null);
 
@@ -82,6 +83,7 @@ export function AuthProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [googleLoginBusy, setGoogleLoginBusy] = useState(false);
   const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
+  const [homologLoginAvailable, setHomologLoginAvailable] = useState(false);
   const [rememberedGoogleEmail, setRememberedGoogleEmail] = useState("");
   const googleReauthPendingRef = useRef(false);
   /** Ignora respostas 401 de validações iniciadas antes de um login/logout recente. */
@@ -171,6 +173,7 @@ export function AuthProvider({ children }) {
     const run = (async () => {
       try {
         await fetchRuntimeEnv();
+        setHomologLoginAvailable(getRuntimeEnvSync().isHomolog === true);
         const u = await fetchSessionUserWithRetry();
         if (sessionValidationGenRef.current !== genAtStart) return;
 
@@ -254,12 +257,17 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!isServerAuthEnabled()) {
       setGoogleLoginAvailable(false);
+      setHomologLoginAvailable(false);
       setRememberedGoogleEmail("");
       return;
     }
     let cancelled = false;
     void (async () => {
       try {
+        await fetchRuntimeEnv();
+        if (!cancelled) {
+          setHomologLoginAvailable(getRuntimeEnvSync().isHomolog === true);
+        }
         const r = await fetch("/api/auth/google-login/config", { credentials: "include" });
         const j = await r.json().catch(() => ({}));
         if (!cancelled && r.ok && j.enabled === true) {
@@ -440,6 +448,66 @@ export function AuthProvider({ children }) {
     await startGoogleLogin({ pickAccount: true });
   }, [startGoogleLogin]);
 
+  const startHomologLogin = useCallback(async () => {
+    if (!isServerAuthEnabled()) {
+      toast.error(
+        "Autenticação do servidor desativada. Ative VITE_USE_SERVER_AUTH.",
+      );
+      return;
+    }
+    setGoogleLoginBusy(true);
+    loginInProgressRef.current = true;
+    sessionValidationGenRef.current += 1;
+    try {
+      await fetchRuntimeEnv();
+      setHomologLoginAvailable(getRuntimeEnvSync().isHomolog === true);
+      if (!getRuntimeEnvSync().isHomolog) {
+        toast.error("Login de homologação indisponível neste ambiente.");
+        return;
+      }
+      const booted = await tryHomologDevLogin();
+      if (!booted) {
+        toast.error(
+          "Não foi possível iniciar a sessão de homologação. Confirme ICER_HOMOLOG=true e reinicie a API.",
+        );
+        return;
+      }
+      const u = await fetchSessionUserWithRetry();
+      if (!u) {
+        clearSessionUser();
+        setServerMenuEffective(null);
+        setUser(null);
+        toast.error(
+          "A sessão não ficou activa. Use sempre o mesmo endereço (localhost ou 127.0.0.1) e permita cookies.",
+        );
+        return;
+      }
+      lastSessionOkAtRef.current = Date.now();
+      await applySessionUser(u);
+      if (isServerAuthEnabled()) {
+        void queryClientInstance
+          .fetchQuery({
+            queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+            queryFn: fetchPublicWorkspaceJson,
+          })
+          .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+          .catch(() => {});
+        setServerMenuEffective(null);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("icer-user-session"));
+      }
+      toast.success("Sessão de homologação iniciada.");
+      const returnPath = readPostLoginReturnPath();
+      if (returnPath) {
+        navigate(returnPath, { replace: true });
+      }
+    } finally {
+      loginInProgressRef.current = false;
+      setGoogleLoginBusy(false);
+    }
+  }, [applySessionUser, fetchSessionUserWithRetry, navigate]);
+
   const reconcileLocalSession = useCallback(async () => {
     if (!isServerAuthEnabled()) {
       checkUserAuth();
@@ -522,8 +590,14 @@ export function AuthProvider({ children }) {
       void startGoogleLogin();
       return;
     }
+    if (homologLoginAvailable) {
+      void startHomologLogin();
+      return;
+    }
     if (isServerAuthEnabled()) {
-      toast.error("Login com Google não está configurado.");
+      toast.error(
+        "Login indisponível: configure Google ou active ICER_HOMOLOG=true para homologação.",
+      );
     } else {
       toast.error(
         "Autenticação do servidor desativada. Ative VITE_USE_SERVER_AUTH para usar login Google.",
@@ -533,7 +607,9 @@ export function AuthProvider({ children }) {
     location.pathname,
     location.search,
     googleLoginAvailable,
+    homologLoginAvailable,
     startGoogleLogin,
+    startHomologLogin,
   ]);
 
   return (
@@ -548,9 +624,11 @@ export function AuthProvider({ children }) {
         isValidatingSession,
         navigateToLogin,
         startGoogleLogin,
+        startHomologLogin,
         useAnotherGoogleAccount,
         googleLoginBusy,
         googleLoginAvailable,
+        homologLoginAvailable,
         rememberedGoogleEmail,
         checkUserAuth,
         reconcileLocalSession,

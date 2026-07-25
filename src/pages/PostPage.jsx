@@ -8,41 +8,23 @@ import { Button } from "@/components/ui/button";
 import { PostMedia } from "@/components/posts/PostMedia";
 import PostInlineEditor from "@/components/posts/PostInlineEditor";
 import PostsHubHeader from "@/components/posts/PostsHubHeader";
-import PostsNavBreadcrumb from "@/components/posts/PostsNavBreadcrumb";
 
 import { MENU } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
 import useCanEdit from "@/lib/useCanEdit";
 import {
-  getPostCategoryGroupId,
-  resolvePostCategoria,
-} from "@/lib/postCategories";
-import {
-  getPostPublicationYear,
   normalizePost,
   normalizeTagKey,
-  postYearToQueryValue,
-  categoryUsesYearMosaic,
 } from "@/lib/posts";
 import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
-import { getPostCategoryPath, POSTS_HUB_PATH } from "@/lib/postsNavPath";
+import { POSTS_HUB_PATH } from "@/lib/postsNavPath";
 import { cn } from "@/lib/utils";
 
-function resolvePostBackTo(post, from) {
+function resolvePostBackTo(from) {
   if (typeof from === "string" && from.startsWith("/")) {
     return from;
   }
-
-  const catKey = resolvePostCategoria(post) || "noticias";
-  const year = getPostPublicationYear(post);
-
-  if (categoryUsesYearMosaic(catKey) && year != null) {
-    return getPostCategoryPath(catKey, {
-      search: `ano=${encodeURIComponent(postYearToQueryValue(year))}`,
-    });
-  }
-
-  return getPostCategoryPath(catKey);
+  return POSTS_HUB_PATH;
 }
 
 export default function PostPage() {
@@ -80,11 +62,7 @@ export default function PostPage() {
     return postRaw ? normalizePost(postRaw) : null;
   }, [postRaw]);
 
-  const catKey = post ? resolvePostCategoria(post) || "noticias" : null;
-  const groupId = catKey ? getPostCategoryGroupId(catKey) : null;
-  const publicationYear = post ? getPostPublicationYear(post) : undefined;
-  const usesYearMosaic = catKey ? categoryUsesYearMosaic(catKey) : false;
-  const backTo = post ? resolvePostBackTo(post, from) : POSTS_HUB_PATH;
+  const backTo = resolvePostBackTo(from);
 
   const headerActions =
     post && canEditPosts ? (
@@ -105,10 +83,6 @@ export default function PostPage() {
     ) : null;
 
   const description = String(post?.descricao || "").trim();
-  const showYearInBreadcrumb =
-    usesYearMosaic &&
-    publicationYear !== undefined &&
-    publicationYear !== null;
 
   return (
     <div className="posts-hub min-h-screen">
@@ -120,21 +94,7 @@ export default function PostPage() {
           "max-w-[1280px]",
         )}
       >
-        <PostsHubHeader
-          actions={headerActions}
-          backTo={backTo}
-          breadcrumb={
-            !isLoading && post ? (
-              <PostsNavBreadcrumb
-                centered
-                groupId={groupId}
-                categoryKey={catKey}
-                year={showYearInBreadcrumb ? publicationYear : undefined}
-                includeYear={showYearInBreadcrumb}
-              />
-            ) : null
-          }
-        />
+        <PostsHubHeader actions={headerActions} backTo={backTo} />
 
         {!isLoading && post ? (
           <>

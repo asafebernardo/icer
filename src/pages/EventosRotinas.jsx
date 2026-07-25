@@ -45,7 +45,7 @@ export default function EventosRotinas({ embedded = false } = {}) {
           {!embedded ? (
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" className="gap-2" asChild>
-              <Link to="/Informacoes/categoria/agenda?tab=configuracoes">
+              <Link to="/Agenda?tab=configuracoes">
                 <ArrowLeft className="w-4 h-4" />
                 Voltar a Eventos
               </Link>

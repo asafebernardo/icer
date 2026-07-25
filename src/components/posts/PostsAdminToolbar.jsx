@@ -4,18 +4,20 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** Ações admin na página de uma categoria de posts (Novo …). */
+/** Ações admin / filtros na página de posts (Novo …). */
 export default function PostsAdminToolbar({
   canCreate,
   createHref = "/Eventos/nova",
   createLabel = "Novo post",
   needsEditMode = false,
   compact = false,
+  start = null,
+  end = null,
   className,
 }) {
   const location = useLocation();
   const returnPath = `${location.pathname}${location.search}`;
-  const visible = canCreate || needsEditMode;
+  const visible = canCreate || needsEditMode || Boolean(start) || Boolean(end);
   if (!visible) return null;
 
   if (compact) {
@@ -44,17 +46,19 @@ export default function PostsAdminToolbar({
         className,
       )}
     >
-      {needsEditMode ? (
-        <p className="text-xs text-[#64748B]">
-          Ative o{" "}
-          <span className="font-medium text-[#94A3B8]">modo edição</span> no menu
-          para criar ou editar posts.
-        </p>
-      ) : (
-        <span className="hidden sm:block" aria-hidden />
-      )}
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        {start}
+        {needsEditMode ? (
+          <p className="text-xs text-[#64748B]">
+            Ative o{" "}
+            <span className="font-medium text-[#94A3B8]">modo edição</span> no
+            menu para criar ou editar posts.
+          </p>
+        ) : null}
+      </div>
 
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        {end}
         {canCreate ? (
           <Button size="sm" className="h-8 px-3 text-xs" asChild>
             <Link to={createHref} state={{ from: returnPath }}>

@@ -9,8 +9,7 @@ export const SITE_LOGIN_BUTTON_CLASS =
   "gap-2 border border-white/10 bg-background/40 font-medium text-foreground/90 shadow-sm shadow-black/10 backdrop-blur-sm ring-1 ring-white/5 hover:border-accent/35 hover:bg-accent/15 hover:text-foreground disabled:hover:border-white/10 disabled:hover:bg-background/40";
 
 /**
- * Entrada via Google OAuth, com visual do site (ícone + «Entrar»).
- * Visível mesmo sem integração activa (desactivado).
+ * Entrada via Google OAuth (ou homologação local se Google não estiver configurado).
  * @param {{
  *   className?: string;
  *   size?: "default" | "sm" | "lg" | "icon";
@@ -28,13 +27,17 @@ export default function GoogleSignInButton({
 }) {
   const {
     startGoogleLogin,
+    startHomologLogin,
     googleLoginBusy,
     googleLoginAvailable,
+    homologLoginAvailable,
     rememberedGoogleEmail,
   } = useAuth();
 
   const serverAuth = isServerAuthEnabled();
-  const loginBlocked = !serverAuth || !googleLoginAvailable;
+  const canLogin =
+    googleLoginAvailable || homologLoginAvailable;
+  const loginBlocked = !serverAuth || !canLogin;
   const blockedTitle = !serverAuth
     ? "Autenticação do servidor desactivada"
     : "Login indisponível — integração não configurada";
@@ -43,14 +46,20 @@ export default function GoogleSignInButton({
 
   const ariaLabel = loginBlocked
     ? blockedTitle
-    : rememberedGoogleEmail
+    : googleLoginAvailable && rememberedGoogleEmail
       ? `Entrar como ${rememberedGoogleEmail}`
-      : "Entrar";
+      : homologLoginAvailable && !googleLoginAvailable
+        ? "Entrar (homologação)"
+        : "Entrar";
 
   const handleClick = () => {
     if (loginBlocked || googleLoginBusy) return;
     onClick?.();
-    void startGoogleLogin();
+    if (googleLoginAvailable) {
+      void startGoogleLogin();
+      return;
+    }
+    void startHomologLogin();
   };
 
   if (iconOnly || size === "icon") {

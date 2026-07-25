@@ -1,13 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 
 import HeroSection from "../components/home/HeroSection";
 import EventoDestaquePopup from "../components/home/EventoDestaquePopup";
 import WelcomeSection from "@/components/home/WelcomeSection";
 import ContatoSection from "@/components/contato/ContatoSection";
-import PostsCategoryMosaic from "../components/posts/PostsCategoryMosaic";
+import MateriaisTab from "@/components/materiais/MateriaisTab";
 import PageSectionIntro from "@/components/shared/PageSectionIntro";
 import { useAuth } from "@/lib/AuthContext";
+import { useEditMode } from "@/lib/EditModeContext";
+import useRuntimeEnv from "@/hooks/useRuntimeEnv";
+import { canRecursosMenuAction } from "@/lib/auth";
 import {
   INFORMACOES_HUB_DESCRIPTION,
   INFORMACOES_HUB_LABEL,
@@ -17,7 +20,21 @@ import { cn } from "@/lib/utils";
 
 export default function Home() {
   const location = useLocation();
-  const { checkUserAuth } = useAuth();
+  const { checkUserAuth, user } = useAuth();
+  const { enabled: editMode } = useEditMode();
+  const { isHomolog } = useRuntimeEnv();
+
+  const canCreateReal = canRecursosMenuAction(user, "create");
+  const needsEditMode = canCreateReal && !editMode && !isHomolog;
+
+  const perm = useMemo(
+    () => ({
+      create: canRecursosMenuAction(user, "create") && editMode,
+      edit: canRecursosMenuAction(user, "edit") && editMode,
+      delete: canRecursosMenuAction(user, "delete") && editMode,
+    }),
+    [user, editMode],
+  );
 
   useEffect(() => {
     checkUserAuth?.();
@@ -58,9 +75,15 @@ export default function Home() {
               description={INFORMACOES_HUB_DESCRIPTION}
             />
 
-            <div>
-              <PostsCategoryMosaic groupId="informacoes" />
-            </div>
+            {needsEditMode ? (
+              <p className="mb-4 text-xs text-[#64748B]">
+                Ative o{" "}
+                <span className="font-medium text-[#94A3B8]">modo edição</span>{" "}
+                para gerir materiais e links.
+              </p>
+            ) : null}
+
+            <MateriaisTab perm={perm} embedded />
           </section>
         </div>
 

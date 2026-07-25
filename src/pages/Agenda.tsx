@@ -41,8 +41,7 @@ type Evento = {
 
 type AgendaView = "mensal" | "simples" | "eventos";
 
-function resolveAgendaViewFromTab(tab: string | null, embedded: boolean): AgendaView {
-  if (!embedded) return "mensal";
+function resolveAgendaViewFromTab(tab: string | null): AgendaView {
   const t = String(tab || "").trim().toLowerCase();
   if (t === "eventos" || t === "configuracoes") return "eventos";
   return "mensal";
@@ -202,9 +201,9 @@ export default function Agenda({
   onClose?: () => void;
 } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = embedded ? searchParams.get("tab") : null;
+  const tabParam = searchParams.get("tab");
   const [view, setViewState] = useState<AgendaView>(() =>
-    resolveAgendaViewFromTab(tabParam, embedded),
+    resolveAgendaViewFromTab(tabParam),
   );
   const [simpleModalOpen, setSimpleModalOpen] = useState(false);
   const prevViewRef = useRef<AgendaView>("mensal");
@@ -269,7 +268,6 @@ export default function Agenda({
 
   const setView = (next: AgendaView) => {
     setViewState(next);
-    if (!embedded) return;
     if (next === "eventos") {
       setSearchParams({ tab: "eventos" }, { replace: true });
     } else {
@@ -278,15 +276,13 @@ export default function Agenda({
   };
 
   const setEventosSubTab = (value: "eventos" | "configuracoes") => {
-    if (!embedded) return;
     setSearchParams({ tab: value }, { replace: true });
   };
 
   useEffect(() => {
-    if (!embedded) return;
-    const next = resolveAgendaViewFromTab(tabParam, true);
+    const next = resolveAgendaViewFromTab(tabParam);
     setViewState(next);
-  }, [embedded, tabParam]);
+  }, [tabParam]);
 
   return (
     <div>

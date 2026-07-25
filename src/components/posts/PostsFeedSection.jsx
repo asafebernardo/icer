@@ -15,7 +15,7 @@ export default function PostsFeedSection({
         </h2>
       </div>
 
-      <ul className="flex flex-col gap-1.5">
+      <ul className="posts-feed-grid">
         {section.items.map((post) => (
           <li key={post.id} className="min-w-0">
             <PostFeedCard

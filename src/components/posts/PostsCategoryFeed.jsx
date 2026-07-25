@@ -20,14 +20,14 @@ function PostYearTileSkeleton() {
 
 function PostListItemSkeleton() {
   return (
-    <div className="h-[72px] animate-pulse rounded-[10px] bg-white/[0.04]" />
+    <div className="aspect-[16/10] animate-pulse rounded-xl border border-white/[0.05] bg-white/[0.04]" />
   );
 }
 
 export function PostsCategoryFeedSkeleton({ count = 6, variant = "mosaic" } = {}) {
   if (variant === "list") {
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className="posts-feed-grid">
         {Array.from({ length: Math.min(count, 8) }).map((_, i) => (
           <PostListItemSkeleton key={i} />
         ))}
@@ -59,7 +59,7 @@ export function PostsCategoryPostList({
   onDelete,
 }) {
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="posts-feed-grid">
       {posts.map((post) => (
         <li key={post.id} className="min-w-0">
           <PostFeedCard

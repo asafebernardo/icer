@@ -1,9 +1,6 @@
 /** Categorias predefinidas de posts — alinhado ao frontend (`src/lib/postCategoryDefaults.js`). */
 export const DEFAULT_POST_CATEGORIES = [
-  { value: "noticias", label: "Notícias" },
   { value: "eventos", label: "Eventos" },
-  { value: "agenda", label: "Agenda" },
-  { value: "aplicativos", label: "Aplicativos" },
   { value: "culto_dominical", label: "Culto Dominical" },
   { value: "ceia", label: "Ceia" },
   { value: "oracao", label: "Oração" },

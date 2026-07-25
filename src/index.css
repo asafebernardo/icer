@@ -523,37 +523,79 @@
   }
 
   .post-feed-card {
-    border-radius: 0.625rem;
-    border: 1px solid hsl(var(--border) / 0.65);
-    background: hsl(var(--card) / 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: #0a0f18;
+    overflow: hidden;
+    isolation: isolate;
     transition:
       border-color 0.2s ease,
-      background 0.2s ease,
-      box-shadow 0.2s ease;
-    box-shadow: 0 1px 0 hsl(var(--foreground) / 0.03) inset;
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+    box-shadow: 0 8px 28px -18px rgba(0, 0, 0, 0.65);
   }
 
   .post-feed-card:hover {
-    border-color: hsl(var(--accent) / 0.35);
-    background: hsl(var(--card));
-    box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.04) inset,
-      0 0 28px -14px hsl(var(--accent) / 0.12);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 14px 36px -16px rgba(0, 0, 0, 0.75);
+  }
+
+  .post-feed-card__scrim {
+    background:
+      linear-gradient(
+        to top,
+        rgba(2, 6, 14, 0.92) 0%,
+        rgba(2, 6, 14, 0.55) 42%,
+        rgba(2, 6, 14, 0.12) 72%,
+        rgba(2, 6, 14, 0.05) 100%
+      );
+  }
+
+  .post-feed-card__link:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  .posts-feed-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  @media (min-width: 640px) {
+    .posts-feed-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.875rem;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .posts-feed-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .posts-feed-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
   }
 
   .post-feed-thumb {
     box-shadow:
-      0 0 0 1px hsl(var(--border) / 0.55),
-      0 2px 12px -4px hsl(var(--foreground) / 0.1);
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 4px 16px -6px rgba(0, 0, 0, 0.45);
   }
 
   .post-feed-thumb--empty {
-    background: hsl(var(--muted) / 0.65);
+    background: rgba(30, 41, 59, 0.65);
     box-shadow:
-      0 0 0 1px hsl(var(--border) / 0.5) inset,
-      0 2px 12px -4px hsl(var(--foreground) / 0.08);
+      0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+      0 4px 16px -6px rgba(0, 0, 0, 0.35);
   }
 
   .posts-feed-shell {

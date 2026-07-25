@@ -3,16 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import { normalizePost } from "@/lib/posts";
 import { resolvePostCategoria } from "@/lib/postCategories";
-import { belongsToNoticiasFeed } from "@/lib/noticiasFeed";
 
 const FETCH_LIMIT = 500;
-
-function sortFeedItems(a, b) {
-  const da = String(a?.data_publicacao ?? a?.data ?? "");
-  const db = String(b?.data_publicacao ?? b?.data ?? "");
-  if (da === db) return 0;
-  return da < db ? 1 : -1;
-}
 
 export function usePostsList({ showDrafts = false, categoriaKey = null } = {}) {
   const { data, isLoading: postsLoading } = useQuery({
@@ -37,10 +29,6 @@ export function usePostsList({ showDrafts = false, categoriaKey = null } = {}) {
   const posts = useMemo(() => {
     const api = Array.isArray(data?.items) ? data.items : [];
     const source = api;
-
-    if (categoriaKey === "noticias") {
-      return source.filter(belongsToNoticiasFeed).sort(sortFeedItems);
-    }
 
     const filtered = categoriaKey
       ? source.filter((raw) => {

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FileText, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,9 @@ export default function PostsPageHero({
   canShowDrafts,
   canCreate,
 }) {
+  const location = useLocation();
+  const returnPath = `${location.pathname}${location.search}`;
+
   return (
     <header className={cn("posts-feed-header", FEED_MAX_W, "mx-auto w-full")}>
       <div className="px-4 py-5 sm:px-6 sm:py-6">
@@ -65,7 +68,7 @@ export default function PostsPageHero({
             ) : null}
             {canCreate ? (
               <Button size="sm" className="h-8 px-3 text-xs" asChild>
-                <Link to="/Eventos/nova">
+                <Link to="/Eventos/nova" state={{ from: returnPath }}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Novo
                 </Link>

@@ -33,8 +33,7 @@
         "conferencias",
         "clube_biblico",
         "estudos_biblicos",
-        "eventos",
-        "noticias"
+        "eventos"
       ],
       "description": "Categoria do post"
     },

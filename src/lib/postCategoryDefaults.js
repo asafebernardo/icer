@@ -3,10 +3,7 @@
  * Alinhado a `server/postCategoryDefaults.js` e `entities/Post.json`.
  */
 export const DEFAULT_POST_CATEGORIES = [
-  { value: "noticias", label: "Notícias" },
   { value: "eventos", label: "Eventos" },
-  { value: "agenda", label: "Agenda" },
-  { value: "aplicativos", label: "Aplicativos" },
   { value: "culto_dominical", label: "Culto Dominical" },
   { value: "ceia", label: "Ceia" },
   { value: "oracao", label: "Oração" },
@@ -48,9 +45,4 @@ export const DEFAULT_POST_CATEGORIA_MOSAIC_THUMBS = {
     "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=800&h=450&fit=crop&q=85",
   eventos:
     "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&h=450&fit=crop&q=85",
-  agenda:
-    "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=800&h=450&fit=crop&q=85",
-  aplicativos: "/images/post-categories/aplicativos.png",
-  noticias:
-    "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&h=450&fit=crop&q=85",
 };

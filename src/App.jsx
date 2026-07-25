@@ -24,7 +24,7 @@ import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import Cultos from "./pages/Cultos";
 import { ThemeProvider } from "./lib/ThemeContext";
-import { INFORMACOES_CONTATO_PATH } from "@/lib/postsNavPath";
+import { INFORMACOES_APLICATIVOS_PATH, INFORMACOES_CONTATO_PATH, AGENDA_PATH } from "@/lib/postsNavPath";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import EventoPage from "./pages/EventoPage";
@@ -37,6 +37,7 @@ import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
 import Historia from "./pages/Historia";
+import Agenda from "./pages/Agenda";
 import AdminRoute from "./components/AdminRoute";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 
@@ -133,12 +134,12 @@ const AppRoutes = () => {
         <Route path="Home" element={<Home />} />
         <Route path="Cultos" element={<Cultos />} />
         <Route path="Contato" element={<Navigate to={INFORMACOES_CONTATO_PATH} replace />} />
-        <Route path="Recursos" element={<Navigate to="/Informacoes/categoria/aplicativos" replace />} />
+        <Route path="Recursos" element={<Navigate to={INFORMACOES_APLICATIVOS_PATH} replace />} />
         <Route
           path="LinksUteis"
-          element={<Navigate to="/Informacoes/categoria/aplicativos" replace />}
+          element={<Navigate to={INFORMACOES_APLICATIVOS_PATH} replace />}
         />
-        <Route path="Agenda" element={<Navigate to="/Informacoes/categoria/agenda" replace />} />
+        <Route path="Agenda" element={<Agenda />} />
 
         <Route
           path="Dashboard"
@@ -161,13 +162,13 @@ const AppRoutes = () => {
         <Route path="Eventos/rotinas/agendar" element={<AdminRoute><EventosRotinasAgendar /></AdminRoute>} />
         <Route
           path="Eventos/rotinas"
-          element={<Navigate to="/Informacoes/categoria/agenda?tab=configuracoes" replace />}
+          element={<Navigate to={`${AGENDA_PATH}?tab=configuracoes`} replace />}
         />
         <Route
           path="Eventos/novo-evento"
           element={
             <Navigate
-              to="/Informacoes/categoria/agenda?tab=eventos&novo=1"
+              to={`${AGENDA_PATH}?tab=eventos&novo=1`}
               replace
             />
           }

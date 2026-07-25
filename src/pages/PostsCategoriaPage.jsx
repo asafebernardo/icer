@@ -3,8 +3,6 @@ import { Link, Navigate, useLocation, useParams, useSearchParams } from "react-r
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BookOpen } from "lucide-react";
 
-import PostsAgendaHubPage from "./PostsAgendaHubPage";
-import PostsAplicativosHubPage from "./PostsAplicativosHubPage";
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
@@ -17,7 +15,6 @@ import {
 import PostsAdminToolbar from "../components/posts/PostsAdminToolbar";
 import PostsHubHeader from "../components/posts/PostsHubHeader";
 import PostsNavBreadcrumb from "../components/posts/PostsNavBreadcrumb";
-import PostsYearFilterBar from "../components/posts/PostsYearFilterBar";
 import EmptyState from "../components/shared/EmptyState";
 
 import { getUser, canMenuAction, MENU } from "@/lib/auth";
@@ -31,7 +28,6 @@ import {
   POST_FEED_SECTION_LABELS,
   categoryOpensPostDirectlyOnYearClick,
   categoryUsesBlurredDatePostCards,
-  categoryUsesYearPostList,
   getPostCategoryGroupId,
 } from "@/lib/postCategories";
 import { usePostsList } from "@/hooks/usePostsList";
@@ -41,20 +37,16 @@ import {
   getPrimaryPostForYear,
   normalizePost,
   parsePostYearQueryValue,
-  postYearToQueryValue,
+  sortPostsByPublicationDate,
 } from "@/lib/posts";
 import {
   getPostCategoryPath,
   getPostCreateButtonLabel,
   getInformacoesAgendaPath,
+  INFORMACOES_APLICATIVOS_PATH,
   INFORMACOES_HUB_PATH,
   POSTS_HUB_PATH,
 } from "@/lib/postsNavPath";
-import {
-  filterPostsBySelectedYears,
-  getPostsFilterYears,
-  togglePostsFilterYear,
-} from "@/lib/postsYearFilter";
 import { cn } from "@/lib/utils";
 
 const VALID_CATEGORIES = new Set([...POST_FEED_SECTION_ORDER]);
@@ -63,7 +55,7 @@ const EVENTOS_POST_CATEGORIES = new Set(POST_MOSAIC_EVENTOS_CATEGORY_KEYS);
 export default function PostsCategoriaPage() {
   const { categoria } = useParams();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user: authUser, checkUserAuth } = useAuth();
 
@@ -77,9 +69,6 @@ export default function PostsCategoriaPage() {
   const yearQuery = searchParams.get("ano");
   const parsedYear =
     yearQuery != null ? parsePostYearQueryValue(yearQuery) : undefined;
-
-  const [selectedYears, setSelectedYears] = useState(() => new Set());
-  const [yearsInitialized, setYearsInitialized] = useState(false);
 
   useEffect(() => {
     checkUserAuth?.();
@@ -101,27 +90,10 @@ export default function PostsCategoriaPage() {
 
   const eventosPosts = useMemo(() => {
     if (!isEventosPostCategory) return [];
-    return posts;
+    return sortPostsByPublicationDate(posts);
   }, [posts, isEventosPostCategory]);
 
-  const availableYears = useMemo(() => {
-    if (!isEventosPostCategory) return [];
-    return getPostsFilterYears(eventosPosts);
-  }, [eventosPosts, isEventosPostCategory]);
-
-  const activeYears = useMemo(() => {
-    if (!isEventosPostCategory) return new Set();
-    return selectedYears.size > 0 ? selectedYears : new Set(availableYears);
-  }, [isEventosPostCategory, selectedYears, availableYears]);
-
-  const filteredEventosPosts = useMemo(() => {
-    if (!isEventosPostCategory) return [];
-    return filterPostsBySelectedYears(
-      eventosPosts,
-      activeYears,
-      availableYears,
-    );
-  }, [eventosPosts, isEventosPostCategory, activeYears, availableYears]);
+  const filteredEventosPosts = eventosPosts;
 
   const usesYearMosaic = categoryUsesYearMosaic(catKey);
   const yearViewActive =
@@ -137,61 +109,6 @@ export default function PostsCategoriaPage() {
       (post) => getPostPublicationYear(normalizePost(post)) === selectedYear,
     );
   }, [posts, yearViewActive, selectedYear]);
-
-  useEffect(() => {
-    setYearsInitialized(false);
-    setSelectedYears(new Set());
-  }, [catKey]);
-
-  useEffect(() => {
-    if (!isEventosPostCategory || yearsInitialized || isLoading) return;
-    if (parsedYear !== undefined) {
-      if (parsedYear === null) {
-        setSelectedYears(new Set([null]));
-      } else if (availableYears.includes(parsedYear)) {
-        setSelectedYears(new Set([parsedYear]));
-      } else if (availableYears.length > 0) {
-        setSelectedYears(new Set(availableYears));
-      }
-    } else if (availableYears.length > 0) {
-      setSelectedYears(new Set(availableYears));
-    }
-    setYearsInitialized(true);
-  }, [
-    isEventosPostCategory,
-    yearsInitialized,
-    isLoading,
-    parsedYear,
-    availableYears,
-  ]);
-
-  const syncYearSearchParams = (nextYears) => {
-    if (nextYears.size === 1) {
-      const year = [...nextYears][0];
-      setSearchParams(
-        { ano: postYearToQueryValue(year) },
-        { replace: true },
-      );
-      return;
-    }
-    if (searchParams.has("ano")) {
-      setSearchParams({}, { replace: true });
-    }
-  };
-
-  const toggleEventosYear = (year) => {
-    setSelectedYears((prev) => {
-      const next = togglePostsFilterYear(prev, availableYears, year);
-      syncYearSearchParams(next);
-      return next;
-    });
-  };
-
-  const selectAllEventosYears = () => {
-    const next = new Set(availableYears);
-    setSelectedYears(next);
-    syncYearSearchParams(next);
-  };
 
   const deletePost = useMutation({
     mutationFn: async (id) => {
@@ -212,10 +129,7 @@ export default function PostsCategoriaPage() {
   if (
     groupId === "informacoes" &&
     !onInformacoesHub &&
-    (VALID_CATEGORIES.has(catKey) ||
-      catKey === "agenda" ||
-      catKey === "aplicativos" ||
-      catKey === "eventos")
+    VALID_CATEGORIES.has(catKey)
   ) {
     return (
       <Navigate
@@ -234,7 +148,7 @@ export default function PostsCategoriaPage() {
     );
   }
 
-  if (catKey === "eventos") {
+  if (catKey === "eventos" || catKey === "agenda") {
     const tabParam = String(searchParams.get("tab") || "").trim().toLowerCase();
     return (
       <Navigate
@@ -247,27 +161,24 @@ export default function PostsCategoriaPage() {
     );
   }
 
-  if (catKey === "agenda") {
-    return <PostsAgendaHubPage />;
-  }
-
-  if (catKey === "aplicativos") {
-    return <PostsAplicativosHubPage />;
+  if (catKey === "aplicativos" || catKey === "noticias") {
+    return <Navigate to={INFORMACOES_APLICATIVOS_PATH} replace />;
   }
 
   if (!VALID_CATEGORIES.has(catKey)) {
-    return <Navigate to={INFORMACOES_HUB_PATH} replace />;
+    return <Navigate to={POSTS_HUB_PATH} replace />;
   }
 
   const categoryPath = getPostCategoryPath(catKey);
+
+  if (isEventosPostCategory && yearQuery != null) {
+    return <Navigate to={categoryPath} replace />;
+  }
+
   const hubPath =
     groupId === "informacoes" ? INFORMACOES_HUB_PATH : POSTS_HUB_PATH;
   const usesDateMosaic = categoryUsesBlurredDatePostCards(catKey);
   const opensPostDirectlyOnYear = categoryOpensPostDirectlyOnYearClick(catKey);
-  const singleEventosYear =
-    isEventosPostCategory && activeYears.size === 1
-      ? [...activeYears][0]
-      : undefined;
 
   if (yearViewActive && !isLoading && opensPostDirectlyOnYear) {
     const primaryPost = getPrimaryPostForYear(postsForYear || []);
@@ -283,9 +194,7 @@ export default function PostsCategoriaPage() {
   }
 
   const yearLabel =
-    (isEventosPostCategory ? singleEventosYear : selectedYear) == null
-      ? "Sem data"
-      : String(isEventosPostCategory ? singleEventosYear : selectedYear);
+    selectedYear == null ? "Sem data" : String(selectedYear);
 
   const backTo = isEventosPostCategory
     ? hubPath
@@ -297,9 +206,8 @@ export default function PostsCategoriaPage() {
   const createPostLabel = getPostCreateButtonLabel(catKey);
 
   const showPostCreateToolbar =
-    catKey === "noticias" ||
-    (groupId !== "informacoes" &&
-      (isEventosPostCategory || yearViewActive || usesYearMosaic));
+    groupId !== "informacoes" &&
+    (isEventosPostCategory || yearViewActive || usesYearMosaic);
 
   const headerActions = showPostCreateToolbar ? (
       <PostsAdminToolbar
@@ -320,16 +228,8 @@ export default function PostsCategoriaPage() {
       return (
         <EmptyState
           icon={BookOpen}
-          title={
-            activeYears.size < availableYears.length
-              ? "Nenhuma publicação nos anos seleccionados"
-              : `Nenhuma publicação em ${POST_FEED_SECTION_LABELS[catKey] || catKey}`
-          }
-          description={
-            activeYears.size < availableYears.length
-              ? "Seleccione outros anos ou toque em «Todos»."
-              : "Crie a primeira publicação desta categoria."
-          }
+          title={`Nenhuma publicação em ${POST_FEED_SECTION_LABELS[catKey] || catKey}`}
+          description="Crie a primeira publicação desta categoria."
           action={
             canCreate ? (
               <Button size="sm" asChild>
@@ -352,39 +252,14 @@ export default function PostsCategoriaPage() {
       );
     }
 
-    if (usesDateMosaic) {
-      return (
-        <PostsCategoryDateMosaicList
-          posts={filteredEventosPosts}
-          location={location}
-          categoryKey={catKey}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          onDelete={setPendingDeleteId}
-        />
-      );
-    }
-
-    if (categoryUsesYearPostList(catKey)) {
-      return (
-        <PostsCategoryPostList
-          posts={filteredEventosPosts}
-          location={location}
-          categoryKey={catKey}
-          year={singleEventosYear}
-          canEdit={canEdit}
-          canDelete={canDelete}
-          onDelete={setPendingDeleteId}
-        />
-      );
-    }
-
     return (
-      <PostsCategoryYearMosaic
+      <PostsCategoryPostList
         posts={filteredEventosPosts}
-        categoryPath={categoryPath}
-        categoryKey={catKey}
         location={location}
+        categoryKey={catKey}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        onDelete={setPendingDeleteId}
       />
     );
   };
@@ -407,18 +282,8 @@ export default function PostsCategoriaPage() {
               centered
               groupId={groupId}
               categoryKey={catKey}
-              year={
-                isEventosPostCategory
-                  ? singleEventosYear
-                  : yearViewActive
-                    ? selectedYear
-                    : undefined
-              }
-              includeYear={
-                isEventosPostCategory
-                  ? singleEventosYear !== undefined
-                  : yearViewActive
-              }
+              year={yearViewActive ? selectedYear : undefined}
+              includeYear={yearViewActive}
             />
           }
         />
@@ -442,14 +307,10 @@ export default function PostsCategoriaPage() {
 
         {isLoading ? (
           <PostsCategoryFeedSkeleton
-            count={5}
+            count={8}
             variant={
               isEventosPostCategory
-                ? usesDateMosaic
-                  ? "dateMosaic"
-                  : categoryUsesYearPostList(catKey)
-                    ? "list"
-                    : "mosaic"
+                ? "list"
                 : yearViewActive && usesDateMosaic
                   ? "dateMosaic"
                   : usesYearMosaic && !yearViewActive
@@ -458,15 +319,7 @@ export default function PostsCategoriaPage() {
             }
           />
         ) : isEventosPostCategory ? (
-          <>
-            <PostsYearFilterBar
-              years={availableYears}
-              selectedYears={activeYears}
-              onToggleYear={toggleEventosYear}
-              onSelectAll={selectAllEventosYears}
-            />
-            {renderEventosCategoryContent()}
-          </>
+          renderEventosCategoryContent()
         ) : yearViewActive ? (
           postsForYear?.length ? (
             usesDateMosaic ? (

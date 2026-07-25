@@ -12,7 +12,6 @@ import {
   Church,
   Phone,
   Landmark,
-  Info,
 } from "lucide-react";
 
 import {
@@ -31,8 +30,7 @@ import {
   POSTS_HUB_LABEL,
   POSTS_HUB_PATH,
   INFORMACOES_CONTATO_PATH,
-  INFORMACOES_HUB_LABEL,
-  INFORMACOES_HUB_PATH,
+  INFORMACOES_APLICATIVOS_PATH,
 } from "@/lib/postsNavPath";
 
 const NAV_ROUTES = [
@@ -40,8 +38,7 @@ const NAV_ROUTES = [
   { label: "Cultos", path: "/Cultos", icon: Church },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
   { label: "História", path: "/Historia", icon: Landmark },
-  { label: INFORMACOES_HUB_LABEL, path: `${INFORMACOES_HUB_PATH}#informacoes`, icon: Info },
-  { label: "Aplicativos", path: "/Informacoes/categoria/aplicativos", icon: Library },
+  { label: "Aplicativos", path: INFORMACOES_APLICATIVOS_PATH, icon: Library },
 ];
 
 /** Rotas já cobertas pelos ícones da barra inferior (mobile). */
