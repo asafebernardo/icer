@@ -98,13 +98,7 @@ export default function BottomNav() {
   const adminTabHref = (id) =>
     id === "profile" ? "/Admin" : `/Admin?tab=${id}`;
 
-  const primaryItems = useMemo(
-    () =>
-      isAdmin
-        ? PRIMARY_ITEMS
-        : PRIMARY_ITEMS.filter((item) => item.path !== "/Historia"),
-    [isAdmin],
-  );
+  const primaryItems = PRIMARY_ITEMS;
   const gridColsClass =
     primaryItems.length + (isAdmin ? 1 : 0) === 5
       ? "grid-cols-5"

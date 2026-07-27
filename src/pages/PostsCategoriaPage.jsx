@@ -35,6 +35,7 @@ import {
   categoryUsesYearMosaic,
   getPostPublicationYear,
   getPrimaryPostForYear,
+  isPostDemoExample,
   normalizePost,
   parsePostYearQueryValue,
   sortPostsByPublicationDate,
@@ -90,7 +91,9 @@ export default function PostsCategoriaPage() {
 
   const eventosPosts = useMemo(() => {
     if (!isEventosPostCategory) return [];
-    return sortPostsByPublicationDate(posts);
+    return sortPostsByPublicationDate(
+      posts.filter((post) => !isPostDemoExample(post)),
+    );
   }, [posts, isEventosPostCategory]);
 
   const filteredEventosPosts = eventosPosts;

@@ -19,7 +19,7 @@ import {
   formatPostCount,
   usePostCategoryCounts,
 } from "@/hooks/usePostCategoryCounts";
-import { getPostPublicationYear, normalizePost, postYearToQueryValue } from "@/lib/posts";
+import { getPostPublicationYear, isPostDemoExample, normalizePost, postYearToQueryValue } from "@/lib/posts";
 import { getPostCategoryPath } from "@/lib/postsNavPath";
 import { cn } from "@/lib/utils";
 
@@ -122,6 +122,7 @@ function EventosYearCategoryMosaic({ year }) {
     );
 
     for (const post of posts) {
+      if (isPostDemoExample(post)) continue;
       const cat = resolvePostCategoria(post);
       if (!cat || map[cat] === undefined) continue;
       if (getPostPublicationYear(normalizePost(post)) !== year) continue;

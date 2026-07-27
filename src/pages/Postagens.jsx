@@ -29,6 +29,7 @@ import {
 } from "@/lib/postCategories";
 import {
   getPostPublicationYear,
+  isPostDemoExample,
   normalizePost,
   sortPostsByPublicationDate,
 } from "@/lib/posts";
@@ -75,6 +76,7 @@ export default function Postagens() {
 
   const eventosPosts = useMemo(() => {
     return posts.filter((post) => {
+      if (isPostDemoExample(post)) return false;
       const cat = resolvePostCategoria(post);
       return cat && EVENTOS_CATEGORY_SET.has(cat);
     });

@@ -166,13 +166,7 @@ export default function Navbar() {
   );
   const adminTabHref = (id) => (id === "profile" ? "/Admin" : `/Admin?tab=${id}`);
 
-  const mainNavLinks = useMemo(
-    () =>
-      isAdmin
-        ? BASE_LINKS
-        : BASE_LINKS.filter((link) => link.path !== "/Historia"),
-    [isAdmin],
-  );
+  const mainNavLinks = BASE_LINKS;
 
   return (
     <nav

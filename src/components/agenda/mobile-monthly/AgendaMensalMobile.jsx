@@ -14,7 +14,6 @@ import {
 import { ptBR } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, X, Eye, Check } from "lucide-react";
 import "./agendaMensalMobile.css";
-import sample from "@/data/agendaMensal.sample.json";
 
 const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
@@ -240,7 +239,7 @@ function UpcomingSkeleton() {
  * - Swipe horizontal para trocar mês
  * - Bottom sheet para eventos do dia
  * - Filtro por categoria
- * - Dados preferem API (prop), com fallback em JSON local (sample)
+ * - Dados da API (prop `events`)
  */
 export default function AgendaMensalMobile({
   events: eventsFromApi = [],
@@ -256,12 +255,7 @@ export default function AgendaMensalMobile({
   const swipeRef = useRef({ x: 0, y: 0, active: false });
 
   const events = useMemo(() => {
-    const base =
-      Array.isArray(eventsFromApi) && eventsFromApi.length
-        ? eventsFromApi
-        : Array.isArray(sample?.events)
-          ? sample.events
-          : [];
+    const base = Array.isArray(eventsFromApi) ? eventsFromApi : [];
     return base.map((r, idx) => withOrder(normalizeEvent(r), idx));
   }, [eventsFromApi]);
 

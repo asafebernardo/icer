@@ -7,6 +7,19 @@ export function normalizeTagKey(raw) {
     .toLowerCase();
 }
 
+export const POST_DEMO_EXAMPLE_TAG = "exemplo";
+export const POST_EXAMPLES_SEED_TAG = "post_examples_v1";
+
+/** Post gerado pelo seed de demonstração (`tags: exemplo` ou `_seed_tag`). */
+export function isPostDemoExample(post) {
+  const raw = post && typeof post === "object" ? post : {};
+  if (raw._seed_tag === POST_EXAMPLES_SEED_TAG) return true;
+  const p = normalizePost(post);
+  if (p._seed_tag === POST_EXAMPLES_SEED_TAG) return true;
+  const tags = Array.isArray(p.tags) ? p.tags : [];
+  return tags.some((t) => normalizeTagKey(t) === POST_DEMO_EXAMPLE_TAG);
+}
+
 export function dedupeTagsPreserveOrder(list) {
   const seen = new Set();
   const out = [];
