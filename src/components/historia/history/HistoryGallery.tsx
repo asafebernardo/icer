@@ -23,7 +23,7 @@ function HistoryGallery({ images, activeIndex, onSelect }: HistoryGalleryProps) 
       <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[#64748B]">
         Galeria
       </p>
-      <div className="flex flex-wrap gap-2.5">
+      <div className="flex justify-center gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible sm:pb-0">
         {images.map((img, index) => {
           const isActive = index === activeIndex;
           return (
@@ -40,7 +40,7 @@ function HistoryGallery({ images, activeIndex, onSelect }: HistoryGalleryProps) 
               }}
               transition={{ duration: 0.25 }}
               className={cn(
-                "relative h-[72px] w-[88px] overflow-hidden rounded-xl border bg-[#0B0B0F]",
+                "relative h-[64px] w-[76px] shrink-0 overflow-hidden rounded-xl border bg-[#0B0B0F] sm:h-[72px] sm:w-[88px]",
                 "transition-colors duration-200",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/45",
                 isActive

@@ -11,8 +11,9 @@ import PostsAdminToolbar from "../components/posts/PostsAdminToolbar";
 import {
   POSTS_EVENTOS_ALL_CARDS,
   POSTS_EVENTOS_ALL_YEARS,
+  PostsEventosHubActiveFilters,
+  PostsEventosHubFilterTrigger,
   PostsEventosHubSearch,
-  PostsEventosHubSelectFilters,
 } from "../components/posts/PostsEventosHubFilters";
 import EmptyState from "@/components/shared/EmptyState";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
@@ -25,6 +26,7 @@ import { usePostsList } from "@/hooks/usePostsList";
 import {
   POST_FEED_SECTION_LABELS,
   POST_MOSAIC_EVENTOS_CATEGORY_KEYS,
+  POST_MOSAIC_EVENTOS_SUBGROUPS,
   resolvePostCategoria,
 } from "@/lib/postCategories";
 import {
@@ -54,6 +56,7 @@ export default function Postagens() {
   const { isHomolog } = useRuntimeEnv();
   const { posts, isLoading: postsLoading } = usePostsList();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubgroup, setSelectedSubgroup] = useState(null);
   const [selectedYear, setSelectedYear] = useState(POSTS_EVENTOS_ALL_YEARS);
   const [selectedCard, setSelectedCard] = useState(POSTS_EVENTOS_ALL_CARDS);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -89,6 +92,17 @@ export default function Postagens() {
       list = list.filter(
         (post) => resolvePostCategoria(post) === selectedCard,
       );
+    } else if (selectedSubgroup) {
+      const subgroup = POST_MOSAIC_EVENTOS_SUBGROUPS.find(
+        (item) => item.id === selectedSubgroup,
+      );
+      if (subgroup) {
+        const categorySet = new Set(subgroup.categories);
+        list = list.filter((post) => {
+          const cat = resolvePostCategoria(post);
+          return cat && categorySet.has(cat);
+        });
+      }
     }
 
     if (selectedYear !== POSTS_EVENTOS_ALL_YEARS) {
@@ -114,7 +128,7 @@ export default function Postagens() {
     }
 
     return list;
-  }, [eventosPosts, searchQuery, selectedYear, selectedCard]);
+  }, [eventosPosts, searchQuery, selectedYear, selectedCard, selectedSubgroup]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -140,7 +154,15 @@ export default function Postagens() {
   const filtersActive =
     Boolean(searchQuery.trim()) ||
     selectedYear !== POSTS_EVENTOS_ALL_YEARS ||
-    selectedCard !== POSTS_EVENTOS_ALL_CARDS;
+    selectedCard !== POSTS_EVENTOS_ALL_CARDS ||
+    Boolean(selectedSubgroup);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedSubgroup(null);
+    setSelectedYear(POSTS_EVENTOS_ALL_YEARS);
+    setSelectedCard(POSTS_EVENTOS_ALL_CARDS);
+  };
 
   return (
     <div className="posts-hub min-h-screen">
@@ -153,25 +175,43 @@ export default function Postagens() {
         )}
       >
         <PostsAdminToolbar
-          className="mb-6"
+          className="mb-3"
           canCreate={canCreate}
           createHref="/Eventos/nova"
           needsEditMode={needsEditMode}
           start={
-            <PostsEventosHubSearch
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <PostsEventosHubSearch
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+              />
+              <PostsEventosHubFilterTrigger
+                posts={eventosPosts}
+                selectedSubgroup={selectedSubgroup}
+                onSubgroupChange={setSelectedSubgroup}
+                selectedCard={selectedCard}
+                onCardChange={setSelectedCard}
+                selectedYear={selectedYear}
+                onYearChange={setSelectedYear}
+                onClearFilters={clearFilters}
+                filtersActive={
+                  selectedYear !== POSTS_EVENTOS_ALL_YEARS ||
+                  selectedCard !== POSTS_EVENTOS_ALL_CARDS ||
+                  Boolean(selectedSubgroup)
+                }
+              />
+            </div>
           }
-          end={
-            <PostsEventosHubSelectFilters
-              posts={eventosPosts}
-              selectedYear={selectedYear}
-              onYearChange={setSelectedYear}
-              selectedCard={selectedCard}
-              onCardChange={setSelectedCard}
-            />
-          }
+        />
+
+        <PostsEventosHubActiveFilters
+          selectedSubgroup={selectedSubgroup}
+          onSubgroupChange={setSelectedSubgroup}
+          selectedCard={selectedCard}
+          onCardChange={setSelectedCard}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          onClearFilters={clearFilters}
         />
 
         <div>

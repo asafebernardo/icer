@@ -46,7 +46,7 @@ export default function PostsAdminToolbar({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-3">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
         {start}
         {needsEditMode ? (
           <p className="text-xs text-[#64748B]">

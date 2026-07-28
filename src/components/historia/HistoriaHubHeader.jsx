@@ -15,10 +15,10 @@ export default function HistoriaHubHeader({
           <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.18em] text-[#38BDF8]/75">
             {tag}
           </p>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-[#F1F5F9] sm:text-[1.75rem]">
+          <h1 className="font-display text-xl font-semibold tracking-tight text-[#F1F5F9] sm:text-[1.75rem]">
             {title}
           </h1>
-          <p className="mt-2 text-sm leading-relaxed text-[#64748B] sm:text-[0.9375rem]">
+          <p className="mt-1.5 text-sm leading-relaxed text-[#64748B] sm:mt-2 sm:text-[0.9375rem]">
             {description}
           </p>
         </div>

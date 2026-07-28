@@ -15,6 +15,8 @@ import {
   Sparkles,
   FileStack,
   Trash2,
+  Menu,
+  X,
 } from "lucide-react";
 
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
@@ -23,6 +25,7 @@ import { isAdminUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { POSTS_HUB_LABEL, POSTS_HUB_PATH } from "@/lib/postsNavPath";
 import AdminNavLinks from "@/components/admin/AdminNavLinks";
+import BottomNavMenuActions from "@/components/layout/BottomNavMenuActions";
 import {
   DEFAULT_EXTRA_ADMIN_NAV_ITEMS,
   getAdminNavGroups,
@@ -47,20 +50,21 @@ function isBottomNavActive(pathname, itemPath) {
   return pathname === itemPath;
 }
 
-function BottomNavLink({ item, active }) {
+function BottomNavSheetLink({ item, active, onNavigate }) {
   const Icon = item.icon;
   return (
     <Link
       to={item.path}
+      onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+        "flex flex-col items-center justify-center gap-2 rounded-xl border px-3 py-4 text-sm font-medium transition-colors",
         active
-          ? "text-accent"
-          : "text-muted-foreground hover:text-foreground",
+          ? "border-accent/40 bg-accent/10 text-accent"
+          : "border-border/60 bg-card/60 text-foreground hover:border-border hover:bg-card",
       )}
     >
-      <Icon className="h-5 w-5" />
+      <Icon className="h-6 w-6 shrink-0" aria-hidden />
       <span className="leading-none">{item.label}</span>
     </Link>
   );
@@ -68,7 +72,7 @@ function BottomNavLink({ item, active }) {
 
 export default function BottomNav() {
   const location = useLocation();
-  const [adminDockOpen, setAdminDockOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const sessionUser = useSyncedAuthUser();
   const isAdmin = isAdminUser(sessionUser);
   const {
@@ -98,88 +102,109 @@ export default function BottomNav() {
   const adminTabHref = (id) =>
     id === "profile" ? "/Admin" : `/Admin?tab=${id}`;
 
-  const primaryItems = PRIMARY_ITEMS;
-  const gridColsClass =
-    primaryItems.length + (isAdmin ? 1 : 0) === 5
-      ? "grid-cols-5"
-      : primaryItems.length === 3
-        ? "grid-cols-3"
-        : "grid-cols-4";
+  const currentItem =
+    PRIMARY_ITEMS.find((item) =>
+      isBottomNavActive(location.pathname, item.path),
+    ) ?? PRIMARY_ITEMS[0];
+  const CurrentIcon = currentItem.icon;
 
   useEffect(() => {
-    setAdminDockOpen(false);
+    setMenuOpen(false);
   }, [location.pathname, location.search]);
 
-  return (
-    <nav
-      aria-label="Navegação inferior"
-      className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_-1px_0_hsl(var(--border)),0_-8px_32px_-12px_hsl(217_59%_4%/0.85)]"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      <ul
-        className={cn("relative z-10 grid h-[64px]", gridColsClass)}
-      >
-        {primaryItems.map((item) => (
-          <li key={item.path} className="contents">
-            <BottomNavLink
-              item={item}
-              active={isBottomNavActive(location.pathname, item.path)}
-            />
-          </li>
-        ))}
-        {isAdmin ? (
-          <li className="flex min-w-0 flex-col justify-stretch">
-            <button
-              type="button"
-              id="bottom-nav-admin-dock-trigger"
-              aria-expanded={adminDockOpen}
-              aria-controls="bottom-nav-admin-dock-panel"
-              onClick={() => setAdminDockOpen((v) => !v)}
-              className={cn(
-                "flex h-full min-h-0 w-full flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-medium leading-none transition-colors",
-                adminDockOpen
-                  ? "text-accent"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Settings className="h-5 w-5 shrink-0" aria-hidden />
-              <span className="max-w-full truncate">Painel</span>
-            </button>
-          </li>
-        ) : null}
-      </ul>
+  const closeMenu = () => setMenuOpen(false);
 
-      {isAdmin && adminDockOpen ? (
-        <>
+  return (
+    <>
+      {menuOpen ? (
+        <button
+          type="button"
+          aria-label="Fechar menu de navegação"
+          className="fixed inset-0 z-[38] bg-black/30 sm:hidden"
+          onClick={closeMenu}
+        />
+      ) : null}
+
+      <div
+        className="sm:hidden fixed inset-x-0 bottom-0 z-40 flex justify-center pointer-events-none"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="pointer-events-auto relative">
+          {menuOpen ? (
+            <div
+              id="bottom-nav-menu-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="bottom-nav-menu-trigger"
+              className="absolute bottom-full left-1/2 z-[45] mb-3 w-[min(calc(100vw-2rem),20rem)] -translate-x-1/2 overflow-hidden rounded-2xl border border-border bg-card shadow-xl max-h-[min(72vh,32rem)] overflow-y-auto"
+            >
+              <div className="border-b border-border/80 px-4 py-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Navegação
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-3">
+                {PRIMARY_ITEMS.map((item) => (
+                  <BottomNavSheetLink
+                    key={item.path}
+                    item={item}
+                    active={isBottomNavActive(location.pathname, item.path)}
+                    onNavigate={closeMenu}
+                  />
+                ))}
+              </div>
+              <div className="border-t border-border/80">
+                <p className="px-4 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Conta & preferências
+                </p>
+                <BottomNavMenuActions onAction={closeMenu} />
+              </div>
+              {isAdmin ? (
+                <div className="border-t border-border/80 p-2">
+                  <p className="px-2 pb-1 pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Painel
+                  </p>
+                  <AdminNavLinks
+                    groups={adminNavGroups}
+                    canUseAdminTabs={canUseAdminTabs}
+                    canNavigateAdminTabs={canNavigateAdminTabs}
+                    showHomologLoginBlockedHints={showHomologLoginBlockedHints}
+                    icons={adminMenuIcons}
+                    layout="sheet"
+                    getHref={adminTabHref}
+                    onTabPick={closeMenu}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <button
             type="button"
-            aria-label="Fechar menu do painel"
-            className="fixed inset-0 z-[38] bg-black/30"
-            onClick={() => setAdminDockOpen(false)}
-          />
-          <div
-            id="bottom-nav-admin-dock-panel"
-            role="region"
-            aria-labelledby="bottom-nav-admin-dock-trigger"
-            className="fixed inset-x-2 z-[45] max-h-[min(72vh,26rem)] overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-xl"
-            style={{
-              bottom:
-                "calc(64px + env(safe-area-inset-bottom, 0px) + 0.5rem)",
-            }}
+            id="bottom-nav-menu-trigger"
+            aria-expanded={menuOpen}
+            aria-controls="bottom-nav-menu-panel"
+            aria-haspopup="dialog"
+            onClick={() => setMenuOpen((v) => !v)}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full border border-border bg-background/95 px-4 py-2.5 text-sm font-medium shadow-lg shadow-black/10 backdrop-blur-xl ring-1 ring-black/5 transition-[transform,background-color,border-color,color] duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              menuOpen ? "text-accent" : "text-foreground",
+            )}
           >
-            <AdminNavLinks
-              groups={adminNavGroups}
-              canUseAdminTabs={canUseAdminTabs}
-              canNavigateAdminTabs={canNavigateAdminTabs}
-              showHomologLoginBlockedHints={showHomologLoginBlockedHints}
-              icons={adminMenuIcons}
-              layout="sheet"
-              getHref={adminTabHref}
-              onTabPick={() => setAdminDockOpen(false)}
-            />
-          </div>
-        </>
-      ) : null}
-    </nav>
+            {menuOpen ? (
+              <X className="h-5 w-5 shrink-0" aria-hidden />
+            ) : (
+              <CurrentIcon className="h-5 w-5 shrink-0 text-accent" aria-hidden />
+            )}
+            <span className="max-w-[8rem] truncate">
+              {menuOpen ? "Fechar" : currentItem.label}
+            </span>
+            {!menuOpen ? (
+              <Menu className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : null}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

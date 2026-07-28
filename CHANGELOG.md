@@ -1,3 +1,22 @@
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-07-28)
+
+### Features
+
+* estabiliza o dev no Windows e reorganiza a Home ([d734a64](https://github.com/asafebernardo/icer/commit/d734a648efe93a0b79b6958039c644e5561f9a8c))
+* hub de postagens por categoria, timeline História e tema visual v3.5 ([3f43a7a](https://github.com/asafebernardo/icer/commit/3f43a7a3f21b5de065695fe678710e522bd3ea29))
+* hub Eventos, aplicativos no Home e login homolog ([45f141a](https://github.com/asafebernardo/icer/commit/45f141a3ce2204309e22e3f05df1dddfb2350bd6))
+* melhora modo de edição, reCAPTCHA e novo post em Notícias ([7f5b4bd](https://github.com/asafebernardo/icer/commit/7f5b4bd23f1daacb1d87bad49f2e78a9ebf5da19))
+* melhora navegação mobile, filtros de Eventos e História ([b464990](https://github.com/asafebernardo/icer/commit/b4649901b5986d0ed35f83fabef5f262ff607922))
+* **posts:** hub hierárquico, FABs mobile e fim do auto-login homolog ([8837f89](https://github.com/asafebernardo/icer/commit/8837f89e6202f1b893ac2a7f21c0f0889ac1f4b0))
+* refatora História e remove exemplos de /Eventos ([56937b8](https://github.com/asafebernardo/icer/commit/56937b8b386193a3c4197b7c4c90c61f1ffbbc00))
+* reorganiza Informações, Eventos e navegação de posts ([dcc03d4](https://github.com/asafebernardo/icer/commit/dcc03d415e1c949f98a1c8b9e1842437e5947d4c))
+* tema premium, contato em Informações e estabilidade em dev ([97593b0](https://github.com/asafebernardo/icer/commit/97593b00622be368c302466e922b52e39594b1ed))
+
+### Bug Fixes
+
+* **auth:** sessão, login Google mobile e dev local ([c2a2f05](https://github.com/asafebernardo/icer/commit/c2a2f051a1ac8ca282c46f13e9385b23bf425d39))
+* coloca Informações à direita de Contato na navegação ([afc2d11](https://github.com/asafebernardo/icer/commit/afc2d1180f97ba1d1aa397409d4d3a55f976eb79))
+* correções gerais de sessão e performance mobile ([5614d55](https://github.com/asafebernardo/icer/commit/5614d559787e95db69e3b150dd32d6df5955af0c))
 ## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-07-27)
 
 ### Features

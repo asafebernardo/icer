@@ -1,17 +1,20 @@
 import { memo } from "react";
 import { motion } from "framer-motion";
 
+import { cn } from "@/lib/utils";
+
 interface HistoryProgressProps {
   current: number;
   total: number;
+  className?: string;
 }
 
-function HistoryProgress({ current, total }: HistoryProgressProps) {
+function HistoryProgress({ current, total, className }: HistoryProgressProps) {
   const progress = total > 0 ? (current / total) * 100 : 0;
 
   return (
     <div
-      className="mb-5"
+      className={cn("mb-5", className)}
       role="progressbar"
       aria-valuenow={current}
       aria-valuemin={1}

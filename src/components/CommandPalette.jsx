@@ -41,7 +41,7 @@ const NAV_ROUTES = [
   { label: "Aplicativos", path: INFORMACOES_APLICATIVOS_PATH, icon: Library },
 ];
 
-/** Rotas já cobertas pelos ícones da barra inferior (mobile). */
+/** Rotas já cobertas pelo menu de navegação mobile. */
 const MOBILE_BOTTOM_NAV_PATHS = new Set([
   "/Home",
   "/Cultos",

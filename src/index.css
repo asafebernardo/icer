@@ -208,7 +208,7 @@
   }
 
   /* reCAPTCHA v3: badge oculto — aviso no rodapé (requisito Google).
-   * display:none evita o iframe fixo no canto inferior a cobrir a BottomNav no mobile. */
+   * display:none evita o iframe fixo no canto inferior a cobrir os controlos mobile. */
   .grecaptcha-badge {
     display: none !important;
     visibility: hidden !important;

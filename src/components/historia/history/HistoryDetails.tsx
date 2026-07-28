@@ -75,7 +75,7 @@ function HistoryDetails({
   return (
     <article
       className={cn(
-        "rounded-[28px] border border-white/[0.06] bg-[#12141A]/95 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-10 lg:p-12",
+        "rounded-2xl border border-white/[0.06] bg-[#12141A]/95 p-4 shadow-[0_16px_48px_rgba(0,0,0,0.3)] backdrop-blur-xl sm:rounded-[28px] sm:p-8 sm:shadow-[0_24px_80px_rgba(0,0,0,0.35)] lg:p-12",
         className,
       )}
       aria-labelledby="history-detail-title"
@@ -88,21 +88,21 @@ function HistoryDetails({
           exit="exit"
           variants={contentVariants}
           transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
-          className="mb-8 border-b border-white/[0.05] pb-8"
+          className="mb-5 border-b border-white/[0.05] pb-5 text-center sm:mb-8 sm:pb-8"
         >
           <time
             dateTime={event.yearLabel ? undefined : String(event.year)}
-            className="font-display text-5xl font-bold tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.5rem] lg:leading-none"
+            className="font-display text-3xl font-bold tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.5rem] lg:leading-none"
           >
             {formatEventYear(event)}
           </time>
           <h2
             id="history-detail-title"
-            className="mt-3 font-display text-2xl font-semibold leading-[1.2] tracking-[-0.02em] text-[#F1F5F9] sm:text-3xl lg:text-[2.625rem]"
+            className="mt-2 font-display text-xl font-semibold leading-[1.25] tracking-[-0.02em] text-[#F1F5F9] sm:mt-3 sm:text-3xl lg:text-[2.625rem]"
           >
             {event.title}
           </h2>
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
             <span
               className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
               style={{ color: colors.accent, backgroundColor: colors.bg }}
@@ -114,7 +114,7 @@ function HistoryDetails({
             ) : null}
           </div>
           {event.summary ? (
-            <p className="mt-5 text-base leading-relaxed text-[#94A3B8] sm:text-lg">
+            <p className="mt-3 text-sm leading-relaxed text-[#94A3B8] sm:mt-5 sm:text-lg">
               {event.summary}
             </p>
           ) : null}
@@ -131,7 +131,7 @@ function HistoryDetails({
               exit="exit"
               variants={imageVariants}
               transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
-              className="mb-10"
+              className="mb-6 sm:mb-10"
             >
               <div className="relative w-full overflow-hidden rounded-[22px] border border-white/[0.05] bg-[#0B0B0F]/60">
                 <HistoryImage
@@ -139,7 +139,7 @@ function HistoryDetails({
                   alt={activeImage.alt}
                   priority
                   fill
-                  className="min-h-[280px] w-full p-4 sm:min-h-[400px] sm:p-6 lg:min-h-[520px] lg:p-8"
+                  className="min-h-[200px] w-full p-2 sm:min-h-[400px] sm:p-6 lg:min-h-[520px] lg:p-8"
                   imgClassName="h-auto w-full max-h-[min(75vh,820px)] object-contain"
                 />
               </div>
@@ -172,7 +172,7 @@ function HistoryDetails({
               {paragraphs.map((paragraph) => (
                 <p
                   key={paragraph.slice(0, 48)}
-                  className="text-[17px] leading-[1.85] text-[#B8B8B8] sm:text-lg"
+                  className="text-base leading-[1.75] text-[#B8B8B8] sm:text-lg sm:leading-[1.85]"
                 >
                   {paragraph}
                 </p>
@@ -202,7 +202,7 @@ function HistoryDetails({
         canNext={canNext}
         current={current}
         total={total}
-        className="mt-12"
+        className="mt-8 hidden sm:mt-12 sm:flex"
       />
     </article>
   );

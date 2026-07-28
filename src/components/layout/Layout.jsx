@@ -3,9 +3,6 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 import WhatsAppFab from "./WhatsAppFab";
-import EditModeFloatingFab from "./EditModeFloatingFab";
-import SessionFloatingFab from "./SessionFloatingFab";
-import ThemeFloatingFab from "./ThemeFloatingFab";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
 import SiteRecaptchaGate from "@/components/security/SiteRecaptchaGate";
@@ -25,7 +22,7 @@ export default function Layout() {
       <PostImagePresentationHost />
       <main
         id="main-content"
-        className="flex-1 min-w-0 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-[72px] sm:pt-[4.5rem] sm:pb-0 relative w-full"
+        className="flex-1 min-w-0 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:pt-[4.5rem] sm:pb-0 relative w-full"
       >
         <SiteRecaptchaGate>
           <DestaqueEventoGlobal />
@@ -37,9 +34,6 @@ export default function Layout() {
       <Footer />
       <BottomNav />
       <WhatsAppFab />
-      <ThemeFloatingFab />
-      <EditModeFloatingFab />
-      <SessionFloatingFab />
     </div>
   );
 }

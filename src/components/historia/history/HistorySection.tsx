@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import HistoryDetails from "@/components/historia/history/HistoryDetails";
+import HistoryMobileNavigator from "@/components/historia/history/HistoryMobileNavigator";
 import HistoryProgress from "@/components/historia/history/HistoryProgress";
 import HistoryTimeline from "@/components/historia/history/HistoryTimeline";
 import { TIMELINE_EVENTS } from "@/components/historia/history/timelineData";
@@ -123,18 +124,33 @@ function HistorySection({
         aria-hidden
       />
 
-      <HistoryProgress current={activeIndex + 1} total={total} />
+      <HistoryProgress
+        current={activeIndex + 1}
+        total={total}
+        className="hidden sm:block"
+      />
+
+      <HistoryMobileNavigator
+        events={events}
+        activeIndex={activeIndex}
+        onSelect={handleSelect}
+        onPrev={goPrev}
+        onNext={goNext}
+        canPrev={activeIndex > 0}
+        canNext={activeIndex < total - 1}
+      />
 
       <HistoryTimeline
         events={events}
         activeIndex={activeIndex}
         onSelect={handleSelect}
+        className="hidden sm:block"
       />
 
       <section
         ref={detailsRef}
         id="historia-detalhes"
-        className="mt-8 scroll-mt-24 sm:mt-10"
+        className="mt-4 scroll-mt-4 sm:mt-10 sm:scroll-mt-24"
         aria-label="Detalhes do evento selecionado"
       >
         <HistoryDetails

@@ -166,7 +166,7 @@ function TimelineHorizontalScroll({
       <div
         ref={scrollRef}
         className={cn(
-          "overflow-x-auto px-10 pb-1 sm:px-12",
+          "overflow-x-auto px-8 pb-1 sm:px-12",
           "cursor-grab active:cursor-grabbing",
           "[&.is-dragging]:scroll-auto [&.is-dragging]:select-none",
           "[-ms-overflow-style:none] [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]",

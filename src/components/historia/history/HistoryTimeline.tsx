@@ -45,8 +45,8 @@ function HistoryTimeline({
       aria-label="Índice da linha do tempo"
     >
       <TimelineHorizontalScroll ariaLabel="Navegar pelos eventos históricos">
-        <div className="relative mx-auto flex w-max min-w-full justify-center gap-4 px-2">
-          <div className="pointer-events-none absolute inset-x-16 top-10 z-0">
+        <div className="relative flex w-max gap-4 ps-[max(calc(50%-5.25rem),0.5rem)] pe-[max(calc(50%-5.25rem),0.5rem)]">
+          <div className="pointer-events-none absolute inset-x-[max(calc(50%-5.25rem),0.5rem)] top-3 z-0">
             <TimelineLine
               activeIndex={activeIndex}
               total={events.length}
@@ -60,24 +60,14 @@ function HistoryTimeline({
               ref={(el) => {
                 cardRefs.current[index] = el;
               }}
-              className="relative z-10 flex w-[200px] shrink-0 flex-col items-center"
+              className="relative z-10 flex w-[168px] shrink-0 flex-col items-center"
             >
-              <time
-                dateTime={event.yearLabel ? undefined : String(event.year)}
-                className={cn(
-                  "mb-2 flex h-5 items-center justify-center text-center font-display text-[11px] font-semibold tracking-wide",
-                  index === activeIndex ? "text-[#93C5FD]" : "text-[#94A3B8]",
-                )}
-              >
-                {formatEventYear(event)}
-              </time>
-
               <div className="flex h-6 items-center justify-center">
                 <TimelineMarker
                   isActive={index === activeIndex}
                   isPast={index < activeIndex}
                   onClick={() => handleSelect(index)}
-                  label={`${formatEventYear(event)} — ${event.title}`}
+                  label={`${formatEventYear(event)} — ${event.category}`}
                 />
               </div>
 
