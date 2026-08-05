@@ -74,7 +74,13 @@ const PrivateRoute = ({ children }) => {
     navigateToLogin,
   ]);
 
-  if (isLoadingAuth || isLoadingPublicSettings || isValidatingSession) {
+  // Não desmontar rotas autenticadas durante revalidação de sessão (ex.: após
+  // fechar o seletor de ficheiros) — isso apagava estado em memória (wizard, etc.).
+  if (isLoadingAuth || isLoadingPublicSettings) {
+    return <RouteSkeleton />;
+  }
+
+  if (isValidatingSession && !isAuthenticated) {
     return <RouteSkeleton />;
   }
 

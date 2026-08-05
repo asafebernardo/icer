@@ -160,7 +160,13 @@ export function AuthProvider({ children }) {
     return null;
   }, [fetchSessionUser]);
 
-  const validateServerSession = useCallback(async () => {
+  /**
+   * @param {{ soft?: boolean }} [opts]
+   * soft: revalidação em foco/visibility — não liga `isValidatingSession`
+   * (evita desmontar rotas privadas e perder estado de formulários/uploads).
+   */
+  const validateServerSession = useCallback(async (opts = {}) => {
+    const soft = opts?.soft === true;
     if (!isServerAuthEnabled()) {
       checkUserAuth();
       return;
@@ -169,8 +175,19 @@ export function AuthProvider({ children }) {
       await validateServerSessionRef.current;
       return;
     }
+    // Revalidação em foco pouco depois de uma sessão OK — evita churn ao
+    // voltar do seletor de ficheiros do SO.
+    if (
+      soft &&
+      lastSessionOkAtRef.current > 0 &&
+      Date.now() - lastSessionOkAtRef.current < 15_000
+    ) {
+      return;
+    }
     const genAtStart = sessionValidationGenRef.current;
-    setIsValidatingSession(true);
+    if (!soft) {
+      setIsValidatingSession(true);
+    }
     const run = (async () => {
       try {
         await fetchRuntimeEnv();
@@ -196,7 +213,9 @@ export function AuthProvider({ children }) {
       } catch {
         /* rede / servidor offline — não limpar sessão local */
       } finally {
-        setIsValidatingSession(false);
+        if (!soft) {
+          setIsValidatingSession(false);
+        }
         if (sessionValidationGenRef.current === genAtStart) {
           checkUserAuth();
         } else {
@@ -243,7 +262,8 @@ export function AuthProvider({ children }) {
       }
       window.clearTimeout(debounceTimer);
       debounceTimer = window.setTimeout(() => {
-        void validateServerSession();
+        // soft: não dispara skeleton/desmontagem de rotas privadas
+        void validateServerSession({ soft: true });
       }, 250);
     };
     window.addEventListener("focus", schedule);

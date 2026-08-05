@@ -19,7 +19,13 @@ export default function AdminRoute({ children }) {
     }
   }, [authChecked, isLoadingAuth, isValidatingSession, user, navigateToLogin, navigate]);
 
-  if (!authChecked || isLoadingAuth || isValidatingSession) {
+  // Manter a UI montada se já houver sessão — revalidação em foco (ex. upload)
+  // não deve desmontar formulários/wizards e apagar estado em memória.
+  if (!authChecked || isLoadingAuth) {
+    return <RouteSkeleton />;
+  }
+
+  if (isValidatingSession && !user) {
     return <RouteSkeleton />;
   }
 
