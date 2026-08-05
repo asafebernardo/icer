@@ -67,7 +67,6 @@ export function PostMedia({
         showFullscreenEntry={showPresentationButton}
         audioAmbienteUrl={audioAmbienteUrl}
         audioAmbienteAtivo
-        initialTab={galleryAdmin ? undefined : "galeria"}
         onFullscreenButton={(idx) =>
           openPostMediaPresentation(slides, idx, presentationOpts)
         }

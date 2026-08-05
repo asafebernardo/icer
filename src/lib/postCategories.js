@@ -6,6 +6,14 @@ import {
 /** Categorias de posts (alinhado a `entities/Post.json`). */
 export const POST_CATEGORIAS = DEFAULT_POST_CATEGORIES;
 
+/**
+ * Categorias seleccionáveis ao criar/editar posts (exclui o hub «eventos»,
+ * que não entra no mosaico/listagem de Eventos).
+ */
+export const POST_EDITOR_CATEGORIES = POST_CATEGORIAS.filter(
+  (c) => c.value !== "eventos",
+);
+
 export const POST_CATEGORIA_LABELS = Object.fromEntries(
   POST_CATEGORIAS.map((c) => [c.value, c.label]),
 );
@@ -45,6 +53,16 @@ export function normalizeStoredPostCategoria(value) {
     .trim()
     .toLowerCase();
   return isValidPostCategoria(slug) ? slug : "";
+}
+
+/**
+ * Categoria que aparece no hub/listagem de Eventos (não o slug hub «eventos»).
+ * @param {unknown} value
+ */
+export function normalizeListableEventosCategoria(value) {
+  const slug = normalizeStoredPostCategoria(value);
+  if (!slug || slug === "eventos") return "";
+  return EVENTOS_CATEGORY_KEY_SET.has(slug) ? slug : "";
 }
 
 /** Categorias temáticas de culto (exclui hubs e categorias retiradas). */

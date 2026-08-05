@@ -177,7 +177,11 @@ export default function Postagens() {
         <PostsAdminToolbar
           className="mb-3"
           canCreate={canCreate}
-          createHref="/Eventos/nova"
+          createHref={
+            selectedCard !== POSTS_EVENTOS_ALL_CARDS
+              ? `/Eventos/nova?categoria=${encodeURIComponent(selectedCard)}`
+              : "/Eventos/nova"
+          }
           needsEditMode={needsEditMode}
           start={
             <div className="flex min-w-0 flex-1 items-center gap-2">

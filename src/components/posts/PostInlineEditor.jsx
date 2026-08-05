@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { parseISO, isValid } from "date-fns";
-import { Plus, Upload, X } from "lucide-react";
+import { Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { PostMedia } from "@/components/posts/PostMedia";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,16 +20,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
 import {
-  POST_CATEGORIAS,
-  normalizeStoredPostCategoria,
+  POST_EDITOR_CATEGORIES,
+  normalizeListableEventosCategoria,
 } from "@/lib/postCategories";
 import {
   appendYoutubeSlidesFromUrls,
   buildSlidesFromAnexos,
   collectPostFeaturedEligibleUrls,
-  dedupeTagsPreserveOrder,
   normalizePost,
-  normalizeTagKey,
   normalizeVideoUrlsFromPost,
 } from "@/lib/posts";
 import { uploadIntegrationFile } from "@/lib/uploadImage";
@@ -67,7 +64,7 @@ function buildDraftFromPost(post) {
     descricao: String(p.descricao || ""),
     conteudo: String(p.conteudo || ""),
     dataPublicacao: postDateToInputValue(p.data_publicacao),
-    categoria: normalizeStoredPostCategoria(p.categoria),
+    categoria: normalizeListableEventosCategoria(p.categoria),
     tags: Array.isArray(p.tags) ? [...p.tags] : [],
     anexos: Array.isArray(p.anexos) ? p.anexos.map((a) => ({ ...a })) : [],
     imagemDestaqueUrl: String(p.imagem_destaque_url || "").trim(),
@@ -94,37 +91,18 @@ export default function PostInlineEditor({
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => buildDraftFromPost(post));
-  const [tagDraft, setTagDraft] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
     setDraft(buildDraftFromPost(post));
-    setTagDraft("");
     setError("");
   }, [post?.id, post?.updated_date]);
 
   const setField = useCallback((key, value) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
-
-  const addTag = () => {
-    const raw = String(tagDraft || "").replace(/,+$/, "").trim();
-    if (!raw) return;
-    setDraft((prev) => ({
-      ...prev,
-      tags: dedupeTagsPreserveOrder([...(prev.tags || []), raw]),
-    }));
-    setTagDraft("");
-  };
-
-  const removeTagAt = (idx) => {
-    setDraft((prev) => ({
-      ...prev,
-      tags: (prev.tags || []).filter((_, i) => i !== idx),
-    }));
-  };
 
   const removeAnexoByUrl = useCallback((url) => {
     const u = String(url || "").trim();
@@ -214,9 +192,11 @@ export default function PostInlineEditor({
   const saveMutation = useMutation({
     mutationFn: async () => {
       const titulo = String(draft.titulo || "").trim();
-      const descricao = String(draft.descricao || "").trim();
       if (!titulo) throw new Error("O título é obrigatório.");
-      if (!descricao) throw new Error("A descrição é obrigatória.");
+      const categoria = normalizeListableEventosCategoria(draft.categoria);
+      if (!categoria) {
+        throw new Error("Selecione uma categoria de Eventos.");
+      }
       const dataIso = postDateInputToIso(draft.dataPublicacao);
       if (!dataIso) throw new Error("Data de publicação inválida.");
 
@@ -233,9 +213,9 @@ export default function PostInlineEditor({
         }),
         body: JSON.stringify({
           titulo,
-          descricao,
+          descricao: String(draft.descricao || "").trim(),
           conteudo: String(draft.conteudo || "").trim(),
-          categoria: normalizeStoredPostCategoria(draft.categoria),
+          categoria,
           anexos: draft.anexos || [],
           video_urls: (draft.video_urls || [])
             .map((u) => String(u || "").trim())
@@ -243,7 +223,7 @@ export default function PostInlineEditor({
           video_url: String((draft.video_urls || []).find(Boolean) || "").trim(),
           data_publicacao: dataIso,
           carousel_interval_sec: draft.carousel_interval_sec,
-          tags: dedupeTagsPreserveOrder(draft.tags),
+          tags: Array.isArray(draft.tags) ? draft.tags : [],
           autor: draft.autor || "",
           imagem_destaque_url: featured,
           usar_galeria_por_dia: Boolean(draft.usar_galeria_por_dia),
@@ -360,18 +340,6 @@ export default function PostInlineEditor({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="inline-post-descricao" className="text-[#94A3B8]">
-            Descrição
-          </Label>
-          <Textarea
-            id="inline-post-descricao"
-            value={draft.descricao}
-            onChange={(e) => setField("descricao", e.target.value)}
-            className="min-h-[88px] resize-y border-white/[0.08] bg-[#08111F]/60"
-          />
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="inline-post-conteudo" className="text-[#94A3B8]">
             Conteúdo
           </Label>
@@ -403,72 +371,23 @@ export default function PostInlineEditor({
               Categoria
             </Label>
             <Select
-              value={draft.categoria || "__none__"}
-              onValueChange={(value) =>
-                setField("categoria", value === "__none__" ? "" : value)
-              }
+              value={draft.categoria || undefined}
+              onValueChange={(value) => setField("categoria", value)}
             >
               <SelectTrigger
                 id="inline-post-categoria"
                 className="border-white/[0.08] bg-[#08111F]/60"
               >
-                <SelectValue placeholder="Categoria" />
+                <SelectValue placeholder="Selecione a categoria" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">—</SelectItem>
-                {POST_CATEGORIAS.map((item) => (
+                {POST_EDITOR_CATEGORIES.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-[#94A3B8]">Tags</Label>
-          <div className="flex flex-wrap gap-2">
-            {(draft.tags || []).map((tag, idx) => (
-              <Badge
-                key={`${normalizeTagKey(tag)}-${idx}`}
-                variant="secondary"
-                className="gap-1 pr-1"
-              >
-                {tag}
-                <button
-                  type="button"
-                  className="rounded-full p-0.5 hover:bg-white/10"
-                  aria-label={`Remover tag ${tag}`}
-                  onClick={() => removeTagAt(idx)}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Input
-              value={tagDraft}
-              onChange={(e) => setTagDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTag();
-                }
-              }}
-              placeholder="Nova tag"
-              className="border-white/[0.08] bg-[#08111F]/60"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0 border-white/[0.08]"
-              onClick={addTag}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 

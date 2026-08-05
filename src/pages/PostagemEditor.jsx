@@ -33,10 +33,8 @@ import {
   Draggable,
 } from "@hello-pangea/dnd";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -84,17 +82,15 @@ import {
   buildSlidesFromAnexos,
   collectPostFeaturedEligibleUrls,
   collectVisualMediaUrlsFromAnexos,
-  dedupeTagsPreserveOrder,
   normalizeDiasGaleria,
   normalizePost,
-  normalizeTagKey,
   normalizeVideoUrlsFromPost,
   urlsToSlides,
 } from "@/lib/posts";
 import { cn } from "@/lib/utils";
 import {
-  POST_CATEGORIAS,
-  normalizeStoredPostCategoria,
+  POST_EDITOR_CATEGORIES,
+  normalizeListableEventosCategoria,
 } from "@/lib/postCategories";
 import { buildPostsNavPath, getPostCategoryLabel, resolvePostsReturnPath, getPostCategoryPath, POSTS_HUB_PATH } from "@/lib/postsNavPath";
 import {
@@ -153,16 +149,18 @@ function isVideoAttachmentUrl(anexos, url) {
   return typeof a?.mime === "string" && a.mime.startsWith("video/");
 }
 
-/** Erros por campo na etapa 1 (chaves: titulo, descricao, dataPublicacao). */
-function getStep1FieldErrors(titulo, descricao, dataPublicacao) {
+/** Erros por campo na etapa 1 (chaves: titulo, dataPublicacao, categoria). */
+function getStep1FieldErrors(titulo, dataPublicacao, categoria) {
   const e = {};
   if (!String(titulo || "").trim()) e.titulo = MSG_CAMPO_OBRIGATORIO;
-  if (!String(descricao || "").trim()) e.descricao = MSG_CAMPO_OBRIGATORIO;
   const raw = String(dataPublicacao || "").trim();
   if (!raw) {
     e.dataPublicacao = MSG_CAMPO_OBRIGATORIO;
   } else if (!dateInputToIso(dataPublicacao)) {
     e.dataPublicacao = "Indique uma data válida.";
+  }
+  if (!normalizeListableEventosCategoria(categoria)) {
+    e.categoria = "Selecione uma categoria de Eventos.";
   }
   return e;
 }
@@ -244,8 +242,8 @@ function getGaleriaPorSecoesFieldErrors(usarGaleriaPorDia, anexos, diasGaleria) 
 function sortFieldHintKeysForScroll(keys) {
   const priority = [
     "titulo",
-    "descricao",
     "dataPublicacao",
+    "categoria",
     "midia",
     "galeriaGlobal",
   ];
@@ -265,18 +263,44 @@ function getPostEditorBackTo(from, categoriaSlug) {
   if (typeof from === "string" && from.startsWith("/")) {
     return from;
   }
-  const cat = normalizeStoredPostCategoria(categoriaSlug);
+  const cat = normalizeListableEventosCategoria(categoriaSlug);
   const fallback = cat ? getPostCategoryPath(cat) : POSTS_HUB_PATH;
   return resolvePostsReturnPath(from, fallback);
 }
 
-/** Após publicar/guardar: preferir a página de origem (ex.: hub Eventos). */
-function navigateAfterPostSave(navigate, from) {
+/**
+ * Após publicar/guardar: preferir a listagem da categoria do post
+ * (evita voltar ao hub com filtros que escondem a nova publicação, ou
+ * a um slug hub «eventos» que não lista posts).
+ */
+function navigateAfterPostSave(navigate, from, categoriaSlug) {
+  const cat = normalizeListableEventosCategoria(categoriaSlug);
+  const categoryPath = cat ? getPostCategoryPath(cat) : null;
+  const fromPath =
+    typeof from === "string" && from.startsWith("/")
+      ? from.split("?")[0]
+      : "";
+
+  if (categoryPath) {
+    const fromIsHub =
+      !fromPath ||
+      fromPath === POSTS_HUB_PATH ||
+      fromPath === "/Eventos" ||
+      fromPath === "/Posts";
+    if (fromIsHub) {
+      navigate(categoryPath);
+      return;
+    }
+  }
+
   if (typeof from === "string" && from.startsWith("/")) {
     navigate(from);
     return;
   }
-  // Sem `state.from` (ex.: link directo): volta no histórico, senão ao hub.
+  if (categoryPath) {
+    navigate(categoryPath);
+    return;
+  }
   if (typeof window !== "undefined" && window.history.length > 1) {
     navigate(-1);
     return;
@@ -300,7 +324,7 @@ export default function PostagemEditor() {
   const from = location.state?.from;
   const [searchParams] = useSearchParams();
   const categoriaPresetRef = useRef("");
-  categoriaPresetRef.current = normalizeStoredPostCategoria(
+  categoriaPresetRef.current = normalizeListableEventosCategoria(
     searchParams.get("categoria"),
   );
   const { user: authUser, checkUserAuth } = useAuth();
@@ -385,10 +409,10 @@ export default function PostagemEditor() {
       }
       return parsed;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       toast.success("Post publicado com sucesso.");
-      navigateAfterPostSave(navigate, from);
+      navigateAfterPostSave(navigate, from, variables?.categoria);
     },
   });
 
@@ -416,11 +440,11 @@ export default function PostagemEditor() {
       }
       return parsed;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
       toast.success("Post salvo com sucesso.");
-      navigateAfterPostSave(navigate, from);
+      navigateAfterPostSave(navigate, from, variables?.categoria);
     },
   });
 
@@ -435,9 +459,6 @@ export default function PostagemEditor() {
   const [carousel_interval_sec, setCarouselInterval] = useState(5);
   const [categoria, setCategoria] = useState("");
   const [tags, setTags] = useState([]);
-  const [tagDraft, setTagDraft] = useState("");
-  const [editingTagIdx, setEditingTagIdx] = useState(-1);
-  const [editingTagDraft, setEditingTagDraft] = useState("");
   const [uploading, setUploading] = useState(false);
   /** Progresso global 0–100 ao enviar vários ficheiros na etapa 2 */
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -462,7 +483,7 @@ export default function PostagemEditor() {
   );
 
   const editorBreadcrumbItems = useMemo(() => {
-    const cat = normalizeStoredPostCategoria(categoria);
+    const cat = normalizeListableEventosCategoria(categoria);
     const base = cat
       ? buildPostsNavPath({ categoryKey: cat })
       : buildPostsNavPath();
@@ -553,9 +574,6 @@ export default function PostagemEditor() {
     setCarouselInterval(5);
     setCategoria(categoriaPresetRef.current);
     setTags([]);
-    setTagDraft("");
-    setEditingTagIdx(-1);
-    setEditingTagDraft("");
     setImagemDestaqueUrl("");
     setUsarGaleriaPorDia(false);
     setDiasGaleria([]);
@@ -600,11 +618,8 @@ export default function PostagemEditor() {
     }
     setDataPublicacao(isoToDateInputValue(p.data_publicacao));
     setCarouselInterval(p.carousel_interval_sec);
-    setCategoria(normalizeStoredPostCategoria(p.categoria));
-    setTags(dedupeTagsPreserveOrder(p.tags || []));
-    setTagDraft("");
-    setEditingTagIdx(-1);
-    setEditingTagDraft("");
+    setCategoria(normalizeListableEventosCategoria(p.categoria));
+    setTags(Array.isArray(p.tags) ? [...p.tags] : []);
     setImagemDestaqueUrl(String(p.imagem_destaque_url ?? "").trim());
     setUsarGaleriaPorDia(Boolean(p.usar_galeria_por_dia));
     setDiasGaleria(normalizeDiasGaleria(p.dias_galeria));
@@ -742,45 +757,6 @@ export default function PostagemEditor() {
     const errs = getStep2FieldErrors(anexos, video_urls);
     if (!errs.midia) clearFieldHint("midia");
   }, [anexos, video_urls, fieldHints.midia, clearFieldHint]);
-
-  const addTagFromDraft = () => {
-    const raw = String(tagDraft || "").replace(/,+$/, "").trim();
-    if (!raw) return;
-    setTags((cur) => dedupeTagsPreserveOrder([...(cur || []), raw]));
-    setTagDraft("");
-  };
-
-  const removeTagAt = (idx) => {
-    setTags((cur) => (Array.isArray(cur) ? cur.filter((_, i) => i !== idx) : []));
-    if (editingTagIdx === idx) {
-      setEditingTagIdx(-1);
-      setEditingTagDraft("");
-    }
-  };
-
-  const startEditTag = (idx) => {
-    const cur = tags[idx];
-    if (cur == null) return;
-    setEditingTagIdx(idx);
-    setEditingTagDraft(String(cur));
-  };
-
-  const commitEditTag = () => {
-    if (editingTagIdx < 0) return;
-    const raw = String(editingTagDraft || "").replace(/,+$/, "").trim();
-    const idx = editingTagIdx;
-    setEditingTagIdx(-1);
-    setEditingTagDraft("");
-    if (!raw) {
-      removeTagAt(idx);
-      return;
-    }
-    setTags((cur) => {
-      const list = Array.isArray(cur) ? [...cur] : [];
-      list[idx] = raw;
-      return dedupeTagsPreserveOrder(list);
-    });
-  };
 
   const handleAddMedia = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -1053,7 +1029,7 @@ export default function PostagemEditor() {
 
   const goToStep2 = () => {
     setError("");
-    const errs = getStep1FieldErrors(titulo, descricao, dataPublicacao);
+    const errs = getStep1FieldErrors(titulo, dataPublicacao, categoria);
     if (Object.keys(errs).length) {
       showFieldHintsBatch(errs);
       return;
@@ -1106,7 +1082,7 @@ export default function PostagemEditor() {
 
     return {
       titulo: titulo.trim(),
-      descricao: descricao.trim(),
+      descricao: String(descricao || "").trim(),
       anexos,
       video_urls: videoUrlsClean,
       video_url: videoUrlsClean[0] || "",
@@ -1115,8 +1091,8 @@ export default function PostagemEditor() {
         60,
         Math.max(2, Number(carousel_interval_sec) || 5),
       ),
-      tags: dedupeTagsPreserveOrder(tags),
-      categoria: categoria || undefined,
+      tags: Array.isArray(tags) ? tags : [],
+      categoria: normalizeListableEventosCategoria(categoria) || undefined,
       autor: autorEmail || "",
       imagem_destaque_url: featured,
       usar_galeria_por_dia: usarGaleriaPorDia,
@@ -1146,7 +1122,7 @@ export default function PostagemEditor() {
   const handleSubmit = () => {
     setError("");
     clearAllFieldHints();
-    const step1Errs = getStep1FieldErrors(titulo, descricao, dataPublicacao);
+    const step1Errs = getStep1FieldErrors(titulo, dataPublicacao, categoria);
     if (Object.keys(step1Errs).length) {
       setStep(1);
       showFieldHintsBatch(step1Errs);
@@ -1315,33 +1291,6 @@ export default function PostagemEditor() {
 
           <div
             className="space-y-2 scroll-mt-28"
-            ref={setFieldHintAnchor("descricao")}
-          >
-            <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3">
-              <Label htmlFor="post-desc">Descrição *</Label>
-              <FieldHintMessage
-                message={fieldHints.descricao}
-                className="text-sm text-destructive"
-              />
-            </div>
-            <Textarea
-              id="post-desc"
-              value={descricao}
-              onChange={(e) => {
-                setDescricao(e.target.value);
-                clearFieldHint("descricao");
-              }}
-              placeholder="Texto da publicação"
-              className={cn(
-                "min-h-[100px] resize-y",
-                fieldHints.descricao &&
-                  "border-destructive ring-2 ring-destructive/30 focus-visible:ring-destructive/40",
-              )}
-              aria-invalid={!!fieldHints.descricao}
-            />
-          </div>
-          <div
-            className="space-y-2 scroll-mt-28"
             ref={setFieldHintAnchor("dataPublicacao")}
           >
             <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3">
@@ -1367,8 +1316,17 @@ export default function PostagemEditor() {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="post-categoria">Categoria</Label>
+          <div
+            className="space-y-2 scroll-mt-28"
+            ref={setFieldHintAnchor("categoria")}
+          >
+            <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3">
+              <Label htmlFor="post-categoria">Categoria *</Label>
+              <FieldHintMessage
+                message={fieldHints.categoria}
+                className="text-sm text-destructive"
+              />
+            </div>
             {categoriaLocked ? (
               <Input
                 id="post-categoria"
@@ -1379,17 +1337,25 @@ export default function PostagemEditor() {
               />
             ) : (
               <Select
-                value={categoria || "__none__"}
-                onValueChange={(value) =>
-                  setCategoria(value === "__none__" ? "" : value)
-                }
+                value={categoria || undefined}
+                onValueChange={(value) => {
+                  setCategoria(value);
+                  clearFieldHint("categoria");
+                }}
               >
-                <SelectTrigger id="post-categoria" className="w-full">
+                <SelectTrigger
+                  id="post-categoria"
+                  className={cn(
+                    "w-full",
+                    fieldHints.categoria &&
+                      "border-destructive ring-2 ring-destructive/30 focus-visible:ring-destructive/40",
+                  )}
+                  aria-invalid={!!fieldHints.categoria}
+                >
                   <SelectValue placeholder="Selecione a categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">—</SelectItem>
-                  {POST_CATEGORIAS.map((item) => (
+                  {POST_EDITOR_CATEGORIES.map((item) => (
                     <SelectItem key={item.value} value={item.value}>
                       {item.label}
                     </SelectItem>
@@ -1397,76 +1363,6 @@ export default function PostagemEditor() {
                 </SelectContent>
               </Select>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Tags (opcional)</Label>
-            <Input
-              value={tagDraft}
-              onChange={(e) => setTagDraft(e.target.value)}
-              placeholder="Digite e pressione Enter ou vírgula…"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === ",") {
-                  e.preventDefault();
-                  addTagFromDraft();
-                }
-                if (e.key === "Backspace" && !tagDraft && tags.length > 0) {
-                  removeTagAt(tags.length - 1);
-                }
-              }}
-              onBlur={() => addTagFromDraft()}
-            />
-            {tags.length > 0 ? (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {tags.map((t, idx) => {
-                  const isEditing = editingTagIdx === idx;
-                  return (
-                    <span
-                      key={`${normalizeTagKey(t)}-${idx}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1"
-                    >
-                      {isEditing ? (
-                        <input
-                          value={editingTagDraft}
-                          onChange={(e) => setEditingTagDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === ",") {
-                              e.preventDefault();
-                              commitEditTag();
-                            }
-                            if (e.key === "Escape") {
-                              setEditingTagIdx(-1);
-                              setEditingTagDraft("");
-                            }
-                          }}
-                          onBlur={commitEditTag}
-                          className="bg-transparent outline-none text-sm min-w-[6rem]"
-                          autoFocus
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEditTag(idx)}
-                          className="text-sm text-foreground hover:underline underline-offset-2"
-                          title="Clique para editar"
-                        >
-                          {t}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeTagAt(idx)}
-                        className="w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center hover:bg-destructive/10"
-                        aria-label="Remover tag"
-                        title="Remover"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            ) : null}
           </div>
 
 
@@ -2872,25 +2768,7 @@ export default function PostagemEditor() {
                 <p className="text-sm text-muted-foreground">
                   Data da publicação: {previewPubLabel}
                 </p>
-                {tags.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((t) => (
-                      <Badge key={normalizeTagKey(t)} variant="secondary">
-                        {t}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
               </header>
-              {descricao.trim() ? (
-                <p className="whitespace-pre-wrap leading-relaxed text-foreground">
-                  {descricao}
-                </p>
-              ) : (
-                <p className="text-sm italic text-muted-foreground">
-                  Sem descrição.
-                </p>
-              )}
 
               <div className="border-t border-border pt-6">
                 <PostMedia
