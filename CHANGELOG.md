@@ -1,3 +1,8 @@
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v3.9.1...v0.0.0) (2026-08-10)
+
+### Features
+
+* **historia:** refatora timeline, eventos e apresentação em slides ([bfe0c1d](https://github.com/asafebernardo/icer/commit/bfe0c1df3dc4180651312d3b407640adc7896c19))
 ## [0.0.0](https://github.com/asafebernardo/icer/compare/v2.0.2...v0.0.0) (2026-07-28)
 
 ### Features

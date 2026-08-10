@@ -15,12 +15,8 @@ function HistoryGallery({ images, activeIndex, onSelect }: HistoryGalleryProps) 
   if (images.length <= 1) return null;
 
   return (
-    <div
-      className="mt-6"
-      role="group"
-      aria-label="Galeria de imagens do evento"
-    >
-      <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-[#64748B]">
+    <div role="group" aria-label="Galeria de imagens do evento">
+      <p className="mb-2.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         Galeria
       </p>
       <div className="flex justify-center gap-2.5 overflow-x-auto pb-1 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible sm:pb-0">
@@ -40,12 +36,12 @@ function HistoryGallery({ images, activeIndex, onSelect }: HistoryGalleryProps) 
               }}
               transition={{ duration: 0.25 }}
               className={cn(
-                "relative h-[64px] w-[76px] shrink-0 overflow-hidden rounded-xl border bg-[#0B0B0F] sm:h-[72px] sm:w-[88px]",
+                "relative h-[64px] w-[76px] shrink-0 overflow-hidden rounded-xl border bg-muted sm:h-[72px] sm:w-[88px]",
                 "transition-colors duration-200",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/45",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isActive
-                  ? "border-[#3B82F6]/60 shadow-[0_0_0_1px_rgba(59,130,246,0.2),0_4px_16px_rgba(59,130,246,0.1)]"
-                  : "border-white/[0.08] hover:border-white/[0.16] hover:opacity-90",
+                  ? "border-primary/60 shadow-[0_0_0_1px_hsl(var(--primary)/0.2),0_4px_16px_hsl(var(--primary)/0.1)]"
+                  : "border-border hover:border-border/80 hover:opacity-90",
               )}
             >
               <HistoryImage

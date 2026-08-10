@@ -37,6 +37,8 @@ import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
 import Historia from "./pages/Historia";
+import HistoriaApresentacaoPage from "./pages/HistoriaApresentacaoPage";
+import HistoriaEventoPage from "./pages/HistoriaEventoPage";
 import Agenda from "./pages/Agenda";
 import AdminRoute from "./components/AdminRoute";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
@@ -208,6 +210,8 @@ const AppRoutes = () => {
         />
         <Route path="Postagens" element={<Navigate to="/Eventos" replace />} />
         <Route path="Post/:id" element={<PostPage />} />
+        <Route path="Historia/apresentacao" element={<HistoriaApresentacaoPage />} />
+        <Route path="Historia/:id" element={<HistoriaEventoPage />} />
         <Route path="Historia" element={<Historia />} />
       </Route>
 

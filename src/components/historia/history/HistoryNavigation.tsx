@@ -36,16 +36,16 @@ function NavButton({
       whileTap={disabled ? undefined : { scale: 0.98 }}
       className={cn(
         "group relative inline-flex items-center gap-2 overflow-hidden rounded-full",
-        "border border-white/[0.08] bg-white/[0.03] px-4 py-2.5",
-        "text-sm font-medium text-[#94A3B8]",
-        "transition-colors duration-200 hover:border-white/[0.14] hover:bg-white/[0.05] hover:text-[#E2E8F0]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0B0B0F]",
+        "border border-border bg-muted/50 px-4 py-2.5",
+        "text-sm font-medium text-muted-foreground",
+        "transition-colors duration-200 hover:border-border/80 hover:bg-muted hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:pointer-events-none disabled:opacity-25",
         className,
       )}
     >
       <span
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_var(--x,50%)_var(--y,50%),rgba(59,130,246,0.12),transparent_65%)] opacity-0 transition-opacity group-hover:opacity-100"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_var(--x,50%)_var(--y,50%),hsl(var(--primary)/0.1),transparent_65%)] opacity-0 transition-opacity group-hover:opacity-100"
         aria-hidden
       />
       {children}
@@ -66,7 +66,7 @@ function HistoryNavigation({
     <nav
       aria-label="Navegação entre eventos"
       className={cn(
-        "flex flex-col items-stretch gap-4 border-t border-white/[0.06] pt-8 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col items-stretch gap-4 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
@@ -81,13 +81,13 @@ function HistoryNavigation({
       </NavButton>
 
       <p
-        className="order-first text-center text-sm text-[#64748B] sm:order-none"
+        className="order-first text-center text-sm text-muted-foreground sm:order-none"
         aria-live="polite"
       >
         Evento{" "}
-        <span className="font-medium tabular-nums text-[#E2E8F0]">{current}</span>
+        <span className="font-medium tabular-nums text-foreground">{current}</span>
         {" de "}
-        <span className="font-medium tabular-nums text-[#E2E8F0]">{total}</span>
+        <span className="font-medium tabular-nums text-foreground">{total}</span>
       </p>
 
       <NavButton

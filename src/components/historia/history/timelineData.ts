@@ -501,3 +501,11 @@ A maior parte deste panorama histórico foi compilada do livro Os "Irmãos", de 
     ],
   },
 ];
+
+export function getTimelineEventById(id: string) {
+  return TIMELINE_EVENTS.find((event) => event.id === id);
+}
+
+export function getTimelineEventIndex(id: string) {
+  return TIMELINE_EVENTS.findIndex((event) => event.id === id);
+}

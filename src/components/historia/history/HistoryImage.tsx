@@ -45,14 +45,14 @@ function HistoryImage({
     <div
       className={cn(
         "relative flex items-center justify-center overflow-hidden",
-        "bg-[radial-gradient(ellipse_80%_70%_at_50%_50%,rgba(255,255,255,0.04),transparent_70%)]",
+        "bg-[radial-gradient(ellipse_80%_70%_at_50%_50%,hsl(var(--muted-foreground)/0.06),transparent_70%)]",
         fill && "min-h-[inherit]",
         className,
       )}
     >
       {!loaded ? (
         <div
-          className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/[0.03] via-white/[0.06] to-white/[0.02]"
+          className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted via-muted/80 to-muted/50"
           aria-hidden
         />
       ) : null}
