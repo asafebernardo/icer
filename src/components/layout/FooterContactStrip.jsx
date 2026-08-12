@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 const linkClass = cn(
   "text-muted-foreground transition-colors hover:text-foreground",
   "underline-offset-2 hover:underline",
-  "max-w-[10.5rem] truncate sm:max-w-[14rem]",
 );
 
 /**
@@ -43,7 +42,12 @@ export default function FooterContactStrip({ details }) {
             title={item.label}
             target={item.external ? "_blank" : undefined}
             rel={item.external ? "noopener noreferrer" : undefined}
-            className={linkClass}
+            className={cn(
+              linkClass,
+              item.key === "address"
+                ? "max-w-full whitespace-normal text-center break-words"
+                : "max-w-[10.5rem] truncate sm:max-w-[14rem]",
+            )}
           >
             {labelFor(item)}
           </a>

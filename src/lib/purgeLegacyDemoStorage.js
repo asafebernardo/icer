@@ -24,6 +24,7 @@ export function purgeLegacyDemoStorage() {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(SEED_KEY);
+    localStorage.removeItem("icer-dev-theme-palette");
 
     const postsRaw = localStorage.getItem("posts");
     if (postsRaw) {

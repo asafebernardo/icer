@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +21,9 @@ function imgClassForFit(fit) {
  * @param {number} rotateIntervalMs
  * @param {number} transitionMs
  * @param {"fade"|"slide"} transitionMode
+ * @param {number} [index] — índice controlado (opcional)
+ * @param {(index: number) => void} [onIndexChange]
+ * @param {boolean} [autoplay=true]
  */
 export default function BackgroundSlideshow({
   urls,
@@ -28,14 +31,37 @@ export default function BackgroundSlideshow({
   transitionMs,
   transitionMode,
   fit = "cover",
+  index: controlledIndex,
+  onIndexChange,
+  autoplay = true,
 }) {
   const clean = (urls || []).filter(Boolean);
-  const [index, setIndex] = useState(0);
+  const isControlled = controlledIndex != null && Number.isFinite(controlledIndex);
+  const [internalIndex, setInternalIndex] = useState(0);
   const [slideFailed, setSlideFailed] = useState(false);
   const reduceMotion = usePrefersReducedMotion();
+  const onIndexChangeRef = useRef(onIndexChange);
+  onIndexChangeRef.current = onIndexChange;
+
+  const index = isControlled
+    ? Math.max(0, Math.min(Math.max(clean.length - 1, 0), controlledIndex))
+    : internalIndex;
+  const indexRef = useRef(index);
+  indexRef.current = index;
+
+  const commitIndex = (next) => {
+    if (clean.length === 0) return;
+    const current = indexRef.current;
+    const resolved = typeof next === "function" ? next(current) : next;
+    const clamped = ((resolved % clean.length) + clean.length) % clean.length;
+    if (!isControlled) setInternalIndex(clamped);
+    onIndexChangeRef.current?.(clamped);
+  };
 
   useEffect(() => {
-    setIndex(0);
+    if (!isControlled) setInternalIndex(0);
+    else onIndexChangeRef.current?.(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when slide set changes
   }, [clean.length, clean.join("|")]);
 
   useEffect(() => {
@@ -43,13 +69,15 @@ export default function BackgroundSlideshow({
   }, [index, clean.length, clean.join("|")]);
 
   useEffect(() => {
+    if (!autoplay) return undefined;
     if (clean.length <= 1) return undefined;
     if (reduceMotion) return undefined;
     const t = window.setInterval(() => {
-      setIndex((i) => (i + 1) % clean.length);
+      commitIndex((i) => i + 1);
     }, rotateIntervalMs);
     return () => window.clearInterval(t);
-  }, [clean.length, rotateIntervalMs, reduceMotion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoplay, clean.length, rotateIntervalMs, reduceMotion, isControlled]);
 
   if (clean.length === 0) return null;
 

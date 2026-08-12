@@ -80,7 +80,7 @@ export default function HistoriaEventoPage() {
           Voltar à timeline
         </Link>
 
-        <HistoryEventDetail event={event} />
+        <HistoryEventDetail event={event} timelineIndex={index} />
 
         <div className="mt-8 border-t border-border pt-6 sm:mt-10 sm:pt-8">
           <HistoryNavigation

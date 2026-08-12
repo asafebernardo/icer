@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Presentation } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 import HistorySection from "@/components/historia/history/HistorySection";
 
@@ -12,11 +12,11 @@ export default function Historia() {
             Movimento dos Irmãos
           </h1>
           <Link
-            to="/Historia/apresentacao"
+            to="/Historia/wiki"
             className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/35 hover:bg-primary/10 hover:text-primary"
           >
-            <Presentation className="h-4 w-4 shrink-0" aria-hidden />
-            Apresentação
+            <BookOpen className="h-4 w-4 shrink-0" aria-hidden />
+            Wiki
           </Link>
         </div>
         <HistorySection />

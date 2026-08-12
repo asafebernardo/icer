@@ -518,12 +518,8 @@ export default function Eventos({ embedded = false } = {}) {
     }
   }, [isAdmin, aba]);
 
-  // Paginação da lista:
-  // - Com eventos no mês atual: grelha 2×3 → até 3 cartões por coluna (= 6 por página); lista sem o cartão de «destaque no site» (evita duplicar)
-  // - Sem eventos no mês: até 12 ordenados, sem paginação, também sem o destaque no site na lista
-  const COLUNAS_GRID_TODOS = 2;
-  const POR_COLUNA_TODOS = 3;
-  const PAGE_SIZE_TODOS_MES = COLUNAS_GRID_TODOS * POR_COLUNA_TODOS;
+  // Paginação da lista: 10 por página; sem o cartão de «destaque no site» (evita duplicar)
+  const PAGE_SIZE = 10;
   const now = new Date();
   const mesAtual = sorted.filter((e) => {
     if (!e?.data) return false;
@@ -533,7 +529,7 @@ export default function Eventos({ embedded = false } = {}) {
       return false;
     }
   });
-  const todosBaseRaw = mesAtual.length > 0 ? mesAtual : sorted.slice(0, 12);
+  const todosBaseRaw = mesAtual.length > 0 ? mesAtual : sorted;
 
   /**
    * Destaque do site só aparece se o evento ainda for futuro ou se quem estiver a ver
@@ -583,18 +579,15 @@ export default function Eventos({ embedded = false } = {}) {
     return acc;
   }, {});
 
-  const totalPagesTodos =
-    mesAtual.length > 0
-      ? Math.max(1, Math.ceil(todosBasePorTempo.length / PAGE_SIZE_TODOS_MES))
-      : 1;
+  const totalPagesTodos = Math.max(
+    1,
+    Math.ceil(todosBasePorTempo.length / PAGE_SIZE),
+  );
 
-  const todosPageItems =
-    mesAtual.length > 0
-      ? todosBasePorTempo.slice(
-          pageTodos * PAGE_SIZE_TODOS_MES,
-          pageTodos * PAGE_SIZE_TODOS_MES + PAGE_SIZE_TODOS_MES,
-        )
-      : todosBasePorTempo;
+  const todosPageItems = todosBasePorTempo.slice(
+    pageTodos * PAGE_SIZE,
+    pageTodos * PAGE_SIZE + PAGE_SIZE,
+  );
 
   const lista = todosPageItems;
 
@@ -914,7 +907,7 @@ export default function Eventos({ embedded = false } = {}) {
                   )}
                 </div>
 
-                {mesAtual.length > 0 && totalPagesTodos > 1 ? (
+                {totalPagesTodos > 1 ? (
                   <div className="flex justify-center pt-8 mt-2 border-t border-border/60">
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       <Button

@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 
 import HistoryEventCard from "@/components/historia/history/HistoryEventCard";
+import { buildYearSideMap } from "@/components/historia/history/timelineSide";
 import {
   CATEGORY_COLORS,
   type TimelineEvent,
@@ -12,26 +13,6 @@ interface HistoryVerticalTimelineProps {
   activeIndex: number;
   onActiveIndexChange?: (index: number) => void;
   className?: string;
-}
-
-/** Alterna esquerda/direita por ano; eventos do mesmo ano ficam no mesmo lado. */
-function buildYearSideMap(events: TimelineEvent[]): boolean[] {
-  const sides: boolean[] = [];
-  const yearToSide = new Map<number, boolean>();
-  let nextIsLeft = true;
-
-  for (const event of events) {
-    const existing = yearToSide.get(event.year);
-    if (existing !== undefined) {
-      sides.push(existing);
-    } else {
-      yearToSide.set(event.year, nextIsLeft);
-      sides.push(nextIsLeft);
-      nextIsLeft = !nextIsLeft;
-    }
-  }
-
-  return sides;
 }
 
 function TimelineMarker({
@@ -108,13 +89,11 @@ function HistoryVerticalTimeline({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Linha vertical — mobile (lateral) */}
       <div
         className="pointer-events-none absolute bottom-0 left-[11px] top-0 w-px bg-border sm:hidden"
         aria-hidden
       />
 
-      {/* Linha vertical — desktop (central) */}
       <div
         className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border sm:block"
         aria-hidden
@@ -127,6 +106,7 @@ function HistoryVerticalTimeline({
           const isPast = index < activeIndex;
           const isLeft = eventSides[index] ?? index % 2 === 0;
           const isLast = index === events.length - 1;
+          const side = isLeft ? "left" : "right";
 
           return (
             <li
@@ -141,7 +121,7 @@ function HistoryVerticalTimeline({
                 !isLast && "pb-2 sm:pb-2.5",
               )}
             >
-              {/* Mobile: coluna única */}
+              {/* Mobile */}
               <div className="flex min-w-0 items-start gap-2.5 sm:hidden">
                 <div className="flex w-[22px] shrink-0 justify-center pt-3">
                   <TimelineMarker
@@ -154,18 +134,20 @@ function HistoryVerticalTimeline({
                 <HistoryEventCard
                   event={event}
                   isActive={isActive}
+                  side={side}
                   className="min-w-0 flex-1"
                 />
               </div>
 
-              {/* Desktop: alternância esquerda/direita, marcador central inline */}
+              {/* Desktop: card completo (imagem + texto) no lado da timeline */}
               <div className="hidden sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-start sm:gap-x-2">
                 <div className="flex justify-end pr-2">
                   {isLeft ? (
                     <HistoryEventCard
                       event={event}
                       isActive={isActive}
-                      className="w-full max-w-[20rem] lg:max-w-[22rem]"
+                      side="left"
+                      className="w-full max-w-[26rem] lg:max-w-[28rem]"
                     />
                   ) : null}
                 </div>
@@ -183,7 +165,8 @@ function HistoryVerticalTimeline({
                     <HistoryEventCard
                       event={event}
                       isActive={isActive}
-                      className="w-full max-w-[20rem] lg:max-w-[22rem]"
+                      side="right"
+                      className="w-full max-w-[26rem] lg:max-w-[28rem]"
                     />
                   ) : null}
                 </div>

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Mail, MapPin, Phone, Settings2 } from "lucide-react";
+import { Facebook, Instagram, Mail, MapPin, Settings2 } from "lucide-react";
 
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -32,37 +32,24 @@ function ContactCard({
   href,
   external,
   iconClassName,
-  /** Se false, o título só aparece a partir de `sm` (ex.: Endereço / Telefone). */
-  showTitleAlways = false,
 }) {
   const content = (
     <>
       <span
         className={cn(
           "mb-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/8 text-primary sm:mb-3",
-          "max-sm:mb-0",
           iconClassName,
         )}
       >
         <Icon className="h-5 w-5" aria-hidden />
       </span>
       {title ? (
-        <h3
-          className={cn(
-            "font-display text-base font-semibold text-foreground",
-            !showTitleAlways && "hidden sm:block",
-          )}
-        >
+        <h3 className="font-display text-sm font-semibold text-foreground sm:text-base">
           {title}
         </h3>
       ) : null}
       {children != null ? (
-        <div
-          className={cn(
-            "text-sm leading-relaxed text-muted-foreground",
-            title && showTitleAlways ? "mt-1.5 max-sm:mt-0" : "sm:mt-1.5",
-          )}
-        >
+        <div className="mt-1.5 text-sm leading-relaxed text-muted-foreground break-words">
           {children}
         </div>
       ) : null}
@@ -70,8 +57,7 @@ function ContactCard({
   );
 
   const className = cn(
-    "contact-card-premium flex h-full flex-col rounded-2xl p-5 transition-all duration-300",
-    "max-sm:flex-row max-sm:items-center max-sm:gap-3",
+    "contact-card-premium flex h-full min-w-0 flex-col rounded-2xl p-4 transition-all duration-300 sm:p-5",
     "hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_14px_36px_rgba(15,23,42,0.1)]",
   );
 
@@ -178,55 +164,49 @@ export default function ContatoSection() {
             compact
           />
         ) : (
-          <div className="mx-auto max-w-4xl space-y-3">
-            {hasDetails ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {details.endereco ? (
-                  <ContactCard
-                    icon={MapPin}
-                    title="Endereço"
-                    href={addressLink?.href}
-                    external
-                  >
-                    {details.endereco}
-                  </ContactCard>
-                ) : null}
-                {details.telefone ? (
-                  <ContactCard
-                    icon={Phone}
-                    title="Telefone / WhatsApp"
-                    href={phoneLink?.href}
-                    external={phoneLink?.external}
-                  >
-                    {details.telefone}
-                  </ContactCard>
-                ) : null}
-                {details.email ? (
-                  <ContactCard icon={Mail} title="E-mail" href={emailLink?.href}>
-                    {details.email}
-                  </ContactCard>
-                ) : null}
-              </div>
-            ) : null}
-
-            {hasSocial ? (
-              <div
-                className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-                aria-label="Redes sociais"
+          <div className="grid w-full grid-cols-2 gap-3">
+            {details.endereco ? (
+              <ContactCard
+                icon={MapPin}
+                title="Endereço"
+                href={addressLink?.href}
+                external
+                iconClassName="text-[#EA4335] border-red-500/20 bg-red-500/10"
               >
-                {socialItems.map((item) => (
-                  <ContactCard
-                    key={item.key}
-                    icon={item.Icon}
-                    title={item.title}
-                    href={item.href}
-                    external
-                    showTitleAlways
-                    iconClassName={item.iconClassName}
-                  />
-                ))}
-              </div>
+                {details.endereco}
+              </ContactCard>
             ) : null}
+            {details.telefone ? (
+              <ContactCard
+                icon={WhatsappIcon}
+                title="Telefone / WhatsApp"
+                href={phoneLink?.href}
+                external={phoneLink?.external}
+                iconClassName="text-[#25D366] border-emerald-500/20 bg-emerald-500/10"
+              >
+                {details.telefone}
+              </ContactCard>
+            ) : null}
+            {details.email ? (
+              <ContactCard
+                icon={Mail}
+                title="E-mail"
+                href={emailLink?.href}
+                iconClassName="text-[#4285F4] border-blue-500/20 bg-blue-500/10"
+              >
+                {details.email}
+              </ContactCard>
+            ) : null}
+            {socialItems.map((item) => (
+              <ContactCard
+                key={item.key}
+                icon={item.Icon}
+                title={item.title}
+                href={item.href}
+                external
+                iconClassName={item.iconClassName}
+              />
+            ))}
           </div>
         )}
       </div>

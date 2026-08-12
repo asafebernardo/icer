@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { motion } from "framer-motion";
-import { ImagePlus, Trash2, Plus, Pencil } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { ImagePlus, Trash2, Plus } from "lucide-react";
 
-import BackgroundSlideshow from "@/components/shared/BackgroundSlideshow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +14,12 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 
-import HomeSectionBackdrop from "@/components/home/HomeSectionBackdrop";
+import ServiceTimesVariantEditorial from "@/components/home/service-times/ServiceTimesVariantEditorial";
+import {
+  cardsToEventViews,
+  normalizeCardImages,
+} from "@/components/home/service-times/serviceTimesModel";
+import useSiteContactDetails from "@/hooks/useSiteContactDetails";
 import {
   getSiteConfig,
   refreshPublicSiteConfig,
@@ -27,11 +30,8 @@ import { useHeroBackground } from "@/lib/useHeroBackground";
 import { imageFileToStorableUrl } from "@/lib/uploadImage";
 import { MENU } from "@/lib/auth";
 import useCanEdit from "@/lib/useCanEdit";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { imageScrimFlat, imageScrimBottom } from "@/lib/imageScrimClasses";
-import { homeSectionSolidContent } from "@/lib/homeSectionSolidClasses";
 import { SECTION_BG_KEYS } from "@/lib/homeContentDefaults";
+import { toast } from "sonner";
 
 const CONFIG_KEY = "serviceTimes";
 
@@ -89,15 +89,6 @@ const FALLBACK_TEMPLATE = () => ({
   highlight: false,
 });
 
-function normalizeCardImages(c) {
-  const urls = Array.isArray(c.imageUrls)
-    ? c.imageUrls.filter(Boolean)
-    : [];
-  if (urls.length > 0) return urls;
-  if (c.imageUrl) return [c.imageUrl];
-  return [];
-}
-
 function loadCards() {
   const cfg = getSiteConfig();
   const saved = cfg[CONFIG_KEY]?.cards;
@@ -133,16 +124,10 @@ function loadCards() {
   });
 }
 
-function sortCardsDisplay(list) {
-  return [...list].sort((a, b) => {
-    if (a.highlight === b.highlight) return 0;
-    return a.highlight ? -1 : 1;
-  });
-}
-
 export default function ServiceTimes({ standalone = false } = {}) {
   const { rotateIntervalMs, transitionMs, transitionMode } =
     useHeroBackground();
+  const contact = useSiteContactDetails();
   const canEditHome = useCanEdit(MENU.HOME);
   const [sectionBgUrl, setSectionBgUrl] = useState("");
   const [cards, setCards] = useState(loadCards);
@@ -280,213 +265,70 @@ export default function ServiceTimes({ standalone = false } = {}) {
   };
 
   const clearImages = () => {
-    setDraft((d) =>
-      d ? { ...d, imageUrls: [], imageUrl: "" } : d,
-    );
+    setDraft((d) => (d ? { ...d, imageUrls: [], imageUrl: "" } : d));
   };
 
-  const cardImageUrls = (card) => normalizeCardImages(card);
-  const displayCards = sortCardsDisplay(cards);
-  const solidHeader = !sectionBgUrl;
+  const events = useMemo(
+    () =>
+      cardsToEventViews(cards, {
+        location: contact.endereco,
+        mapsHref: contact.mapsHref,
+        sectionBgUrl,
+      }),
+    [cards, contact.endereco, contact.mapsHref, sectionBgUrl],
+  );
+
+  const slideshow = useMemo(
+    () => ({ rotateIntervalMs, transitionMs, transitionMode }),
+    [rotateIntervalMs, transitionMs, transitionMode],
+  );
+
+  const variantProps = {
+    standalone,
+    sectionBgUrl,
+    events,
+    canEdit: canEditHome,
+    onEdit: openEdit,
+    mapsHref: contact.mapsHref,
+    slideshow,
+  };
 
   return (
     <>
-      <HomeSectionBackdrop
-        imageUrl={sectionBgUrl}
-        className={cn(
-          standalone
-            ? "border-t border-border/60 py-10 sm:py-14 lg:py-20"
-            : "py-16 sm:py-20 lg:py-28",
-        )}
+      {canEditHome ? (
+        <div className="container-page flex flex-wrap justify-end gap-2 py-4">
+          <Button
+            type="button"
+            size="sm"
+            className="gap-2"
+            onClick={openNewCard}
+            aria-label="Novo horário"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Novo horário</span>
+          </Button>
+        </div>
+      ) : null}
+
+      <ServiceTimesVariantEditorial {...variantProps} />
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={(o) => {
+          setEditOpen(o);
+          if (!o) {
+            setDraft(null);
+            setIsNewCard(false);
+          }
+        }}
       >
-        <div className="container-page min-w-0">
-        {canEditHome && (
-          <div className="flex flex-wrap justify-end gap-2 mb-6">
-            <Button
-              type="button"
-              size="sm"
-              className="gap-2"
-              onClick={openNewCard}
-              aria-label="Novo horário"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Novo horário</span>
-            </Button>
-          </div>
-        )}
-        <div
-          className={cn(
-            "flex flex-col items-center text-center mb-12 sm:mb-16",
-            solidHeader && homeSectionSolidContent,
-          )}
-        >
-          <span className="text-accent font-semibold text-sm tracking-wider uppercase mb-3">
-            {standalone ? "Cultos" : "Nossos cultos"}
-          </span>
-          <h2 className="font-display text-3xl sm:text-4xl font-semibold text-foreground tracking-tight">
-            Horários de Funcionamento
-          </h2>
-          <div className="mt-4 w-16 h-1 rounded-full bg-accent/60" />
-          <p className="mt-5 text-muted-foreground max-w-xl">
-            Participe dos nossos encontros semanais. Há sempre um lugar para
-            você.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {displayCards.map((service, index) => {
-            const urls = cardImageUrls(service);
-            const hasImages = urls.length > 0;
-            const isHighlight = service.highlight;
-
-            return (
-              <motion.div
-                key={service.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.05, duration: 0.45 }}
-                className={`relative flex w-full overflow-hidden rounded-sm border shadow-card flex-col ${
-                  isHighlight
-                    ? "sm:col-span-2 lg:col-span-3 min-h-[min(360px,44vh)] sm:min-h-[min(420px,48vh)] ring-2 ring-accent/70 border-accent/40"
-                    : "min-h-[min(280px,34vh)] sm:min-h-[min(300px,36vh)] border-border/80"
-                }`}
-              >
-                {canEditHome && (
-                  <button
-                    type="button"
-                    onClick={() => openEdit(service)}
-                    className={`absolute top-3 right-3 z-30 text-xs font-medium px-3 py-1.5 rounded-sm border backdrop-blur-sm ${
-                      hasImages
-                        ? "bg-black/45 text-white border-white/25 hover:bg-black/55"
-                        : "bg-background/90 border-border hover:bg-muted"
-                    }`}
-                    aria-label="Editar"
-                  >
-                    <span className="inline-flex items-center gap-1.5">
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Editar</span>
-                    </span>
-                  </button>
-                )}
-
-                {hasImages ? (
-                  <>
-                    <div className="absolute inset-0 z-0">
-                      <BackgroundSlideshow
-                        urls={urls}
-                        rotateIntervalMs={rotateIntervalMs}
-                        transitionMs={transitionMs}
-                        transitionMode={transitionMode}
-                      />
-                    </div>
-                    <div className={imageScrimFlat} aria-hidden />
-                    <div className={imageScrimBottom} aria-hidden />
-                  </>
-                ) : (
-                  <>
-                    <div
-                      className={`absolute inset-0 z-0 ${
-                        isHighlight
-                          ? "bg-gradient-to-br from-primary via-primary to-primary/90"
-                          : "bg-gradient-to-br from-card to-muted/80"
-                      }`}
-                      aria-hidden
-                    />
-                    <div
-                      className={`pointer-events-none absolute bottom-0 left-0 right-0 z-[1] h-[55%] min-h-[140px] bg-gradient-to-t ${
-                        isHighlight
-                          ? "from-black/35 via-black/15 to-transparent"
-                          : "from-black/22 via-black/8 to-transparent"
-                      }`}
-                      aria-hidden
-                    />
-                  </>
-                )}
-
-                <div
-                  className={`relative z-20 mt-auto flex flex-col justify-end min-h-[140px] flex-1 ${
-                    isHighlight
-                      ? "px-6 py-6 sm:px-10 sm:py-8 min-h-[min(180px,28vh)] sm:min-h-[200px]"
-                      : "px-5 py-5 sm:px-6 sm:py-6"
-                  } ${
-                    hasImages || isHighlight
-                      ? "text-white"
-                      : "text-foreground"
-                  }`}
-                >
-                  {isHighlight && (
-                    <p
-                      className={`mb-2 sm:mb-3 text-xs sm:text-sm font-bold uppercase tracking-[0.18em] ${
-                        hasImages || isHighlight
-                          ? "text-white/85"
-                          : "text-accent"
-                      }`}
-                    >
-                      Destaque
-                    </p>
-                  )}
-                  <h3
-                    className={`font-display font-semibold leading-tight mb-2 [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] ${
-                      isHighlight
-                        ? "text-2xl sm:text-3xl lg:text-4xl"
-                        : "text-xl sm:text-2xl"
-                    } ${
-                      !hasImages && !isHighlight ? "text-foreground [text-shadow:none]" : ""
-                    }`}
-                  >
-                    {service.title}
-                  </h3>
-                  <p
-                    className={`font-medium mb-3 ${
-                      isHighlight
-                        ? "text-base sm:text-lg"
-                        : "text-sm"
-                    } ${
-                      hasImages || isHighlight
-                        ? "text-white/92 [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
-                        : "text-accent"
-                    }`}
-                  >
-                    {service.dateLabel}
-                  </p>
-                  {service.description ? (
-                    <p
-                      className={`leading-relaxed max-w-prose ${
-                        isHighlight
-                          ? "text-base sm:text-[1.05rem] max-w-3xl"
-                          : "text-sm"
-                      } ${
-                        hasImages || isHighlight
-                          ? "text-white/90 [text-shadow:0_1px_3px_rgba(0,0,0,0.55)]"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {service.description}
-                    </p>
-                  ) : null}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </div>
-      </HomeSectionBackdrop>
-
-      <Dialog open={editOpen} onOpenChange={(o) => {
-        setEditOpen(o);
-        if (!o) {
-          setDraft(null);
-          setIsNewCard(false);
-        }
-      }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isNewCard ? "Novo horário" : "Editar horário"}
             </DialogTitle>
           </DialogHeader>
-          {draft && (
+          {draft ? (
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label htmlFor="st-title">Título</Label>
@@ -527,23 +369,23 @@ export default function ServiceTimes({ standalone = false } = {}) {
                   Intervalo e transição seguem as definições de «Fundos do hero».
                 </p>
                 {(draft.imageUrls || []).length > 0 ? (
-                  <ul className="space-y-2 border rounded-lg p-2 max-h-40 overflow-y-auto">
+                  <ul className="max-h-40 space-y-2 overflow-y-auto rounded-lg border p-2">
                     {(draft.imageUrls || []).map((src, i) => (
                       <li
                         key={`${i}-${String(src).slice(0, 36)}`}
                         className="flex items-center gap-2 text-sm"
                       >
-                        <span className="truncate flex-1 text-muted-foreground">
+                        <span className="flex-1 truncate text-muted-foreground">
                           Imagem {i + 1}
                         </span>
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="shrink-0 h-8 gap-1 px-2"
+                          className="h-8 shrink-0 gap-1 px-2"
                           onClick={() => removeImageAt(i)}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" />
                           Remover
                         </Button>
                       </li>
@@ -571,7 +413,7 @@ export default function ServiceTimes({ standalone = false } = {}) {
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <ImagePlus className="w-4 h-4 mr-2" />
+                    <ImagePlus className="mr-2 h-4 w-4" />
                     Adicionar imagens
                   </Button>
                   {(draft.imageUrls || []).length > 0 ? (
@@ -601,13 +443,13 @@ export default function ServiceTimes({ standalone = false } = {}) {
                 />
               </div>
             </div>
-          )}
+          ) : null}
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
             {!isNewCard && draft?.id ? (
               <Button
                 type="button"
                 variant="destructive"
-                className="w-full sm:w-auto mr-auto"
+                className="mr-auto w-full sm:w-auto"
                 onClick={removeCard}
               >
                 Remover horário
@@ -615,7 +457,7 @@ export default function ServiceTimes({ standalone = false } = {}) {
             ) : (
               <span />
             )}
-            <div className="flex w-full sm:w-auto gap-2 justify-end">
+            <div className="flex w-full justify-end gap-2 sm:w-auto">
               <Button variant="outline" onClick={() => setEditOpen(false)}>
                 Cancelar
               </Button>

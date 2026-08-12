@@ -46,7 +46,7 @@ function HistoryImage({
       className={cn(
         "relative flex items-center justify-center overflow-hidden",
         "bg-[radial-gradient(ellipse_80%_70%_at_50%_50%,hsl(var(--muted-foreground)/0.06),transparent_70%)]",
-        fill && "min-h-[inherit]",
+        fill && "h-full min-h-0 w-full",
         className,
       )}
     >
@@ -62,8 +62,8 @@ function HistoryImage({
         animate={{ opacity: loaded ? 1 : 0, scale: loaded ? 1 : 0.985 }}
         transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "flex w-full items-center justify-center",
-          fill ? "h-full min-h-[inherit]" : "h-full",
+          "flex max-h-full max-w-full items-center justify-center",
+          fill ? "h-full w-full min-h-0" : "h-full w-full",
         )}
       >
         <SafeImg
@@ -74,9 +74,9 @@ function HistoryImage({
           onLoad={handleLoad}
           onError={handleError}
           className={cn(
-            fill
-              ? "h-auto w-full max-w-full object-contain"
-              : "max-h-full max-w-full object-contain",
+            // Contém a imagem no box sem cortar (respeita proporção)
+            "max-h-full max-w-full object-contain",
+            fill ? "h-auto w-auto" : "h-auto w-auto",
             imgClassName,
           )}
         />

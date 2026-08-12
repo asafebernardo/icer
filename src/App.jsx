@@ -37,7 +37,8 @@ import PostagemEditor from "./pages/PostagemEditor";
 import PostPage from "./pages/PostPage";
 import AcceptInvite from "./pages/AcceptInvite";
 import Historia from "./pages/Historia";
-import HistoriaApresentacaoPage from "./pages/HistoriaApresentacaoPage";
+import HistoriaWikiPage from "./pages/HistoriaWikiPage";
+import HistoriaWikiArtigoPage from "./pages/HistoriaWikiArtigoPage";
 import HistoriaEventoPage from "./pages/HistoriaEventoPage";
 import Agenda from "./pages/Agenda";
 import AdminRoute from "./components/AdminRoute";
@@ -210,7 +211,12 @@ const AppRoutes = () => {
         />
         <Route path="Postagens" element={<Navigate to="/Eventos" replace />} />
         <Route path="Post/:id" element={<PostPage />} />
-        <Route path="Historia/apresentacao" element={<HistoriaApresentacaoPage />} />
+        <Route path="Historia/wiki/:id" element={<HistoriaWikiArtigoPage />} />
+        <Route path="Historia/wiki" element={<HistoriaWikiPage />} />
+        <Route
+          path="Historia/apresentacao"
+          element={<Navigate to="/Historia/wiki" replace />}
+        />
         <Route path="Historia/:id" element={<HistoriaEventoPage />} />
         <Route path="Historia" element={<Historia />} />
       </Route>

@@ -1,7 +1,7 @@
 /**
  * Paletas institucionais ICER (HSL para Tailwind/shadcn).
  * Claro: fundo #F4F7FC · card #FFFFFF · Primary #3B82F6 · Accent #38BDF8
- * Escuro: fundo #08111F · card #101B2D · mesmos acentos
+ * Escuro: Preto → Grafite (#0B0D0F / #171A1E) · Primary #426A8C
  */
 
 export const THEME_STORAGE_KEY = "church-theme";
@@ -68,62 +68,63 @@ export const SITE_THEME_LIGHT = {
   "--success-foreground": "0 0% 100%",
 };
 
+/** Dark — Preto → Grafite */
 export const SITE_THEME_DARK = {
-  "--background": "222 71% 4%",
-  "--foreground": "210 40% 96%",
-  "--card": "222 47% 7%",
+  "--background": "210 15% 5%", // #0B0D0F
+  "--foreground": "210 40% 96%", // #F1F5F9
+  "--card": "214 13% 10%", // #171A1E
   "--card-foreground": "210 40% 96%",
-  "--popover": "222 47% 8%",
+  "--popover": "214 13% 10%",
   "--popover-foreground": "210 40% 96%",
-  "--primary": "217 91% 60%",
-  "--primary-hover": "213 94% 68%",
-  "--primary-foreground": "0 0% 100%",
-  "--secondary": "222 40% 10%",
-  "--secondary-foreground": "210 32% 90%",
-  "--muted": "222 38% 11%",
-  "--muted-foreground": "215 20% 68%",
-  "--accent": "213 94% 68%",
-  "--accent-foreground": "222 71% 4%",
+  "--primary": "208 36% 40%", // #426A8C
+  "--primary-hover": "205 39% 31%", // #31556F
+  "--primary-foreground": "210 40% 96%",
+  "--secondary": "214 13% 10%",
+  "--secondary-foreground": "210 40% 96%",
+  "--muted": "214 13% 10%",
+  "--muted-foreground": "215 18% 71%", // #A8B3C2
+  "--accent": "208 41% 64%", // #7FA6C9
+  "--accent-foreground": "210 15% 5%",
   "--destructive": "0 62% 58%",
   "--destructive-foreground": "0 0% 100%",
-  "--border": "217 33% 17%",
-  "--input": "217 33% 14%",
-  "--ring": "198 93% 60%",
-  "--chart-1": "198 93% 60%",
-  "--chart-2": "217 91% 60%",
-  "--chart-3": "214 18% 68%",
-  "--chart-4": "217 33% 40%",
-  "--chart-5": "213 94% 68%",
+  "--border": "213 12% 18%", // #292E34
+  "--input": "213 12% 18%",
+  "--ring": "208 41% 64%",
+  "--chart-1": "208 41% 64%",
+  "--chart-2": "208 36% 40%",
+  "--chart-3": "215 18% 71%",
+  "--chart-4": "205 39% 31%",
+  "--chart-5": "208 41% 64%",
   "--radius": "0.75rem",
-  "--sidebar-background": "217 59% 7%",
-  "--sidebar-foreground": "214 32% 91%",
-  "--sidebar-primary": "217 91% 60%",
-  "--sidebar-primary-foreground": "0 0% 100%",
-  "--sidebar-accent": "217 45% 10%",
-  "--sidebar-accent-foreground": "214 32% 91%",
-  "--sidebar-border": "217 33% 17%",
-  "--sidebar-ring": "198 93% 60%",
-  "--brand-surface": "217 91% 60%",
-  "--brand-surface-dark": "222 47% 8%",
-  "--on-brand": "210 40% 98%",
-  "--glow-accent": "213 94% 68%",
-  "--glow-primary": "217 91% 60%",
-  "--category-culto": "217 91% 60%",
-  "--category-estudo": "198 93% 60%",
+  "--sidebar-background": "210 15% 5%",
+  "--sidebar-foreground": "210 40% 96%",
+  "--sidebar-primary": "208 36% 40%",
+  "--sidebar-primary-foreground": "210 40% 96%",
+  "--sidebar-accent": "214 13% 10%",
+  "--sidebar-accent-foreground": "210 40% 96%",
+  "--sidebar-border": "213 12% 18%",
+  "--sidebar-ring": "208 41% 64%",
+  "--brand-surface": "208 36% 40%",
+  "--brand-surface-dark": "214 13% 10%",
+  "--on-brand": "210 40% 96%",
+  "--glow-accent": "208 41% 64%",
+  "--glow-primary": "208 36% 40%",
+  "--category-culto": "208 41% 64%",
+  "--category-estudo": "208 36% 40%",
   "--category-jovens": "262 38% 64%",
   "--category-mulheres": "330 40% 64%",
   "--category-homens": "24 65% 58%",
   "--category-criancas": "40 70% 56%",
   "--category-especial": "0 58% 60%",
   "--category-conferencia": "239 36% 64%",
-  "--period-morning-bg": "198 40% 14%",
-  "--period-morning-border": "198 35% 22%",
-  "--period-afternoon-bg": "217 40% 14%",
-  "--period-afternoon-border": "217 33% 22%",
-  "--period-night-bg": "217 38% 13%",
-  "--period-night-border": "217 33% 20%",
-  "--period-open-bg": "262 30% 14%",
-  "--period-open-border": "262 26% 22%",
+  "--period-morning-bg": "214 13% 10%",
+  "--period-morning-border": "213 12% 18%",
+  "--period-afternoon-bg": "214 13% 10%",
+  "--period-afternoon-border": "213 12% 18%",
+  "--period-night-bg": "210 15% 5%",
+  "--period-night-border": "213 12% 18%",
+  "--period-open-bg": "214 13% 10%",
+  "--period-open-border": "213 12% 18%",
   "--success": "158 48% 44%",
   "--success-foreground": "0 0% 100%",
 };
