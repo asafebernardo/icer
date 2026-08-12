@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { BookOpen } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
 
 import {
   PostsCategoryFeedSkeleton,
@@ -17,6 +17,7 @@ import {
 } from "../components/posts/PostsEventosHubFilters";
 import EmptyState from "@/components/shared/EmptyState";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { Button } from "@/components/ui/button";
 import { SOFT_DELETE_CONFIRM_DESCRIPTION } from "@/lib/softDeleteUi";
 import { useAuth } from "@/lib/AuthContext";
 import useRuntimeEnv from "@/hooks/useRuntimeEnv";
@@ -39,6 +40,7 @@ import { withCsrfHeaderAsync } from "@/lib/csrf";
 import { cn } from "@/lib/utils";
 
 const EVENTOS_CATEGORY_SET = new Set(POST_MOSAIC_EVENTOS_CATEGORY_KEYS);
+const PAGE_SIZE = 10;
 
 function normalizeSearch(text) {
   return String(text || "")
@@ -60,6 +62,7 @@ export default function Postagens() {
   const [selectedYear, setSelectedYear] = useState(POSTS_EVENTOS_ALL_YEARS);
   const [selectedCard, setSelectedCard] = useState(POSTS_EVENTOS_ALL_CARDS);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [page, setPage] = useState(0);
 
   const sessionUser = authUser ?? getUser();
   const canCreate =
@@ -129,6 +132,16 @@ export default function Postagens() {
 
     return list;
   }, [eventosPosts, searchQuery, selectedYear, selectedCard, selectedSubgroup]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, selectedYear, selectedCard, selectedSubgroup]);
+
+  const totalPages = Math.max(1, Math.ceil(listedPosts.length / PAGE_SIZE));
+  const pagePosts = listedPosts.slice(
+    page * PAGE_SIZE,
+    page * PAGE_SIZE + PAGE_SIZE,
+  );
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
@@ -236,13 +249,46 @@ export default function Postagens() {
               }
             />
           ) : (
-            <PostsCategoryPostList
-              posts={listedPosts}
-              location={location}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              onDelete={setPendingDeleteId}
-            />
+            <>
+              <PostsCategoryPostList
+                posts={pagePosts}
+                location={location}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onDelete={setPendingDeleteId}
+              />
+              {totalPages > 1 ? (
+                <div className="flex justify-center border-t border-border/60 pt-8 mt-6">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={page <= 0}
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      aria-label="Página anterior"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="min-w-[3rem] text-center text-xs tabular-nums text-muted-foreground">
+                      {Math.min(page + 1, totalPages)} / {totalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={page + 1 >= totalPages}
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages - 1, p + 1))
+                      }
+                      aria-label="Próxima página"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </section>
