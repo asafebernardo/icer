@@ -564,11 +564,13 @@
     list-style: none;
     margin: 0;
     padding: 0;
+    align-content: start;
   }
 
   .posts-feed-grid > li {
     min-height: 0;
     display: flex;
+    align-self: start;
   }
 
   .posts-feed-grid > li > * {
@@ -576,13 +578,20 @@
     width: 100%;
   }
 
-  /* Hub /Eventos: cards mais altos e a grelha ocupa a altura restante da viewport */
+  /* Hub /Eventos: cards mais altos, altura uniforme (não estica com poucos itens) */
   .posts-feed-grid--page {
     gap: 0.875rem;
   }
 
+  .posts-feed-grid--page .post-feed-card,
+  .posts-feed-grid--page .post-feed-card--loading {
+    height: auto;
+    min-height: 0;
+  }
+
   .posts-feed-grid--page .post-feed-card__link {
     aspect-ratio: 4 / 3;
+    height: auto;
     min-height: 14rem;
   }
 
@@ -602,15 +611,7 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .posts-feed-grid--page {
-      height: max(34rem, calc(100dvh - 11.5rem));
-      grid-auto-rows: 1fr;
-      align-content: stretch;
-    }
-
     .posts-feed-grid--page .post-feed-card__link {
-      aspect-ratio: auto;
-      height: 100%;
       min-height: 15rem;
     }
   }
@@ -622,29 +623,11 @@
     }
 
     .posts-feed-grid--page {
-      height: max(36rem, calc(100dvh - 11rem));
       gap: 1rem;
     }
 
     .posts-feed-grid--page .post-feed-card__link {
       min-height: 14.5rem;
-    }
-  }
-
-  .post-feed-card--loading {
-    min-height: 14rem;
-  }
-
-  @media (min-width: 640px) {
-    .post-feed-card--loading {
-      min-height: 15.5rem;
-    }
-  }
-
-  @media (min-width: 900px) {
-    .posts-feed-grid--page .post-feed-card--loading {
-      min-height: 0;
-      height: 100%;
     }
   }
 
