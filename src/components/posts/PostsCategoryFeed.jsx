@@ -20,15 +20,15 @@ function PostYearTileSkeleton() {
 
 function PostListItemSkeleton() {
   return (
-    <div className="aspect-[16/10] animate-pulse rounded-xl border border-white/[0.05] bg-white/[0.04]" />
+    <div className="post-feed-card-skeleton h-full min-h-[14rem] animate-pulse rounded-xl border border-white/[0.05] bg-white/[0.04] sm:min-h-[15.5rem] md:min-h-[16.5rem]" />
   );
 }
 
 export function PostsCategoryFeedSkeleton({ count = 6, variant = "mosaic" } = {}) {
   if (variant === "list") {
     return (
-      <div className="posts-feed-grid">
-        {Array.from({ length: Math.min(count, 8) }).map((_, i) => (
+      <div className="posts-feed-grid posts-feed-grid--page">
+        {Array.from({ length: Math.min(count, 12) }).map((_, i) => (
           <PostListItemSkeleton key={i} />
         ))}
       </div>
@@ -57,9 +57,15 @@ export function PostsCategoryPostList({
   canEdit,
   canDelete,
   onDelete,
+  fillPage = false,
+  waitForPreview = false,
 }) {
   return (
-    <ul className="posts-feed-grid">
+    <ul
+      className={
+        fillPage ? "posts-feed-grid posts-feed-grid--page" : "posts-feed-grid"
+      }
+    >
       {posts.map((post) => (
         <li key={post.id} className="min-w-0">
           <PostFeedCard
@@ -70,6 +76,7 @@ export function PostsCategoryPostList({
             canEdit={canEdit}
             canDelete={canDelete}
             onDelete={onDelete}
+            waitForPreview={waitForPreview}
           />
         </li>
       ))}

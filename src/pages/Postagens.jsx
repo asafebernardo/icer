@@ -40,7 +40,7 @@ import { withCsrfHeaderAsync } from "@/lib/csrf";
 import { cn } from "@/lib/utils";
 
 const EVENTOS_CATEGORY_SET = new Set(POST_MOSAIC_EVENTOS_CATEGORY_KEYS);
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 function normalizeSearch(text) {
   return String(text || "")
@@ -233,7 +233,7 @@ export default function Postagens() {
 
         <div>
           {postsLoading ? (
-            <PostsCategoryFeedSkeleton count={10} variant="list" />
+            <PostsCategoryFeedSkeleton count={12} variant="list" />
           ) : listedPosts.length === 0 ? (
             <EmptyState
               icon={BookOpen}
@@ -256,6 +256,8 @@ export default function Postagens() {
                 canEdit={canEdit}
                 canDelete={canDelete}
                 onDelete={setPendingDeleteId}
+                fillPage
+                waitForPreview
               />
               {totalPages > 1 ? (
                 <div className="flex justify-center border-t border-border/60 pt-8 mt-6">

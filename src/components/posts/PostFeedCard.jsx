@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarDays,
@@ -25,6 +26,7 @@ import {
   POST_FEED_SECTION_LABELS,
   resolvePostCategoria,
 } from "@/lib/postCategories";
+import { cn } from "@/lib/utils";
 
 const SHORT_CATEGORY_TAGS = {
   culto_dominical: "Culto",
@@ -74,6 +76,7 @@ export default function PostFeedCard({
   canEdit,
   canDelete,
   onDelete,
+  waitForPreview = false,
 }) {
   const p = normalizePost(post);
   const resolvedCategory = resolvePostCategoria(p);
@@ -95,17 +98,64 @@ export default function PostFeedCard({
         ? Math.floor(Number(p.participantes))
         : null;
 
+  const needsPreviewWait = waitForPreview && Boolean(thumb);
+  const [previewReady, setPreviewReady] = useState(!needsPreviewWait);
+
+  useEffect(() => {
+    if (!(waitForPreview && thumb)) {
+      setPreviewReady(true);
+      return;
+    }
+
+    setPreviewReady(false);
+    let cancelled = false;
+    const probe = new Image();
+    const finish = () => {
+      if (!cancelled) setPreviewReady(true);
+    };
+    probe.onload = finish;
+    probe.onerror = finish;
+    probe.src = thumb;
+    if (probe.complete) finish();
+
+    return () => {
+      cancelled = true;
+      probe.onload = null;
+      probe.onerror = null;
+    };
+  }, [waitForPreview, thumb, post?.id]);
+
   return (
-    <article className="post-feed-card group relative overflow-hidden">
+    <article
+      className={cn(
+        "post-feed-card group relative h-full overflow-hidden",
+        needsPreviewWait && !previewReady && "post-feed-card--loading",
+      )}
+    >
+      {needsPreviewWait && !previewReady ? (
+        <div
+          className="post-feed-card__placeholder absolute inset-0 z-[3] animate-pulse bg-white/[0.04]"
+          aria-busy="true"
+          aria-label="A carregar pré-visualização"
+        />
+      ) : null}
+
       <Link
         to={`/Post/${post.id}`}
         state={{ from: returnFrom }}
-        className="post-feed-card__link focus-ring relative block aspect-[16/10] w-full"
+        className={cn(
+          "post-feed-card__link focus-ring relative block h-full min-h-[14rem] w-full sm:min-h-[15.5rem] md:min-h-[16.5rem]",
+          needsPreviewWait && !previewReady && "pointer-events-none opacity-0",
+        )}
+        tabIndex={needsPreviewWait && !previewReady ? -1 : undefined}
+        aria-hidden={needsPreviewWait && !previewReady ? true : undefined}
       >
         {thumb ? (
           <SafeImg
             src={thumb}
             alt=""
+            loading={waitForPreview ? "eager" : "lazy"}
+            decoding="async"
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
           />
         ) : (
@@ -161,7 +211,7 @@ export default function PostFeedCard({
         </div>
       </Link>
 
-      {showMenu ? (
+      {showMenu && previewReady ? (
         <div className="absolute right-2 top-2 z-[2] sm:right-2.5 sm:top-2.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
