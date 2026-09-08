@@ -21,6 +21,8 @@ ENV CI=true \
 RUN apk add --no-cache libc6-compat python3 make g++
 
 COPY package.json package-lock.json ./
+# `npm ci` corre `prepare` → precisa deste ficheiro (CI=true faz o script sair logo).
+COPY scripts/prepare.mjs ./scripts/prepare.mjs
 RUN --mount=type=cache,target=/root/.npm \
     npm ci
 
