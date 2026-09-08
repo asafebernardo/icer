@@ -95,6 +95,7 @@ import {
   softDeleteItemLabel,
 } from "./softDelete.js";
 import { findFileReferences } from "./fileReferences.js";
+import { extractUploadsZipToDir } from "./restoreUploadsZip.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
   BUILTIN_ADMIN_GROUP_SLUG,
@@ -3061,6 +3062,90 @@ export function createApplication(db, options = {}) {
     });
     res.json({ ok: true, purge_after: marked.purge_after });
   });
+
+  const restoreZipMaxMb = Number(process.env.ICER_RESTORE_ZIP_MAX_MB);
+  const restoreZipBytes =
+    Number.isFinite(restoreZipMaxMb) && restoreZipMaxMb > 0
+      ? restoreZipMaxMb * 1024 * 1024
+      : 2 * 1024 * 1024 * 1024;
+  const restoreIncomingDir = path.join(uploadDir, "_incoming");
+  fs.mkdirSync(restoreIncomingDir, { recursive: true });
+  const restoreZipUpload = multer({
+    dest: restoreIncomingDir,
+    limits: { fileSize: restoreZipBytes },
+  });
+
+  app.post(
+    "/api/admin/files/restore-zip",
+    requireAdmin,
+    (req, res, next) => {
+      restoreZipUpload.single("file")(req, res, (err) => {
+        if (!err) {
+          next();
+          return;
+        }
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(413).json({ message: "zip_too_large" });
+          return;
+        }
+        res.status(400).json({ message: "zip_required" });
+      });
+    },
+    async (req, res) => {
+      const f = req.file;
+      if (!f) {
+        res.status(400).json({ message: "zip_required" });
+        return;
+      }
+      const name = String(f.originalname || "").toLowerCase();
+      const mime = String(f.mimetype || "").toLowerCase();
+      const looksZip =
+        name.endsWith(".zip") ||
+        mime.includes("zip") ||
+        mime === "application/octet-stream";
+      if (!looksZip) {
+        try {
+          fs.unlinkSync(f.path);
+        } catch {
+          /* ignore */
+        }
+        res.status(400).json({ message: "zip_required" });
+        return;
+      }
+      try {
+        const result = await extractUploadsZipToDir(f.path, uploadDir);
+        await recordAudit(db, {
+          userId: req.user.id,
+          actorUserId: req.user.id,
+          action: "admin.files.restore_zip",
+          details: {
+            original_name: f.originalname,
+            size: f.size,
+            written: result.written,
+            skipped: result.skipped,
+          },
+          ip: clientIp(req),
+          ...auditCtx(req),
+        });
+        res.json({
+          ok: true,
+          written: result.written,
+          skipped: result.skipped,
+        });
+      } catch (err) {
+        log.error(
+          `${color.brightRed("[files]")} restore ZIP falhou: ${String(err?.message || err)}`,
+        );
+        res.status(500).json({ message: "zip_extract_failed" });
+      } finally {
+        try {
+          fs.unlinkSync(f.path);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+  );
 
   const upload = multer({
     dest: uploadDir,

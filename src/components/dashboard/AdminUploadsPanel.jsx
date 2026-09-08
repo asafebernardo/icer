@@ -16,6 +16,7 @@ import {
   Eye,
   Video,
   AlertTriangle,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,6 +150,52 @@ async function deleteAdminFileRequest(id, force) {
   return body;
 }
 
+async function restoreUploadsZip(file, onProgress) {
+  await ensureCsrfCookieClient();
+  const headers = await withCsrfHeaderAsync();
+  const fd = new FormData();
+  fd.append("file", file);
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/admin/files/restore-zip");
+    xhr.withCredentials = true;
+    for (const [k, v] of Object.entries(headers)) {
+      xhr.setRequestHeader(k, v);
+    }
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable || typeof onProgress !== "function") return;
+      onProgress(Math.round((ev.loaded / ev.total) * 100));
+    };
+    xhr.onload = () => {
+      let body = null;
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        body = { message: xhr.responseText };
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body);
+        return;
+      }
+      const code = body?.message || xhr.statusText;
+      const err = new Error(code);
+      err.status = xhr.status;
+      reject(err);
+    };
+    xhr.onerror = () => reject(new Error("upload_failed"));
+    xhr.send(fd);
+  });
+}
+
+function restoreZipErrorMessage(code) {
+  const c = String(code || "");
+  if (c === "zip_required") return "Envie um ficheiro .zip da pasta de uploads do servidor antigo.";
+  if (c === "zip_too_large") return "O ZIP é demasiado grande. Tente um arquivo menor ou aumente ICER_RESTORE_ZIP_MAX_MB.";
+  if (c === "zip_extract_failed") return "Não foi possível extrair o ZIP. Confirme que o ficheiro não está corrompido.";
+  if (c === "upload_failed") return "Falha de rede ao enviar o ZIP.";
+  return "Não foi possível restaurar os ficheiros.";
+}
+
 function PreviewBody({ file }) {
   const mime = String(file?.mime || "");
   const src = `/api/files/${file.id}`;
@@ -210,6 +257,8 @@ export default function AdminUploadsPanel() {
   const [previewFailedIds, setPreviewFailedIds] = useState(() => new Set());
   /** Filtro de listagem: tipos via API; «broken» só oculta linhas na página atual. */
   const [listKindFilter, setListKindFilter] = useState("all");
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restorePct, setRestorePct] = useState(0);
 
   const serverListKind = listKindFilter === "broken" ? "all" : listKindFilter;
 
@@ -337,6 +386,26 @@ export default function AdminUploadsPanel() {
     });
   };
 
+  const runRestoreZip = async (file) => {
+    if (!file) return;
+    setRestoreBusy(true);
+    setRestorePct(0);
+    try {
+      const result = await restoreUploadsZip(file, setRestorePct);
+      toast.success(
+        `Restaurados ${result.written} ficheiro(s)${
+          result.skipped ? ` · ${result.skipped} ignorado(s)` : ""
+        }. Recarregue o site para ver as imagens.`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["admin-files"] });
+    } catch (e) {
+      toast.error(restoreZipErrorMessage(e?.message));
+    } finally {
+      setRestoreBusy(false);
+      setRestorePct(0);
+    }
+  };
+
   const runBulkDelete = async () => {
     const ids = [...selectedIds];
     if (ids.length === 0) return;
@@ -391,8 +460,9 @@ export default function AdminUploadsPanel() {
               Ficheiros de upload
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Lista completa dos ficheiros registados na base. Consulte onde cada um é usado e
-              remova órfãos com segurança; ficheiros em uso exigem confirmação extra.
+              Lista completa dos ficheiros registados na base. Para migrar de outro servidor,
+              compacte a pasta de uploads num ZIP e envie abaixo — os nomes dos ficheiros têm de
+              ser os mesmos.
             </p>
           </div>
         </div>
@@ -407,6 +477,41 @@ export default function AdminUploadsPanel() {
           Atualizar
         </Button>
       </motion.div>
+
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p className="text-sm font-medium text-foreground">Restaurar pasta do VPS antigo</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          No Windows: clique com o botão direito na pasta que descarregou → Enviar para → Pasta
+          compactada (ZIP). Depois escolha esse .zip aqui.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            id="admin-restore-zip"
+            type="file"
+            accept=".zip,application/zip"
+            className="sr-only"
+            disabled={restoreBusy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              void runRestoreZip(file);
+            }}
+          />
+          <Button
+            type="button"
+            className="gap-2"
+            disabled={restoreBusy}
+            onClick={() => document.getElementById("admin-restore-zip")?.click()}
+          >
+            {restoreBusy ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            {restoreBusy ? `A enviar… ${restorePct}%` : "Enviar ZIP"}
+          </Button>
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
         <div className="relative min-w-0 flex-1">
