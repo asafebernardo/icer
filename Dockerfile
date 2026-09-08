@@ -30,6 +30,7 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY index.html vite.config.js jsconfig.json postcss.config.js tailwind.config.js components.json manifest.json ./
 COPY src ./src
 COPY public ./public
+COPY shared ./shared
 
 ARG VITE_USE_SERVER_AUTH=true
 ENV VITE_USE_SERVER_AUTH=${VITE_USE_SERVER_AUTH}
@@ -51,6 +52,7 @@ ENV ICER_UPLOAD_DIR=/data/uploads
 COPY package.json package-lock.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY server ./server
+COPY shared ./shared
 COPY scripts/migrate-uploads-to-drive.mjs ./scripts/migrate-uploads-to-drive.mjs
 COPY --from=builder /app/dist ./dist
 
