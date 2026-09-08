@@ -132,6 +132,11 @@ async function convertUploadAssets(db, sharp) {
     }
 
     const diskPath = resolveUploadedDiskPath(row, uploadDir);
+    if (String(row.drive_file_id || "").trim() && !diskPath) {
+      skipped += 1;
+      console.log(`  skip id=${row.id}: já está no Google Drive`);
+      continue;
+    }
     if (!diskPath) {
       missing += 1;
       console.warn(`  missing id=${row.id}: ${row.original_name || row.storage_path}`);

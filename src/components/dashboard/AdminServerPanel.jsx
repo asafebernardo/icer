@@ -368,7 +368,11 @@ export default function AdminServerPanel() {
           <SectionCard
             icon={FileStack}
             title="Armazenamento"
-            description="Uso do disco, uploads e distribuição dos arquivos do site por tipo."
+            description={
+              info.storage?.files_backend === "google_drive"
+                ? "Uploads no Google Drive; o disco do VPS fica só com cache temporária."
+                : "Uso do disco, uploads e distribuição dos arquivos do site por tipo."
+            }
           >
             <div className="-mt-1 mb-4 flex flex-wrap justify-end gap-2">
               <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
@@ -384,7 +388,9 @@ export default function AdminServerPanel() {
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Disco do servidor
+                        {info.storage?.files_backend === "google_drive"
+                          ? "Disco do VPS (cache)"
+                          : "Disco do servidor"}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {disk
@@ -481,18 +487,35 @@ export default function AdminServerPanel() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border border-border bg-muted/20 px-4">
                   <MiniRow
+                    label="Origem dos uploads"
+                    value={
+                      info.storage?.files_backend === "google_drive"
+                        ? "Google Drive"
+                        : "Disco do VPS"
+                    }
+                    detail={
+                      info.storage?.files_backend === "google_drive"
+                        ? info.storage?.drive?.configured
+                          ? "Novos ficheiros vão para a pasta configurada no Drive"
+                          : "ICER_STORAGE=drive, mas as credenciais ainda não estão completas"
+                        : info.storage?.uploads?.path || "server/uploads"
+                    }
+                  />
+                </div>
+                <div className="rounded-xl border border-border bg-muted/20 px-4">
+                  <MiniRow
                     label="Pasta de uploads"
                     value={formatBytes(info.storage?.uploads?.bytes)}
                     detail={`${info.storage?.uploads?.files ?? 0} ficheiro(s) · ${info.storage?.uploads?.path ?? "—"}`}
                   />
                 </div>
-                <div className="rounded-xl border border-border bg-muted/20 px-4">
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 px-4">
                   <MiniRow
                     label="Logs em disco"
                     value={formatBytes(info.storage?.logs?.bytes)}
                     detail={`${info.storage?.logs?.files ?? 0} ficheiro(s) · ${info.storage?.logs?.path ?? "—"}`}
                   />
-                </div>
               </div>
             </div>
           </SectionCard>

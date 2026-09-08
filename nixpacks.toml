@@ -1,12 +1,10 @@
-# Nixpacks / EasyPanel
-# - Build: só o Vite (`build:app`). WebP já está em `public/` — não reconverter no deploy.
-# - Start: `npm start` → `node server/index.js`
-# - NIXPACKS_PATH: evita "UndefinedVar" no Dockerfile gerado (ENV ... $NIXPACKS_PATH)
-# Preferir o Dockerfile do repo no EasyPanel quando possível (mais estável que Nixpacks).
+# Fallback Nixpacks (EasyPanel “App”). Preferir Docker Compose / Dockerfile.
+# Forçar provider Node — um site Vite sem isto sobe como Nginx estático e a API não corre.
+
+providers = ["node"]
 
 [variables]
 NIXPACKS_NODE_VERSION = "20"
-# Valor base para expansão `...:$NIXPACKS_PATH` no template do Nixpacks
 NIXPACKS_PATH = "/app/node_modules/.bin"
 
 [phases.build]
@@ -14,4 +12,4 @@ dependsOn = ["install"]
 cmds = ["npm run build:app"]
 
 [start]
-cmd = "npm start"
+cmd = "node server/index.js"

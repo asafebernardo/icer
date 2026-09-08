@@ -20,11 +20,23 @@ import {
 } from "./homologSeed.js";
 import { migratePostCategories } from "./postCategoryMigration.js";
 import { seedPostExamples } from "./postExamplesSeed.js";
+import { assertDriveConfigured, isDriveStorageEnabled } from "./driveStorage.js";
 
 const root = process.cwd();
 dotenv.config({ path: path.join(root, ".env") });
 // Sobrescreve chaves de `.env` (igual ao Vite): credenciais só em `.env.local` passam a valer.
 dotenv.config({ path: path.join(root, ".env.local"), override: true });
+
+if (isDriveStorageEnabled()) {
+  try {
+    assertDriveConfigured();
+    log.info(color.cyan("Armazenamento de media: Google Drive"));
+  } catch (err) {
+    log.error(color.brightRed("Google Drive mal configurado"));
+    log.error(err);
+    process.exit(1);
+  }
+}
 
 if (isHomologEnvironment() || envBoolTrue("ICER_DISABLE_LOGIN_ATTEMPT_LOCK")) {
   log.info(
@@ -289,6 +301,13 @@ const server = app.listen(PORT, HOST, () => {
     `  ${bullet} ${color.bold("MongoDB")}    ${color.brightGreen("connected")} ${color.dim(`(db=${dbName})`)}`,
   );
   log.raw(`  ${bullet} ${color.bold("Upload dir")} ${color.cyan(UPLOAD_DIR)}`);
+  log.raw(
+    `  ${bullet} ${color.bold("Media")}      ${
+      isDriveStorageEnabled()
+        ? color.brightGreen("Google Drive")
+        : color.cyan("disco local")
+    }`,
+  );
   log.raw("");
   log.raw(`  ${color.bold("API endpoints")} ${color.dim("(devem responder 200)")}`);
   log.raw(

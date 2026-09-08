@@ -15,6 +15,13 @@ import {
   replaceFileWithWebp,
   replaceNameExtensionToWebp,
 } from "./imageWebp.js";
+import {
+  deleteDriveFile,
+  downloadDriveFileToPath,
+  getDrivePublicStatus,
+  isDriveStorageEnabled,
+  uploadLocalFileToDrive,
+} from "./driveStorage.js";
 
 let _sharp = null;
 async function getSharp() {
@@ -221,6 +228,39 @@ export function createApplication(db, options = {}) {
     if (!base) return null;
     const candidate = path.join(uploadDir, base);
     return fs.existsSync(candidate) ? candidate : null;
+  }
+
+  /**
+   * Origem local para servir/gerar variantes: disco legado ou cache do Google Drive.
+   * @param {Record<string, unknown>} row
+   */
+  async function materializeFileOnDisk(row) {
+    const existing = resolveUploadedDiskPath(row);
+    if (existing) return existing;
+    const driveId = String(row?.drive_file_id || "").trim();
+    if (!driveId) return null;
+    const cacheDir = path.join(uploadDir, "_cache");
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const cachePath = path.join(cacheDir, `${row.id}-orig`);
+    if (fs.existsSync(cachePath) && fs.statSync(cachePath).size > 0) {
+      return cachePath;
+    }
+    try {
+      await downloadDriveFileToPath(driveId, cachePath);
+      return cachePath;
+    } catch (err) {
+      log.warn(
+        `${color.brightYellow("[files]")} falha ao descarregar do Drive id=${color.bold(
+          String(row.id),
+        )}: ${color.dim(String(err?.message || err))}`,
+      );
+      try {
+        if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
   }
 
   const loginRateState = new Map();
@@ -1953,6 +1993,8 @@ export function createApplication(db, options = {}) {
       },
       mongodb,
       storage: {
+        files_backend: isDriveStorageEnabled() ? "google_drive" : "disk",
+        drive: getDrivePublicStatus(),
         uploads: {
           path: uploadDir,
           bytes: uploadsDisk.bytes,
@@ -2955,7 +2997,7 @@ export function createApplication(db, options = {}) {
       db
         .collection("files")
         .find(filter)
-        .project({ _id: 0, storage_path: 0 })
+        .project({ _id: 0, storage_path: 0, drive_file_id: 0 })
         .sort({ id: -1 })
         .skip(skip)
         .limit(limit)
@@ -2971,7 +3013,7 @@ export function createApplication(db, options = {}) {
       res.status(400).json({ message: "invalid_id" });
       return;
     }
-    const row = await db.collection("files").findOne({ id }, { projection: { _id: 0, storage_path: 0 } });
+    const row = await db.collection("files").findOne({ id }, { projection: { _id: 0, storage_path: 0, drive_file_id: 0 } });
     if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
@@ -3046,6 +3088,8 @@ export function createApplication(db, options = {}) {
     let fileMime = f.mimetype || "application/octet-stream";
     let fileSize = f.size;
     let originalName = f.originalname;
+    let driveFileId = null;
+    let storageKind = "disk";
 
     if (isConvertibleRasterMime(fileMime, originalName)) {
       const sharp = await getSharp();
@@ -3067,6 +3111,36 @@ export function createApplication(db, options = {}) {
 
     const now = nowIso();
     const fid = await nextSeq(db, "files");
+
+    if (isDriveStorageEnabled()) {
+      try {
+        const uploaded = await uploadLocalFileToDrive({
+          filePath: storagePath,
+          name: `icer-${fid}-${originalName}`,
+          mimeType: fileMime,
+        });
+        driveFileId = uploaded.id;
+        storageKind = "drive";
+        try {
+          fs.unlinkSync(storagePath);
+        } catch {
+          /* ignore */
+        }
+        storagePath = null;
+      } catch (err) {
+        try {
+          fs.unlinkSync(storagePath);
+        } catch {
+          /* ignore */
+        }
+        log.error(
+          `${color.brightRed("[files]")} upload Google Drive falhou: ${String(err?.message || err)}`,
+        );
+        res.status(502).json({ message: "drive_upload_failed" });
+        return;
+      }
+    }
+
     /** Ficheiros do site: leitura pública (imagens em posts, PDFs em materiais, etc.). */
     const publicRead =
       String(process.env.ICER_FILE_PUBLIC_READ || "true").toLowerCase() !== "false";
@@ -3076,7 +3150,9 @@ export function createApplication(db, options = {}) {
       original_name: originalName,
       mime: fileMime,
       size: fileSize,
+      storage: storageKind,
       storage_path: storagePath,
+      drive_file_id: driveFileId,
       created_at: now,
       public: publicRead,
     });
@@ -3089,6 +3165,7 @@ export function createApplication(db, options = {}) {
         name: originalName,
         mime: fileMime,
         size: fileSize,
+        storage: storageKind,
       },
       ip: clientIp(req),
       ...auditCtx(req),
@@ -3120,7 +3197,7 @@ export function createApplication(db, options = {}) {
         return;
       }
     }
-    const diskPath = resolveUploadedDiskPath(row);
+    const diskPath = await materializeFileOnDisk(row);
     if (!diskPath) {
       res.status(404).json({ message: "file_missing" });
       return;

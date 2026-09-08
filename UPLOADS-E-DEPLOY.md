@@ -46,11 +46,18 @@ Isto reduz o tempo até o `/health` responder quando há muitos posts. A migraç
 
 ## Onde ficam os ficheiros
 
-- Com autenticação no servidor (`VITE_USE_SERVER_AUTH=true`), a API Node grava media (imagens, PDF, etc.) em disco.
-- O caminho padrão é a pasta **`server/uploads/`**, relativa ao diretório de trabalho do processo Node (normalmente a raiz do projeto).
-- Pode ser alterado pela variável de ambiente **`ICER_UPLOAD_DIR`** (caminho absoluto ou relativo; o servidor resolve com `path.resolve`).
+- Com autenticação no servidor (`VITE_USE_SERVER_AUTH=true`), a API Node grava media (imagens, PDF, etc.).
+- **Disco (predefinição):** pasta **`server/uploads/`** ou `ICER_UPLOAD_DIR`.
+- **Google Drive:** defina `ICER_STORAGE=drive` e as credenciais da conta de serviço (ver `env.example`). O site continua a usar `/api/files/:id`; o binário fica no Drive. Cache temporária em `uploads/_cache`.
+- Os metadados (URLs, nomes, tamanhos) continuam na **MongoDB**.
 
-Os metadados (URLs, registos) continuam na **MongoDB**; só o binário fica no disco.
+Ficheiros já existentes no VPS:
+
+```bash
+npm run migrate:uploads-to-drive -- --dry-run
+npm run migrate:uploads-to-drive
+npm run migrate:uploads-to-drive -- --delete-local
+```
 
 ## Por que o deploy “apaga” os uploads
 
@@ -85,7 +92,7 @@ rsync -avz --exclude 'server/uploads/' ./ utilizador@servidor:/caminho/da/app/
 
 ### 3. Docker
 
-Monte um **volume** (nomeado ou bind mount) no caminho definido por `ICER_UPLOAD_DIR`, ou mapeie explicitamente `server/uploads` para um volume, para que novas imagens não destruam o conteúdo.
+O `docker-compose.yml` monta o volume `icer_uploads` em `/data/uploads` (`ICER_UPLOAD_DIR`). Novas imagens não apagam os ficheiros já enviados.
 
 ## Git e repositório
 
@@ -99,4 +106,4 @@ A pasta `server/uploads/` está no **`.gitignore`**: não deve ir para o Git com
 
 ## Hospedagem geral
 
-Para Nginx, systemd, CyberPanel e resto do guia de hospedagem, vê **[GUIA-HOSPEDAGEM.md](./GUIA-HOSPEDAGEM.md)** (se existir no teu checkout) e **[DEPLOY.md](./DEPLOY.md)**.
+O arranque em produção é **Docker Compose** (`docker compose up`), não Nginx estático. Detalhes no **[README.md](./README.md)**.

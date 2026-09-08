@@ -2,7 +2,8 @@ import { api } from "@/api/client";
 import { isServerAuthEnabled } from "@/lib/auth";
 
 /**
- * Com `VITE_USE_SERVER_AUTH=true`, imagens e documentos vão para `POST /api/files` (disco no servidor).
+ * Com `VITE_USE_SERVER_AUTH=true`, imagens e documentos vão para `POST /api/files`
+ * (disco do VPS ou Google Drive, conforme `ICER_STORAGE`).
  * Com `VITE_LOCAL_IMAGE_UPLOAD=true`, as imagens ficam em data URL (base64) só no browser — útil para testes sem Mongo/API.
  */
 export function isLocalImageUploadEnabled() {
@@ -205,7 +206,7 @@ async function uploadPrivateServerFile(file, opts = {}, onProgress) {
   });
 }
 
-/** Com API Node + auth no servidor, os ficheiros vão para disco (`server/uploads`) e só metadados no MongoDB. */
+/** Com API Node + auth no servidor, os ficheiros vão para o backend (`disk` ou Google Drive). */
 function shouldUploadToServerDisk() {
   return isServerAuthEnabled();
 }

@@ -7,6 +7,7 @@ import {
   SOFT_DELETE_COLLECTIONS,
   purgeDueFilter,
 } from "./softDelete.js";
+import { deleteDriveFile } from "./driveStorage.js";
 
 /**
  * @param {import("mongodb").Db} db
@@ -29,6 +30,16 @@ export async function purgeSoftDeletedRecords(db, uploadDir, resolveDiskPath) {
           } catch (err) {
             log.warn(
               `${color.brightYellow("[purge]")} ficheiro em disco id=${color.bold(String(row.id))}: ${color.dim(String(err?.message || err))}`,
+            );
+          }
+        }
+        const driveId = String(row.drive_file_id || "").trim();
+        if (driveId) {
+          try {
+            await deleteDriveFile(driveId);
+          } catch (err) {
+            log.warn(
+              `${color.brightYellow("[purge]")} ficheiro no Drive id=${color.bold(String(row.id))}: ${color.dim(String(err?.message || err))}`,
             );
           }
         }
