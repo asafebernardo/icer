@@ -103,7 +103,13 @@ export default function MateriaisTab({ perm, embedded = false }) {
 
   const deleteMaterialMutation = useMutation({
     mutationFn: (id) => api.entities.Material.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["materiais"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["materiais"] });
+      toast.success("Material removido.");
+    },
+    onError: (e) => {
+      toast.error(e?.message || "Não foi possível excluir o material.");
+    },
   });
 
   const saveLinks = async (newLinks, successMessage) => {

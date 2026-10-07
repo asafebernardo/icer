@@ -193,6 +193,9 @@ function restoreZipErrorMessage(code) {
   if (c === "zip_too_large") return "O ZIP é demasiado grande. Tente um arquivo menor ou aumente ICER_RESTORE_ZIP_MAX_MB.";
   if (c === "zip_extract_failed") return "Não foi possível extrair o ZIP. Confirme que o ficheiro não está corrompido.";
   if (c === "upload_failed") return "Falha de rede ao enviar o ZIP.";
+  if (c === "csrf_required" || c === "csrf_invalid") {
+    return "Sessão expirada. Recarregue a página e tente novamente.";
+  }
   return "Não foi possível restaurar os ficheiros.";
 }
 
@@ -290,7 +293,10 @@ export default function AdminUploadsPanel() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const openDelete = (id, name) => {
-    setDelState({ step: 1, id, name });
+    setDetailId(null);
+    window.setTimeout(() => {
+      setDelState({ step: 1, id, name });
+    }, 40);
   };
 
   const runDelete = async (force) => {
@@ -313,7 +319,14 @@ export default function AdminUploadsPanel() {
           refs: Array.isArray(e.references) ? e.references : [],
         });
       } else {
-        toast.error(e?.message || "Não foi possível remover.");
+        const code = String(e?.message || "");
+        toast.error(
+          code === "csrf_required" || code === "csrf_invalid"
+            ? "Sessão expirada. Recarregue a página e tente novamente."
+            : code === "not_found"
+              ? "Este ficheiro já não existe na lista."
+              : code || "Não foi possível remover.",
+        );
       }
     } finally {
       setDelSubmitting(false);
@@ -392,10 +405,11 @@ export default function AdminUploadsPanel() {
     setRestorePct(0);
     try {
       const result = await restoreUploadsZip(file, setRestorePct);
+      const rematched = Number(result.rematched) || 0;
       toast.success(
         `Restaurados ${result.written} ficheiro(s)${
-          result.skipped ? ` · ${result.skipped} ignorado(s)` : ""
-        }. Recarregue o site para ver as imagens.`,
+          rematched ? ` · ${rematched} ligado(s) ao site` : ""
+        }${result.skipped ? ` · ${result.skipped} ignorado(s)` : ""}.`,
       );
       await queryClient.invalidateQueries({ queryKey: ["admin-files"] });
     } catch (e) {

@@ -95,7 +95,10 @@ import {
   softDeleteItemLabel,
 } from "./softDelete.js";
 import { findFileReferences } from "./fileReferences.js";
-import { extractUploadsZipToDir } from "./restoreUploadsZip.js";
+import {
+  extractUploadsZipToDir,
+  relinkRestoredUploads,
+} from "./restoreUploadsZip.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
   BUILTIN_ADMIN_GROUP_SLUG,
@@ -220,15 +223,29 @@ export function createApplication(db, options = {}) {
    * o caminho antigo deixa de existir mas o ficheiro pode estar em `uploadDir` com o mesmo nome.
    */
   function resolveUploadedDiskPath(row) {
+    const tryPath = (p) => {
+      const s = String(p || "").trim();
+      if (!s) return null;
+      return fs.existsSync(s) ? s : null;
+    };
+    const tryBase = (name) => {
+      const base = path.basename(String(name || "").trim());
+      if (!base || base === "." || base === "..") return null;
+      return tryPath(path.join(uploadDir, base));
+    };
     const legacy = row?.storage_path != null ? String(row.storage_path).trim() : "";
-    if (legacy && fs.existsSync(legacy)) return legacy;
-    const base =
-      legacy && path.basename(legacy) !== "." && path.basename(legacy) !== ".."
-        ? path.basename(legacy)
-        : "";
-    if (!base) return null;
-    const candidate = path.join(uploadDir, base);
-    return fs.existsSync(candidate) ? candidate : null;
+    return (
+      tryPath(legacy) ||
+      tryBase(legacy) ||
+      tryBase(row?.original_name) ||
+      tryBase(`icer-${row?.id}-${path.basename(String(row?.original_name || "").trim())}`)
+    );
+  }
+
+  function fileIdQuery(raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return { $or: [{ id: n }, { id: String(n) }] };
+    return { id: raw };
   }
 
   /**
@@ -3009,39 +3026,30 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/admin/files/:id", requireAdmin, async (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      res.status(400).json({ message: "invalid_id" });
-      return;
-    }
-    const row = await db.collection("files").findOne({ id }, { projection: { _id: 0, storage_path: 0, drive_file_id: 0 } });
+    const row = await db.collection("files").findOne(fileIdQuery(req.params.id), { projection: { _id: 0, storage_path: 0, drive_file_id: 0 } });
     if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
-    const references = await findFileReferences(db, id);
+    const references = await findFileReferences(db, row.id);
     res.json({ file: row, references });
   });
 
   app.delete("/api/admin/files/:id", requireAdmin, async (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      res.status(400).json({ message: "invalid_id" });
-      return;
-    }
     const forceRaw = String(req.query.force || "").toLowerCase();
     const force = forceRaw === "1" || forceRaw === "true" || forceRaw === "yes";
-    const row = await db.collection("files").findOne({ id });
+    const row = await db.collection("files").findOne(fileIdQuery(req.params.id));
     if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
+    const id = row.id;
     const references = await findFileReferences(db, id);
     if (references.length > 0 && !force) {
       res.status(409).json({ message: "in_use", references });
       return;
     }
-    const marked = await markRowSoftDeleted(db, "files", { id }, req.user.id);
+    const marked = await markRowSoftDeleted(db, "files", { _id: row._id }, req.user.id);
     if (!marked.ok) {
       res.status(404).json({ message: "not_found" });
       return;
@@ -3114,6 +3122,7 @@ export function createApplication(db, options = {}) {
       }
       try {
         const result = await extractUploadsZipToDir(f.path, uploadDir);
+        const linked = await relinkRestoredUploads(db, uploadDir);
         await recordAudit(db, {
           userId: req.user.id,
           actorUserId: req.user.id,
@@ -3123,6 +3132,7 @@ export function createApplication(db, options = {}) {
             size: f.size,
             written: result.written,
             skipped: result.skipped,
+            rematched: linked.rematched,
           },
           ip: clientIp(req),
           ...auditCtx(req),
@@ -3131,6 +3141,7 @@ export function createApplication(db, options = {}) {
           ok: true,
           written: result.written,
           skipped: result.skipped,
+          rematched: linked.rematched,
         });
       } catch (err) {
         log.error(
@@ -3259,12 +3270,14 @@ export function createApplication(db, options = {}) {
   });
 
   app.get("/api/files/:id", async (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      res.status(400).json({ message: "invalid_id" });
-      return;
+    const row = await db.collection("files").findOne(fileIdQuery(req.params.id), { projection: { _id: 0 } });
+    if (!row) {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        res.status(400).json({ message: "invalid_id" });
+        return;
+      }
     }
-    const row = await db.collection("files").findOne({ id }, { projection: { _id: 0 } });
     if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
