@@ -96,8 +96,8 @@ import {
 } from "./softDelete.js";
 import { findFileReferences } from "./fileReferences.js";
 import {
+  applyRestoredUploads,
   extractUploadsZipToDir,
-  relinkRestoredUploads,
 } from "./restoreUploadsZip.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
@@ -3122,7 +3122,15 @@ export function createApplication(db, options = {}) {
       }
       try {
         const result = await extractUploadsZipToDir(f.path, uploadDir);
-        const linked = await relinkRestoredUploads(db, uploadDir);
+        if (result.written === 0) {
+          res.status(400).json({ message: "zip_empty" });
+          return;
+        }
+        const linked = await applyRestoredUploads(db, uploadDir, {
+          ownerUserId: req.user.id,
+          nextId: () => nextSeq(db, "files"),
+          nowIso,
+        });
         await recordAudit(db, {
           userId: req.user.id,
           actorUserId: req.user.id,
@@ -3133,6 +3141,8 @@ export function createApplication(db, options = {}) {
             written: result.written,
             skipped: result.skipped,
             rematched: linked.rematched,
+            restored: linked.restored,
+            created: linked.created,
           },
           ip: clientIp(req),
           ...auditCtx(req),
@@ -3142,6 +3152,8 @@ export function createApplication(db, options = {}) {
           written: result.written,
           skipped: result.skipped,
           rematched: linked.rematched,
+          restored: linked.restored,
+          created: linked.created,
         });
       } catch (err) {
         log.error(

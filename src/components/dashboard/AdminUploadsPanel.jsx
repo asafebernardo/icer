@@ -190,6 +190,9 @@ async function restoreUploadsZip(file, onProgress) {
 function restoreZipErrorMessage(code) {
   const c = String(code || "");
   if (c === "zip_required") return "Envie um ficheiro .zip da pasta de uploads do servidor antigo.";
+  if (c === "zip_empty") {
+    return "O ZIP chegou, mas não tinha ficheiros para gravar. Compacte a pasta de uploads (não um atalho nem uma pasta vazia).";
+  }
   if (c === "zip_too_large") return "O ZIP é demasiado grande. Tente um arquivo menor ou aumente ICER_RESTORE_ZIP_MAX_MB.";
   if (c === "zip_extract_failed") return "Não foi possível extrair o ZIP. Confirme que o ficheiro não está corrompido.";
   if (c === "upload_failed") return "Falha de rede ao enviar o ZIP.";
@@ -406,9 +409,13 @@ export default function AdminUploadsPanel() {
     try {
       const result = await restoreUploadsZip(file, setRestorePct);
       const rematched = Number(result.rematched) || 0;
+      const restored = Number(result.restored) || 0;
+      const created = Number(result.created) || 0;
       toast.success(
-        `Restaurados ${result.written} ficheiro(s)${
+        `Gravados ${result.written} ficheiro(s) no disco${
           rematched ? ` · ${rematched} ligado(s) ao site` : ""
+        }${restored ? ` · ${restored} recuperado(s)` : ""}${
+          created ? ` · ${created} novo(s) na lista` : ""
         }${result.skipped ? ` · ${result.skipped} ignorado(s)` : ""}.`,
       );
       await queryClient.invalidateQueries({ queryKey: ["admin-files"] });

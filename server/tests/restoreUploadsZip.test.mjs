@@ -37,4 +37,13 @@ describe("restoreUploadsZip rematch", () => {
     );
     assert.equal(found, "/data/boletim.pdf");
   });
+
+  it("liga pelo nome sem extensão quando só há um candidato", () => {
+    const onDisk = new Map([["culto-domingo.webp", "/data/culto-domingo.webp"]]);
+    const found = matchRestoredFile(
+      { id: 44, storage_path: null, original_name: "culto-domingo.jpg" },
+      onDisk,
+    );
+    assert.equal(found, "/data/culto-domingo.webp");
+  });
 });
