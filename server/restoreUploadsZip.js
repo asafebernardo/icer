@@ -79,6 +79,100 @@ function fileStem(name) {
   return (i > 0 ? base.slice(0, i) : base).toLowerCase();
 }
 
+/** Compara «Culto de Jovens.jpg» com «culto-de-jovens.webp». */
+export function normalizeRestoreNameKey(name) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+const FILE_URL_RE = /\/api\/files\/(\d+)/g;
+
+/**
+ * Recolhe nomes ligados a cada `/api/files/:id` (anexo.name, título do post/evento, etc.).
+ * @param {unknown} value
+ * @param {Map<number, Set<string>>} [into]
+ * @returns {Map<number, Set<string>>}
+ */
+export function collectFileNameHintsFromValue(value, into = new Map()) {
+  const add = (id, name) => {
+    const n = Number(id);
+    if (!Number.isFinite(n) || n <= 0) return;
+    const label = String(name || "").trim();
+    if (!label || /^\d+$/.test(label)) return;
+    let set = into.get(n);
+    if (!set) {
+      set = new Set();
+      into.set(n, set);
+    }
+    set.add(label);
+  };
+
+  const visit = (node, inherited) => {
+    if (node == null) return;
+    if (typeof node === "string") {
+      FILE_URL_RE.lastIndex = 0;
+      let m;
+      while ((m = FILE_URL_RE.exec(node))) {
+        for (const name of inherited) add(m[1], name);
+      }
+      return;
+    }
+    if (typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, inherited);
+      return;
+    }
+    const names = [...inherited];
+    for (const key of ["name", "original_name", "filename", "titulo", "title", "nome"]) {
+      const v = node[key];
+      if (typeof v === "string" && v.trim()) names.push(v.trim());
+    }
+    for (const v of Object.values(node)) visit(v, names);
+  };
+
+  visit(value, []);
+  return into;
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @returns {Promise<Map<number, Set<string>>>}
+ */
+export async function collectFileNameHintsFromDb(db) {
+  const into = new Map();
+  const collections = ["posts", "eventos", "materiais", "fotos_galeria"];
+  for (const name of collections) {
+    const rows = await db
+      .collection(name)
+      .find({}, { projection: { body_json: 1 } })
+      .toArray();
+    for (const row of rows) {
+      let body = {};
+      try {
+        body = JSON.parse(String(row.body_json || "{}"));
+      } catch {
+        body = {};
+      }
+      collectFileNameHintsFromValue(body, into);
+    }
+  }
+  const users = await db
+    .collection("users")
+    .find({ avatar_url: { $exists: true } }, { projection: { avatar_url: 1, full_name: 1 } })
+    .toArray();
+  for (const u of users) {
+    collectFileNameHintsFromValue({ name: u.full_name, url: u.avatar_url }, into);
+  }
+  const kvRows = await db.collection("app_kv").find({}).project({ value: 1 }).toArray();
+  for (const kv of kvRows) {
+    collectFileNameHintsFromValue(kv.value, into);
+  }
+  return into;
+}
+
 function guessMimeFromName(name) {
   const ext = path.extname(String(name || "")).slice(1).toLowerCase();
   return MIME_BY_EXT[ext] || "application/octet-stream";
@@ -111,8 +205,9 @@ export function restoredNameCandidates(row) {
  * Encontra o ficheiro restaurado que corresponde a um registo Mongo.
  * @param {Record<string, unknown>} row
  * @param {Map<string, string>} onDisk
+ * @param {Iterable<string>} [extraNames] nomes do post/evento (anexo.name, título)
  */
-export function matchRestoredFile(row, onDisk) {
+export function matchRestoredFile(row, onDisk, extraNames = []) {
   if (!(onDisk instanceof Map) || onDisk.size === 0) return null;
   const id = row?.id;
   if (id != null) {
@@ -121,26 +216,46 @@ export function matchRestoredFile(row, onDisk) {
       if (base.startsWith(prefix)) return full;
     }
   }
-  for (const name of restoredNameCandidates(row)) {
-    const hit = onDisk.get(name.toLowerCase());
+  const candidates = [
+    ...restoredNameCandidates(row),
+    ...Array.from(extraNames || [], (n) => String(n || "").trim()).filter(Boolean),
+  ];
+  for (const name of candidates) {
+    const base = path.basename(name);
+    if (!base || base === "." || base === "..") continue;
+    const hit = onDisk.get(base.toLowerCase());
     if (hit) return hit;
   }
-  const stems = [fileStem(row?.original_name), fileStem(row?.storage_path)].filter(
-    (s) => s.length >= 3,
-  );
-  if (stems.length === 0) return null;
+
   /** @type {Map<string, string[]>} */
   const byStem = new Map();
+  /** @type {Map<string, string[]>} */
+  const byNorm = new Map();
   for (const [base, full] of onDisk) {
-    const s = fileStem(base);
-    if (!s) continue;
-    const list = byStem.get(s) || [];
-    list.push(full);
-    byStem.set(s, list);
+    const stem = fileStem(base);
+    if (stem.length >= 3) {
+      const list = byStem.get(stem) || [];
+      list.push(full);
+      byStem.set(stem, list);
+    }
+    const norm = normalizeRestoreNameKey(stem || base);
+    if (norm.length >= 6) {
+      const list = byNorm.get(norm) || [];
+      list.push(full);
+      byNorm.set(norm, list);
+    }
   }
-  for (const s of stems) {
-    const list = byStem.get(s);
-    if (list?.length === 1) return list[0];
+  for (const name of candidates) {
+    const stem = fileStem(name);
+    if (stem.length >= 3) {
+      const list = byStem.get(stem);
+      if (list?.length === 1) return list[0];
+    }
+    const norm = normalizeRestoreNameKey(stem || name);
+    if (norm.length >= 6) {
+      const list = byNorm.get(norm);
+      if (list?.length === 1) return list[0];
+    }
   }
   return null;
 }
@@ -150,9 +265,10 @@ export function matchRestoredFile(row, onDisk) {
  * Recupera também ficheiros marcados para exclusão se o ZIP os trouxer de volta.
  * @param {import("mongodb").Db} db
  * @param {string} destDir
+ * @param {Map<number, Set<string>>} [hintsById]
  * @returns {Promise<{ rematched: number; restored: number; matchedPaths: string[] }>}
  */
-export async function relinkRestoredUploads(db, destDir) {
+export async function relinkRestoredUploads(db, destDir, hintsById = new Map()) {
   const onDisk = indexRestoredUploadFiles(destDir);
   if (onDisk.size === 0) return { rematched: 0, restored: 0, matchedPaths: [] };
   const rows = await db.collection("files").find({}).toArray();
@@ -161,7 +277,8 @@ export async function relinkRestoredUploads(db, destDir) {
   /** @type {string[]} */
   const matchedPaths = [];
   for (const row of rows) {
-    const found = matchRestoredFile(row, onDisk);
+    const extra = hintsById.get(Number(row.id)) || hintsById.get(row.id) || [];
+    const found = matchRestoredFile(row, onDisk, extra);
     if (!found) continue;
     const current = String(row.storage_path || "").trim();
     const wasDeleted = isDeletedRow(row);
@@ -246,7 +363,8 @@ export async function registerUnmatchedRestoredUploads(db, destDir, options) {
  * }} options
  */
 export async function applyRestoredUploads(db, destDir, options) {
-  const linked = await relinkRestoredUploads(db, destDir);
+  const hints = await collectFileNameHintsFromDb(db);
+  const linked = await relinkRestoredUploads(db, destDir, hints);
   const extra = await registerUnmatchedRestoredUploads(db, destDir, {
     ownerUserId: options.ownerUserId,
     matchedPaths: linked.matchedPaths,

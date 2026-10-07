@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  collectFileNameHintsFromValue,
   matchRestoredFile,
   restoredNameCandidates,
 } from "../restoreUploadsZip.js";
@@ -45,5 +46,36 @@ describe("restoreUploadsZip rematch", () => {
       onDisk,
     );
     assert.equal(found, "/data/culto-domingo.webp");
+  });
+
+  it("liga pelo nome do anexo no post quando o original_name da base é outro", () => {
+    const onDisk = new Map([["encontro-jovens.jpg", "/data/encontro-jovens.jpg"]]);
+    const found = matchRestoredFile(
+      { id: 1010, storage_path: null, original_name: "abc123.webp" },
+      onDisk,
+      ["encontro-jovens.jpg"],
+    );
+    assert.equal(found, "/data/encontro-jovens.jpg");
+  });
+
+  it("liga pelo título do evento sem acentos nem extensão", () => {
+    const onDisk = new Map([["culto-de-jovens.webp", "/data/culto-de-jovens.webp"]]);
+    const found = matchRestoredFile(
+      { id: 88, storage_path: null, original_name: "xyz.bin" },
+      onDisk,
+      ["Culto de Jovens"],
+    );
+    assert.equal(found, "/data/culto-de-jovens.webp");
+  });
+
+  it("recolhe nomes de anexos e títulos ligados a /api/files/:id", () => {
+    const hints = collectFileNameHintsFromValue({
+      titulo: "Vigília",
+      imagem_url: "/api/files/9",
+      anexos: [{ url: "/api/files/12", name: "foto-culto.jpg" }],
+    });
+    assert.ok(hints.get(9)?.has("Vigília"));
+    assert.ok(hints.get(12)?.has("foto-culto.jpg"));
+    assert.ok(hints.get(12)?.has("Vigília"));
   });
 });

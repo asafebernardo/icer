@@ -97,7 +97,10 @@ import {
 import { findFileReferences } from "./fileReferences.js";
 import {
   applyRestoredUploads,
+  collectFileNameHintsFromDb,
   extractUploadsZipToDir,
+  indexRestoredUploadFiles,
+  matchRestoredFile,
 } from "./restoreUploadsZip.js";
 import { validateAccountPassword } from "./passwordPolicy.js";
 import {
@@ -218,11 +221,38 @@ export function createApplication(db, options = {}) {
 
   fs.mkdirSync(uploadDir, { recursive: true });
 
+  let uploadDiskIndexCache = { at: 0, map: null };
+  let contentFileHintCache = { at: 0, map: null };
+
+  function invalidateUploadResolveCache() {
+    uploadDiskIndexCache = { at: 0, map: null };
+    contentFileHintCache = { at: 0, map: null };
+  }
+
+  function getUploadDiskIndex() {
+    const now = Date.now();
+    if (uploadDiskIndexCache.map && now - uploadDiskIndexCache.at < 4000) {
+      return uploadDiskIndexCache.map;
+    }
+    uploadDiskIndexCache = { at: now, map: indexRestoredUploadFiles(uploadDir) };
+    return uploadDiskIndexCache.map;
+  }
+
+  async function getContentFileHints() {
+    const now = Date.now();
+    if (contentFileHintCache.map && now - contentFileHintCache.at < 30_000) {
+      return contentFileHintCache.map;
+    }
+    const map = await collectFileNameHintsFromDb(db);
+    contentFileHintCache = { at: now, map };
+    return map;
+  }
+
   /**
    * Multer grava `storage_path` absoluto; se o projeto mudou de pasta ou `ICER_UPLOAD_DIR`,
    * o caminho antigo deixa de existir mas o ficheiro pode estar em `uploadDir` com o mesmo nome.
    */
-  function resolveUploadedDiskPath(row) {
+  function resolveUploadedDiskPath(row, extraNames = []) {
     const tryPath = (p) => {
       const s = String(p || "").trim();
       if (!s) return null;
@@ -234,12 +264,13 @@ export function createApplication(db, options = {}) {
       return tryPath(path.join(uploadDir, base));
     };
     const legacy = row?.storage_path != null ? String(row.storage_path).trim() : "";
-    return (
+    const quick =
       tryPath(legacy) ||
       tryBase(legacy) ||
       tryBase(row?.original_name) ||
-      tryBase(`icer-${row?.id}-${path.basename(String(row?.original_name || "").trim())}`)
-    );
+      tryBase(`icer-${row?.id}-${path.basename(String(row?.original_name || "").trim())}`);
+    if (quick) return quick;
+    return matchRestoredFile(row, getUploadDiskIndex(), extraNames);
   }
 
   function fileIdQuery(raw) {
@@ -253,7 +284,12 @@ export function createApplication(db, options = {}) {
    * @param {Record<string, unknown>} row
    */
   async function materializeFileOnDisk(row) {
-    const existing = resolveUploadedDiskPath(row);
+    const hints = await getContentFileHints();
+    const extra = [
+      ...(hints.get(Number(row.id)) || []),
+      ...(hints.get(row.id) || []),
+    ];
+    const existing = resolveUploadedDiskPath(row, extra);
     if (existing) return existing;
     const driveId = String(row?.drive_file_id || "").trim();
     if (!driveId) return null;
@@ -3131,6 +3167,7 @@ export function createApplication(db, options = {}) {
           nextId: () => nextSeq(db, "files"),
           nowIso,
         });
+        invalidateUploadResolveCache();
         await recordAudit(db, {
           userId: req.user.id,
           actorUserId: req.user.id,
@@ -3284,13 +3321,11 @@ export function createApplication(db, options = {}) {
   app.get("/api/files/:id", async (req, res) => {
     const row = await db.collection("files").findOne(fileIdQuery(req.params.id), { projection: { _id: 0 } });
     if (!row) {
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
+      const rawId = Number(req.params.id);
+      if (!Number.isFinite(rawId)) {
         res.status(400).json({ message: "invalid_id" });
         return;
       }
-    }
-    if (!row || isDeletedRow(row)) {
       res.status(404).json({ message: "not_found" });
       return;
     }
@@ -3307,9 +3342,10 @@ export function createApplication(db, options = {}) {
         return;
       }
     }
+    const fileId = row.id;
     const diskPath = await materializeFileOnDisk(row);
     if (!diskPath) {
-      res.status(404).json({ message: "file_missing" });
+      res.status(404).json({ message: isDeletedRow(row) ? "not_found" : "file_missing" });
       return;
     }
 
@@ -3341,7 +3377,7 @@ export function createApplication(db, options = {}) {
           const fmt = wantedFormat || (mime === "image/png" ? "png" : "webp");
           const cacheDir = path.join(uploadDir, "_cache");
           fs.mkdirSync(cacheDir, { recursive: true });
-          const cacheKey = `${id}-w${width || "orig"}-${fmt}.${fmt === "jpeg" ? "jpg" : fmt}`;
+          const cacheKey = `${fileId}-w${width || "orig"}-${fmt}.${fmt === "jpeg" ? "jpg" : fmt}`;
           const cachePath = path.join(cacheDir, cacheKey);
           let outBuffer = null;
           if (fs.existsSync(cachePath)) {
@@ -3367,7 +3403,7 @@ export function createApplication(db, options = {}) {
         } catch (err) {
           log.warn(
             `${color.brightYellow("[files]")} falha ao gerar variante para id=${color.bold(
-              String(id),
+              String(fileId),
             )}: ${color.dim(String(err?.message || err))}`,
           );
           /* cai-para-trás para servir o original */
