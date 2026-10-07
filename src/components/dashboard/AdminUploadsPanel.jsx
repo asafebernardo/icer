@@ -430,7 +430,7 @@ export default function AdminUploadsPanel() {
     try {
       for (const id of ids) {
         try {
-          await deleteAdminFileRequest(id, false);
+          await deleteAdminFileRequest(id, true);
           ok += 1;
         } catch (e) {
           if (e?.status === 409) inUse += 1;
@@ -439,9 +439,7 @@ export default function AdminUploadsPanel() {
       }
       if (ok > 0) toast.success(`${ok} ficheiro(s) removido(s).`);
       if (inUse > 0) {
-        toast.warning(
-          `${inUse} ficheiro(s) em uso — remova individualmente e use confirmação forçada quando aplicável.`,
-        );
+        toast.warning(`${inUse} ficheiro(s) continuam em uso e não foram removidos.`);
       }
       if (failed > 0) toast.error(`${failed} ficheiro(s) não foram removidos (erro).`);
       setSelectedIds(new Set());
@@ -968,8 +966,8 @@ export default function AdminUploadsPanel() {
             <AlertDialogDescription>
               Serão marcados para remoção{" "}
               <span className="font-semibold tabular-nums text-foreground">{selectedIds.size}</span>{" "}
-              ficheiro(s). Ficheiros em uso não serão removidos neste passo em massa — trate-os
-              individualmente quando aplicável. {SOFT_DELETE_CONFIRM_DESCRIPTION}
+              ficheiro(s), inclusive os que ainda aparecem no site (hero, cultos, postagens).
+              Essas páginas podem ficar sem imagem até as editar. {SOFT_DELETE_CONFIRM_DESCRIPTION}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">

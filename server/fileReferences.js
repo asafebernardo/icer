@@ -10,7 +10,9 @@ export async function findFileReferences(db, fileId) {
 
   const needle = `/api/files/${id}`;
   const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const rx = new RegExp(esc);
+  // Evita que /api/files/99 coincida com /api/files/990.
+  const bounded = `${esc}(?![0-9])`;
+  const rx = new RegExp(bounded);
 
   /** @type {Array<{ kind: string; id: number | string; label: string; href: string | null; meta?: string | null }>} */
   const refs = [];
@@ -30,7 +32,7 @@ export async function findFileReferences(db, fileId) {
 
   const posts = await db
     .collection("posts")
-    .find({ body_json: { $regex: esc } }, { projection: { id: 1, body_json: 1, is_draft: 1 } })
+    .find({ body_json: { $regex: bounded } }, { projection: { id: 1, body_json: 1, is_draft: 1 } })
     .limit(80)
     .toArray();
   for (const p of posts) {
@@ -46,7 +48,7 @@ export async function findFileReferences(db, fileId) {
 
   const eventos = await db
     .collection("eventos")
-    .find({ body_json: { $regex: esc } }, { projection: { id: 1, body_json: 1 } })
+    .find({ body_json: { $regex: bounded } }, { projection: { id: 1, body_json: 1 } })
     .limit(80)
     .toArray();
   for (const e of eventos) {
@@ -62,7 +64,7 @@ export async function findFileReferences(db, fileId) {
 
   const materiais = await db
     .collection("materiais")
-    .find({ body_json: { $regex: esc } }, { projection: { id: 1, body_json: 1 } })
+    .find({ body_json: { $regex: bounded } }, { projection: { id: 1, body_json: 1 } })
     .limit(80)
     .toArray();
   for (const m of materiais) {
@@ -78,7 +80,7 @@ export async function findFileReferences(db, fileId) {
 
   const fotos = await db
     .collection("fotos_galeria")
-    .find({ body_json: { $regex: esc } }, { projection: { id: 1, body_json: 1 } })
+    .find({ body_json: { $regex: bounded } }, { projection: { id: 1, body_json: 1 } })
     .limit(80)
     .toArray();
   for (const f of fotos) {
@@ -94,7 +96,7 @@ export async function findFileReferences(db, fileId) {
 
   const users = await db
     .collection("users")
-    .find({ avatar_url: { $regex: esc } }, { projection: { id: 1, email: 1, full_name: 1 } })
+    .find({ avatar_url: { $regex: bounded } }, { projection: { id: 1, email: 1, full_name: 1 } })
     .limit(50)
     .toArray();
   for (const u of users) {
