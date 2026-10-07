@@ -20,19 +20,21 @@ export const POSTS_HUB_TITLE = "Encontros e memórias";
 export const POSTS_HUB_DESCRIPTION =
   "Registros de cultos, encontros, festividades e conferências.";
 
-/** Aplicativos e contacto (hub na página Início). */
-export const INFORMACOES_HUB_PATH = "/Home";
-export const INFORMACOES_HUB_LABEL = "Informações";
-export const INFORMACOES_HUB_TITLE = "Aplicativos";
+/** Aplicativos (antiga secção Informações da Início). */
+export const INFORMACOES_HUB_PATH = "/Apps";
+export const INFORMACOES_HUB_LABEL = "Apps";
+export const INFORMACOES_HUB_TITLE = "Apps";
 export const INFORMACOES_HUB_DESCRIPTION =
   "Materiais e links úteis da comunidade.";
-export const INFORMACOES_APLICATIVOS_PATH = `${INFORMACOES_HUB_PATH}#informacoes`;
+export const INFORMACOES_APLICATIVOS_PATH = INFORMACOES_HUB_PATH;
 
 /** Base das rotas de categoria (mantém `/Informacoes/categoria/...`). */
 export const INFORMACOES_CATEGORY_BASE = "/Informacoes";
 
-/** Secção de contacto no final da página Início. */
-export const INFORMACOES_CONTATO_PATH = `${INFORMACOES_HUB_PATH}#contato`;
+/** Página de contacto (antiga secção no final da Início). */
+export const INFORMACOES_CONTATO_PATH = "/FaleConosco";
+export const FALE_CONOSCO_PATH = "/FaleConosco";
+export const FALE_CONOSCO_LABEL = "Fale conosco";
 
 /** Agenda (calendário) — rota directa, fora do hub Informações. */
 export const AGENDA_PATH = "/Agenda";

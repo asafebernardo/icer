@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
+import PrimaryNavSection from "./PrimaryNavSection";
 import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 import WhatsAppFab from "./WhatsAppFab";
@@ -18,11 +19,12 @@ export default function Layout() {
       </a>
       <div className="hidden sm:block">
         <Navbar />
+        <PrimaryNavSection />
       </div>
       <PostImagePresentationHost />
       <main
         id="main-content"
-        className="flex-1 min-w-0 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:pt-[4.5rem] sm:pb-0 relative w-full"
+        className="flex-1 min-w-0 pt-[max(0.5rem,env(safe-area-inset-top,0px))] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:pt-[8.25rem] sm:pb-0 relative w-full"
       >
         <SiteRecaptchaGate>
           <DestaqueEventoGlobal />

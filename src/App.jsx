@@ -23,6 +23,8 @@ import Layout from "./components/layout/Layout";
 import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import Cultos from "./pages/Cultos";
+import Apps from "./pages/Apps";
+import FaleConosco from "./pages/FaleConosco";
 import { ThemeProvider } from "./lib/ThemeContext";
 import { INFORMACOES_APLICATIVOS_PATH, INFORMACOES_CONTATO_PATH, AGENDA_PATH } from "@/lib/postsNavPath";
 import Dashboard from "./pages/Dashboard";
@@ -142,6 +144,8 @@ const AppRoutes = () => {
       <Route element={<Layout />}>
         <Route path="Home" element={<Home />} />
         <Route path="Cultos" element={<Cultos />} />
+        <Route path="Apps" element={<Apps />} />
+        <Route path="FaleConosco" element={<FaleConosco />} />
         <Route path="Contato" element={<Navigate to={INFORMACOES_CONTATO_PATH} replace />} />
         <Route path="Recursos" element={<Navigate to={INFORMACOES_APLICATIVOS_PATH} replace />} />
         <Route

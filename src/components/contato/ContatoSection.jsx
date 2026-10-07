@@ -130,7 +130,7 @@ export default function ContatoSection() {
   return (
     <section
       id="contato"
-      className="relative scroll-mt-[4.75rem] border-t border-border/30 py-12 sm:py-16 lg:py-20"
+      className="relative scroll-mt-[4.75rem] sm:scroll-mt-[8.5rem] border-t border-border/30 py-12 sm:py-16 lg:py-20"
     >
       <div className="container-page min-w-0">
         {canEditSite && isAdmin ? (

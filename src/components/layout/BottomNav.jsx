@@ -4,6 +4,8 @@ import {
   Home as HomeIcon,
   Newspaper,
   Landmark,
+  LayoutGrid,
+  Phone,
   Church,
   Settings,
   Users,
@@ -23,7 +25,14 @@ import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
 import { isAdminUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { POSTS_HUB_LABEL, POSTS_HUB_PATH } from "@/lib/postsNavPath";
+import {
+  FALE_CONOSCO_LABEL,
+  FALE_CONOSCO_PATH,
+  INFORMACOES_HUB_LABEL,
+  INFORMACOES_HUB_PATH,
+  POSTS_HUB_LABEL,
+  POSTS_HUB_PATH,
+} from "@/lib/postsNavPath";
 import AdminNavLinks from "@/components/admin/AdminNavLinks";
 import BottomNavMenuActions from "@/components/layout/BottomNavMenuActions";
 import {
@@ -36,6 +45,8 @@ const PRIMARY_ITEMS = [
   { label: "Cultos", path: "/Cultos", icon: Church },
   { label: POSTS_HUB_LABEL, path: POSTS_HUB_PATH, icon: Newspaper },
   { label: "História", path: "/Historia", icon: Landmark },
+  { label: INFORMACOES_HUB_LABEL, path: INFORMACOES_HUB_PATH, icon: LayoutGrid },
+  { label: FALE_CONOSCO_LABEL, path: FALE_CONOSCO_PATH, icon: Phone },
 ];
 
 function isBottomNavActive(pathname, itemPath) {
@@ -44,8 +55,14 @@ function isBottomNavActive(pathname, itemPath) {
       pathname === itemPath || pathname.startsWith(`${itemPath}/`)
     );
   }
+  if (itemPath === INFORMACOES_HUB_PATH) {
+    return pathname === itemPath || pathname.startsWith("/Informacoes/");
+  }
   if (itemPath === "/Home") {
     return pathname === "/Home" || pathname === "/";
+  }
+  if (itemPath === "/Historia") {
+    return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
   }
   return pathname === itemPath;
 }

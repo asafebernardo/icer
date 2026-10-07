@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 
-import ServiceTimesVariantEditorial from "@/components/home/service-times/ServiceTimesVariantEditorial";
+import ServiceTimesVariantPhotoGrid from "@/components/home/service-times/ServiceTimesVariantPhotoGrid";
 import {
   cardsToEventViews,
   normalizeCardImages,
@@ -310,7 +310,7 @@ export default function ServiceTimes({ standalone = false } = {}) {
         </div>
       ) : null}
 
-      <ServiceTimesVariantEditorial {...variantProps} />
+      <ServiceTimesVariantPhotoGrid {...variantProps} />
 
       <Dialog
         open={editOpen}

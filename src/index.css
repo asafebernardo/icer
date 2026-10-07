@@ -277,6 +277,18 @@
   }
 
   /* ——— Premium cinematográfico ——— */
+  .primary-nav-section {
+    @apply fixed left-0 right-0 z-40 border-b border-border/80;
+    top: 4.5rem;
+    background: hsl(var(--background) / 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .dark .primary-nav-section {
+    background: hsl(var(--background) / 0.88);
+  }
+
   .nav-glass-premium {
     @apply fixed top-0 left-0 right-0 z-50 border-b transition-all duration-500 ease-out;
     border-color: rgba(255, 255, 255, 0.85);
@@ -295,6 +307,60 @@
       0 1px 0 hsl(var(--primary) / 0.08),
       0 12px 40px -16px hsl(var(--glow-primary) / 0.14),
       0 24px 64px -32px hsl(var(--background) / 0.9);
+  }
+
+  .navbar-wordmark {
+    display: flex;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    font-family: var(--font-wiki);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: clamp(0.92rem, 1.55vw, 1.2rem);
+    line-height: 1.15;
+    letter-spacing: 0.1em;
+    font-variant: small-caps;
+    font-feature-settings: "smcp", "c2sc";
+    color: hsl(var(--foreground) / 0.92);
+    text-wrap: balance;
+  }
+
+  .navbar-wordmark::before,
+  .navbar-wordmark::after {
+    content: "";
+    display: none;
+    height: 1px;
+    width: clamp(1.1rem, 3vw, 2.25rem);
+    flex-shrink: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary) / 0.55),
+      transparent
+    );
+  }
+
+  @media (min-width: 640px) {
+    .navbar-wordmark::before,
+    .navbar-wordmark::after {
+      display: block;
+    }
+  }
+
+  .dark .navbar-wordmark {
+    color: hsl(var(--foreground) / 0.94);
+  }
+
+  .dark .navbar-wordmark::before,
+  .dark .navbar-wordmark::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--accent) / 0.65),
+      transparent
+    );
   }
 
   .nav-link-pill-active {
@@ -409,6 +475,7 @@
       transparent 45%
     );
   }
+
 
   .prose-premium-lead {
     @apply text-muted-foreground text-lg sm:text-xl leading-relaxed font-light;
