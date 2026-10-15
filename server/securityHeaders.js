@@ -69,6 +69,8 @@ export function createSecurityHeadersMiddleware() {
           },
         },
     crossOriginEmbedderPolicy: false,
+    /* `same-origin` isolava o regresso do OAuth e o browser pedia o callback duas vezes. */
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     crossOriginResourcePolicy: { policy: "same-site" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
   });

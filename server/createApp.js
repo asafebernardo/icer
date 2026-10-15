@@ -62,7 +62,7 @@ import {
 } from "./loginAttemptLock.js";
 import { envBoolTrue, isHomologEnvironment, readCookieSecureFlag } from "./envFlags.js";
 import { getHomologSeedAccounts, isHomologSeedEmail } from "./homologSeed.js";
-import { addDaysIso, addMinutesIso, nowIso, randomToken, sha256Hex } from "./security.js";
+import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
 import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
 import {
   getPublicWorkspace,
@@ -120,8 +120,10 @@ import {
 import {
   buildGoogleLoginAuthorizeUrl,
   clearGoogleLoginHintCookie,
-  consumeGoogleLoginOauthState,
+  beginGoogleLoginOauthState,
+  completeGoogleLoginOauthState,
   createGoogleLoginOauthState,
+  failGoogleLoginOauthState,
   exchangeGoogleLoginCodeForProfile,
   getGoogleLoginConfig,
   GOOGLE_LOGIN_HINT_COOKIE,
@@ -1099,7 +1101,7 @@ export function createApplication(db, options = {}) {
     const loginHint = pickAccount ? "" : hintParam || hintCookie;
     const redirectUri = googleLoginRedirectUriForRequest(googleConfig, req);
     try {
-      const state = await createGoogleLoginOauthState(db);
+      const state = await createGoogleLoginOauthState(db, redirectUri);
       const url = buildGoogleLoginAuthorizeUrl({
         state,
         redirectUri,
@@ -1146,23 +1148,44 @@ export function createApplication(db, options = {}) {
     const state = String(req.query.state || "").trim();
     const oauthErr = String(req.query.error || "").trim();
 
-    const errRedirect = (reason) => {
-      const u = new URL(`${base}/Home`);
-      u.searchParams.set("google_login", "err");
-      u.searchParams.set("reason", reason);
-      res.redirect(302, u.toString());
+    const escHtml = (value) =>
+      String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const loginErrorHtml = (reason, email) => {
+      const messages = {
+        oauth: "Não foi possível concluir o login com Google.",
+        forbidden: "Este e-mail não está autorizado a usar o login Google.",
+        no_account: "Não existe conta activa com este e-mail no servidor.",
+        blocked: "Início de sessão temporariamente indisponível.",
+        google_reauth: "A Google pediu para escolher a conta outra vez.",
+        invalid_client: "As credenciais Google configuradas no servidor foram recusadas.",
+        redirect_uri_mismatch:
+          "O endereço de retorno do login não coincide com o que está registado na Google.",
+        invalid_grant: "O código de login expirou ou já foi usado. Tente outra vez.",
+      };
+      const text = messages[reason] || messages.oauth;
+      const who = email ? `<p>Conta Google: ${escHtml(email)}</p>` : "";
+      return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Login Google</title></head><body><p>${escHtml(text)}</p>${who}<p><a href="/Home">Voltar ao início</a></p></body></html>`;
     };
 
-    const sendSessionHandoff = (ticket) => {
-      const safe = String(ticket)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;");
+    const sendLoginError = (reason, email) => {
+      res.setHeader("Cache-Control", "no-store, private");
+      res.status(200).type("html").send(loginErrorHtml(reason, email));
+    };
+
+    const sendSessionPage = (token, ttlSeconds) => {
+      setSessionCookie(res, token, ttlSeconds);
+      ensureCsrfCookie(req, res);
       res.setHeader("Cache-Control", "no-store, private");
       res
         .status(200)
         .type("html")
         .send(
-          `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>A entrar…</title></head><body><p id="icer-auth-ticket" hidden>${safe}</p><p>A entrar…</p><script src="/auth-continue.js"></script></body></html>`,
+          `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/Home?google_login=ok"><title>A entrar…</title></head><body><p>A entrar…</p><script>location.replace("/Home?google_login=ok")</script></body></html>`,
         );
     };
 
@@ -1172,17 +1195,24 @@ export function createApplication(db, options = {}) {
         "interaction_required",
         "consent_required",
       ]);
-      errRedirect(retryable.has(oauthErr) ? "google_reauth" : "oauth");
+      sendLoginError(retryable.has(oauthErr) ? "google_reauth" : "oauth");
       return;
     }
 
     if (!code || !state) {
-      errRedirect("oauth");
+      sendLoginError("oauth");
       return;
     }
-    const st = await consumeGoogleLoginOauthState(db, state);
+    const st = await beginGoogleLoginOauthState(db, state);
     if (!st) {
-      errRedirect("oauth");
+      sendLoginError("oauth");
+      return;
+    }
+    if (st.kind === "replay") {
+      const ttlMinutes = await getSessionTtlMinutes();
+      const { token } = await createSession(db, st.user_id, { minutes: ttlMinutes });
+      setGoogleLoginHintCookie(res, st.email);
+      sendSessionPage(token, ttlMinutes * 60);
       return;
     }
 
@@ -1190,19 +1220,26 @@ export function createApplication(db, options = {}) {
     try {
       googleProfile = await exchangeGoogleLoginCodeForProfile({
         code,
-        redirectUri,
+        redirectUri: st.redirect_uri || redirectUri,
         config: googleConfig,
       });
-    } catch {
+    } catch (err) {
+      await failGoogleLoginOauthState(db, state);
       await recordAudit(db, {
         userId: null,
         actorUserId: null,
         action: "auth.login_google_failed",
-        details: { step: "token" },
+        details: { step: "token", google_error: String(err?.googleError || "") },
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      errRedirect("oauth");
+      const googleError = String(err?.googleError || "");
+      const tokenReason = ["invalid_client", "redirect_uri_mismatch", "invalid_grant"].includes(
+        googleError,
+      )
+        ? googleError
+        : "oauth";
+      sendLoginError(tokenReason);
       return;
     }
 
@@ -1222,7 +1259,8 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      errRedirect("blocked");
+      await failGoogleLoginOauthState(db, state);
+      sendLoginError("blocked");
       return;
     }
 
@@ -1238,26 +1276,30 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      errRedirect("forbidden");
+      await failGoogleLoginOauthState(db, state);
+      sendLoginError("forbidden", email);
       return;
     }
 
-    let row = await db.collection("users").findOne(
-      { email },
-      {
-        projection: {
-          _id: 0,
-          id: 1,
-          email: 1,
-          full_name: 1,
-          role: 1,
-          disabled: 1,
-          deleted_at: 1,
-          password_hash: 1,
-          avatar_url: 1,
-        },
-      },
-    );
+    const userProjection = {
+      _id: 0,
+      id: 1,
+      email: 1,
+      full_name: 1,
+      role: 1,
+      disabled: 1,
+      deleted_at: 1,
+      password_hash: 1,
+      avatar_url: 1,
+    };
+    let row = await db.collection("users").findOne({ email }, { projection: userProjection });
+    if (!row && email) {
+      const escaped = email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      row = await db.collection("users").findOne(
+        { email: { $regex: `^${escaped}$`, $options: "i" } },
+        { projection: userProjection },
+      );
+    }
 
     /* Bootstrap: e-mail na allowlist (env/admin) sem conta → cria admin Google. */
     if (!row && isEmailAllowedForGoogleLogin(email, googleConfig)) {
@@ -1308,7 +1350,8 @@ export function createApplication(db, options = {}) {
         ip: clientIp(req),
         ...auditCtx(req),
       });
-      errRedirect("no_account");
+      await failGoogleLoginOauthState(db, state);
+      sendLoginError("no_account", email);
       return;
     }
 
@@ -1356,16 +1399,13 @@ export function createApplication(db, options = {}) {
     if (Object.keys(unset).length > 0) update.$unset = unset;
     await db.collection("users").updateOne({ id: row.id }, update);
 
-    const ticket = randomToken();
-    const ticketNow = nowIso();
-    await db.collection("auth_login_tickets").insertOne({
-      ticket_hash: sha256Hex(ticket),
-      user_id: row.id,
-      expires_at: addMinutesIso(2),
-      created_at: ticketNow,
+    const ttlMinutes = await getSessionTtlMinutes();
+    const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
+    await completeGoogleLoginOauthState(db, state, {
+      userId: row.id,
+      email,
     });
     setGoogleLoginHintCookie(res, email);
-    ensureCsrfCookie(req, res);
     await recordAudit(db, {
       userId: row.id,
       actorUserId: row.id,
@@ -1378,7 +1418,7 @@ export function createApplication(db, options = {}) {
       ip: clientIp(req),
       ...auditCtx(req),
     });
-    sendSessionHandoff(ticket);
+    sendSessionPage(token, ttlMinutes * 60);
   });
 
   app.post("/api/auth/google-login/complete", async (req, res) => {

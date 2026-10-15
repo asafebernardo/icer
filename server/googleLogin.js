@@ -537,8 +537,6 @@ export function buildGoogleLoginAuthorizeUrl(p) {
   const cfg = normalizeGoogleLoginConfig(p.config);
   const clientId = String(cfg.client_id || "").trim();
   const loginHint = sanitizeGoogleLoginHint(p.loginHint);
-  const forceAccountPicker = p.forceAccountPicker === true;
-  const preferSilent = p.preferSilent === true;
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id", clientId);
   u.searchParams.set("redirect_uri", p.redirectUri);
@@ -550,13 +548,8 @@ export function buildGoogleLoginAuthorizeUrl(p) {
   if (loginHint) {
     u.searchParams.set("login_hint", loginHint);
   }
-  if (forceAccountPicker) {
-    u.searchParams.set("prompt", "select_account");
-  } else if (preferSilent && loginHint) {
-    u.searchParams.set("prompt", "none");
-  } else if (!loginHint) {
-    u.searchParams.set("prompt", "select_account");
-  }
+  /* `prompt=none` volta logo com erro e o browser nunca chega a criar a sessão. */
+  u.searchParams.set("prompt", "select_account");
   return u.toString();
 }
 
@@ -564,12 +557,14 @@ export function buildGoogleLoginAuthorizeUrl(p) {
  * @param {import("mongodb").Db} db
  * @returns {Promise<string>} state opaco para OAuth
  */
-export async function createGoogleLoginOauthState(db) {
+export async function createGoogleLoginOauthState(db, redirectUri = "") {
   const state = randomToken();
   const now = nowIso();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await db.collection(GOOGLE_LOGIN_OAUTH_STATES).insertOne({
     state,
+    redirect_uri: String(redirectUri || ""),
+    status: "pending",
     created_at: now,
     expires_at: expiresAt,
   });
@@ -577,21 +572,95 @@ export async function createGoogleLoginOauthState(db) {
 }
 
 /**
+ * Reserva o state OAuth. Um segundo pedido com o mesmo state (o browser
+ * por vezes pede o callback duas vezes) recebe o mesmo resultado, em vez
+ * de falhar e mandar o utilizador para a Home sem sessão.
+ *
  * @param {import("mongodb").Db} db
  * @param {string} stateRaw
- * @returns {Promise<{} | null>}
+ * @returns {Promise<
+ *   | { kind: "claimed"; redirect_uri: string }
+ *   | { kind: "replay"; user_id: number; email: string }
+ *   | null
+ * >}
  */
-export async function consumeGoogleLoginOauthState(db, stateRaw) {
+export async function beginGoogleLoginOauthState(db, stateRaw) {
   const state = String(stateRaw || "").trim();
   if (!state) return null;
   const now = nowIso();
-  const row = await db.collection(GOOGLE_LOGIN_OAUTH_STATES).findOne({
-    state,
-    expires_at: { $gt: now },
-  });
-  if (!row) return null;
-  await db.collection(GOOGLE_LOGIN_OAUTH_STATES).deleteOne({ state });
-  return {};
+  const coll = db.collection(GOOGLE_LOGIN_OAUTH_STATES);
+  const claimed = await coll.findOneAndUpdate(
+    {
+      state,
+      expires_at: { $gt: now },
+      $or: [{ status: "pending" }, { status: { $exists: false } }],
+    },
+    { $set: { status: "processing", processing_at: now } },
+    { returnDocument: "before" },
+  );
+  if (claimed) {
+    return { kind: "claimed", redirect_uri: String(claimed.redirect_uri || "") };
+  }
+
+  const readReplay = (row) => {
+    if (!row || String(row.expires_at || "") <= now) return null;
+    if (row.status === "done" && row.user_id != null) {
+      return {
+        kind: "replay",
+        user_id: row.user_id,
+        email: String(row.email || ""),
+      };
+    }
+    return undefined;
+  };
+
+  const existing = await coll.findOne({ state });
+  const ready = readReplay(existing);
+  if (ready) return ready;
+  if (ready === null || !existing || existing.status === "failed") return null;
+
+  for (let i = 0; i < 40; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const again = await coll.findOne({ state });
+    const replay = readReplay(again);
+    if (replay) return replay;
+    if (replay === null || !again || again.status === "failed") return null;
+  }
+  return null;
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @param {string} stateRaw
+ * @param {{ userId: number; email: string }} done
+ */
+export async function completeGoogleLoginOauthState(db, stateRaw, done) {
+  const state = String(stateRaw || "").trim();
+  await db.collection(GOOGLE_LOGIN_OAUTH_STATES).updateOne(
+    { state },
+    {
+      $set: {
+        status: "done",
+        user_id: done.userId,
+        email: String(done.email || ""),
+        completed_at: nowIso(),
+        expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+      },
+    },
+  );
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @param {string} stateRaw
+ */
+export async function failGoogleLoginOauthState(db, stateRaw) {
+  const state = String(stateRaw || "").trim();
+  if (!state) return;
+  await db.collection(GOOGLE_LOGIN_OAUTH_STATES).updateOne(
+    { state, status: "processing" },
+    { $set: { status: "failed", failed_at: nowIso() } },
+  );
 }
 
 /**
@@ -620,7 +689,16 @@ export async function exchangeGoogleLoginCodeForProfile(p) {
     body,
   });
   if (!tr.ok) {
-    throw new Error("google_token_exchange_failed");
+    let googleError = "";
+    try {
+      const j = await tr.json();
+      googleError = String(j.error || "").trim();
+    } catch {
+      googleError = "";
+    }
+    const err = new Error("google_token_exchange_failed");
+    err.googleError = googleError;
+    throw err;
   }
   const tok = await tr.json();
   const access = String(tok.access_token || "").trim();
