@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO, isValid } from "date-fns";
@@ -84,9 +84,9 @@ function hasBrokenMediaPreview(row, previewFailedIds) {
   return isImageOrVideoMime(row?.mime);
 }
 
-async function fetchAdminFiles({ skip, q, kind }) {
+async function fetchAdminFiles({ skip, q, kind, limit = PAGE_SIZE }) {
   const sp = new URLSearchParams();
-  sp.set("limit", String(PAGE_SIZE));
+  sp.set("limit", String(limit));
   sp.set("skip", String(skip));
   if (q.trim()) sp.set("q", q.trim());
   if (kind && kind !== "all") sp.set("kind", kind);
@@ -102,6 +102,25 @@ async function fetchAdminFiles({ skip, q, kind }) {
     throw new Error(msg || r.statusText);
   }
   return r.json();
+}
+
+/** Todos os ids do filtro atual, incluindo páginas que não estão na tabela. */
+async function fetchAllAdminFileIds({ q, kind }) {
+  const limit = 200;
+  const ids = [];
+  let skip = 0;
+  let total = Infinity;
+  while (skip < total && skip <= 50000) {
+    const data = await fetchAdminFiles({ skip, q, kind, limit });
+    const batch = Array.isArray(data.items) ? data.items : [];
+    total = Number(data.total) || 0;
+    for (const row of batch) {
+      if (row?.id != null) ids.push(row.id);
+    }
+    if (batch.length === 0) break;
+    skip += batch.length;
+  }
+  return ids;
 }
 
 async function fetchAdminFileDetail(id) {
@@ -265,6 +284,8 @@ export default function AdminUploadsPanel() {
   const [listKindFilter, setListKindFilter] = useState("all");
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restorePct, setRestorePct] = useState(0);
+  const [selectAllBusy, setSelectAllBusy] = useState(false);
+  const selectAllGen = useRef(0);
 
   const serverListKind = listKindFilter === "broken" ? "all" : listKindFilter;
 
@@ -359,8 +380,10 @@ export default function AdminUploadsPanel() {
   }, []);
 
   useEffect(() => {
+    selectAllGen.current += 1;
+    setSelectAllBusy(false);
     setSelectedIds(new Set());
-  }, [page, qDebounced, itemsIdKey, listKindFilter]);
+  }, [qDebounced, listKindFilter]);
 
   useEffect(() => {
     setPreviewFailedIds(new Set());
@@ -400,6 +423,32 @@ export default function AdminUploadsPanel() {
       else displayItems.forEach((r) => next.delete(r.id));
       return next;
     });
+  };
+
+  const selectAllMatching = async () => {
+    const gen = selectAllGen.current + 1;
+    selectAllGen.current = gen;
+    if (listKindFilter === "broken") {
+      setSelectedIds(new Set(displayItems.map((r) => r.id)));
+      return;
+    }
+    if (total > 0 && total <= displayItems.length) {
+      setSelectedIds(new Set(displayItems.map((r) => r.id)));
+      return;
+    }
+    const q = qDebounced;
+    const kind = serverListKind;
+    setSelectAllBusy(true);
+    try {
+      const ids = await fetchAllAdminFileIds({ q, kind });
+      if (selectAllGen.current !== gen) return;
+      setSelectedIds(new Set(ids));
+    } catch (e) {
+      if (selectAllGen.current !== gen) return;
+      toast.error(e?.message || "Não foi possível selecionar todos os ficheiros.");
+    } finally {
+      if (selectAllGen.current === gen) setSelectAllBusy(false);
+    }
   };
 
   const runRestoreZip = async (file) => {
@@ -593,7 +642,7 @@ export default function AdminUploadsPanel() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0 space-y-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Seleção nesta página
+                  Seleção
                 </p>
                 <p className="text-sm text-foreground">
                   <span className="tabular-nums font-semibold">{selectedIds.size}</span>{" "}
@@ -625,15 +674,31 @@ export default function AdminUploadsPanel() {
                 variant="secondary"
                 size="sm"
                 className="h-8 text-xs"
-                onClick={() => setSelectedIds(new Set(displayItems.map((r) => r.id)))}
+                disabled={selectAllBusy || (listKindFilter !== "broken" && total === 0)}
+                onClick={() => void selectAllMatching()}
               >
-                Selecionar todos (visíveis)
+                {selectAllBusy ? (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : null}
+                Selecionar todos
               </Button>
+              {selectedIds.size > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={selectAllBusy}
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Limpar seleção
+                </Button>
+              ) : null}
             </div>
             <p className="mt-2 text-[11px] leading-snug text-muted-foreground sm:text-xs">
-              Use o filtro «Tipo de ficheiro» acima para imagens, vídeos, áudio ou pré-visualização
-              falhada nesta página. Para limpar a seleção, desmarque no cabeçalho da tabela ou por
-              linha.
+              {listKindFilter === "broken"
+                ? "Neste filtro só entram ficheiros com pré-visualização quebrada nesta página."
+                : "Selecionar todos inclui os ficheiros das outras páginas, com a pesquisa e o tipo atuais. A caixa no cabeçalho marca só esta página."}
             </p>
           </div>
 
