@@ -100,11 +100,11 @@ export const POST_MOSAIC_EVENTOS_CATEGORY_KEYS = [
   "estudos_biblicos",
 ];
 
-/** Ordem das secções no mosaico raiz (Eventos). Aplicativos ficam no Home. */
+/** Ordem das secções no mosaico raiz (Galeria). Aplicativos ficam no Home. */
 export const POST_MOSAIC_TAG_GROUPS = [
   {
     id: "eventos",
-    label: "Eventos",
+    label: "Galeria",
     categories: POST_MOSAIC_EVENTOS_CATEGORY_KEYS,
     yearFirst: true,
   },

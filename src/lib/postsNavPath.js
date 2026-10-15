@@ -15,8 +15,8 @@ import {
 
 /** Publicações de eventos (cultos, encontros, festividades, etc.). */
 export const POSTS_HUB_PATH = "/Eventos";
-export const POSTS_HUB_LABEL = "Eventos";
-export const POSTS_HUB_TITLE = "Encontros e memórias";
+export const POSTS_HUB_LABEL = "Galeria";
+export const POSTS_HUB_TITLE = "Galeria";
 export const POSTS_HUB_DESCRIPTION =
   "Registros de cultos, encontros, festividades e conferências.";
 
