@@ -76,8 +76,31 @@ export function parseGoogleLoginAllowedEmails(value = process.env.ICER_GOOGLE_LO
   if (!raw) return [];
   return [...new Set(raw
     .split(/[\s,;]+/)
-    .map((e) => e.toLowerCase().trim())
+    .map((e) => e.toLowerCase().trim().replace(/^["']+|["']+$/g, ""))
     .filter(Boolean))];
+}
+
+/**
+ * Gmail ignora pontos e o sufixo `+` no endereço. A comparação da allowlist
+ * usa esta forma para `asafe.kohler@gmail.com` e `asafekohler@gmail.com`
+ * serem o mesmo correio.
+ */
+export function canonicalLoginEmail(email) {
+  const e = String(email || "").toLowerCase().trim();
+  const at = e.lastIndexOf("@");
+  if (at < 1) return e;
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  if (domain !== "gmail.com" && domain !== "googlemail.com") return e;
+  const base = local.split("+")[0].replace(/\./g, "");
+  return base ? `${base}@gmail.com` : e;
+}
+
+/** Lista gravada na base de dados, mais os e-mails definidos na variável de ambiente. */
+export function googleLoginAllowedEmails(config) {
+  const cfg = normalizeGoogleLoginConfig(config);
+  const fromEnv = parseGoogleLoginAllowedEmails(process.env.ICER_GOOGLE_LOGIN_ALLOWED_EMAILS);
+  return [...new Set([...cfg.allowed_emails, ...fromEnv])];
 }
 
 function normalizeBackupTime(value, fallback = "02:00") {
@@ -272,8 +295,10 @@ export function isGoogleLoginConfigured(config) {
 export function isEmailAllowedForGoogleLogin(email, config) {
   const e = String(email || "").toLowerCase().trim();
   if (!e) return false;
-  const cfg = normalizeGoogleLoginConfig(config);
-  return new Set(cfg.allowed_emails).has(e);
+  const list = googleLoginAllowedEmails(config);
+  if (list.length === 0) return false;
+  const want = canonicalLoginEmail(e);
+  return list.some((item) => canonicalLoginEmail(item) === want);
 }
 
 export function googleLoginRedirectUri(config) {

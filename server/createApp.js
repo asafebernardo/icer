@@ -131,6 +131,8 @@ import {
   googleLoginRedirectUri,
   googleLoginRedirectUriForRequest,
   resolveGoogleLoginPublicBase,
+  canonicalLoginEmail,
+  googleLoginAllowedEmails,
   isEmailAllowedForGoogleLogin,
   isGoogleLoginConfiguredValue,
   googleLoginConfigMissing,
@@ -1264,8 +1266,9 @@ export function createApplication(db, options = {}) {
       return;
     }
 
+    const allowedEmails = googleLoginAllowedEmails(googleConfig);
     if (
-      googleConfig.allowed_emails.length > 0 &&
+      allowedEmails.length > 0 &&
       !isEmailAllowedForGoogleLogin(email, googleConfig)
     ) {
       await recordAudit(db, {
@@ -1299,6 +1302,18 @@ export function createApplication(db, options = {}) {
         { email: { $regex: `^${escaped}$`, $options: "i" } },
         { projection: userProjection },
       );
+    }
+    if (!row && canonicalLoginEmail(email).endsWith("@gmail.com")) {
+      const want = canonicalLoginEmail(email);
+      const candidates = await db
+        .collection("users")
+        .find(
+          { email: { $regex: "@(gmail|googlemail)\\.com$", $options: "i" } },
+          { projection: userProjection },
+        )
+        .limit(200)
+        .toArray();
+      row = candidates.find((u) => canonicalLoginEmail(u.email) === want) || null;
     }
 
     /* Bootstrap: e-mail na allowlist (env/admin) sem conta → cria admin Google. */
