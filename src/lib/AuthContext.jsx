@@ -347,28 +347,30 @@ export function AuthProvider({ children }) {
       stripGoogleParams();
       void (async () => {
         loginInProgressRef.current = true;
-        sessionValidationGenRef.current += 1;
         try {
-          await validateServerSession();
-          const u = getUser();
-          if (u?.email) setGoogleLoginHint(u.email);
-          if (getUser()) {
-            toast.success("Sessão iniciada com Google.");
-            const returnPath = readPostLoginReturnPath();
-            if (returnPath) {
-              navigate(returnPath, { replace: true });
-            }
+          const u = await fetchSessionUserWithRetry();
+          if (!u) {
+            toast.error(
+              "O Google aceitou a conta, mas a sessão não ficou neste browser. Permite cookies para icer.com.br e tenta outra vez.",
+            );
+            return;
           }
-          if (isServerAuthEnabled() && getUser()) {
-            void queryClientInstance
-              .fetchQuery({
-                queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
-                queryFn: fetchPublicWorkspaceJson,
-              })
-              .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
-              .catch(() => {});
-            setServerMenuEffective(null);
+          lastSessionOkAtRef.current = Date.now();
+          await applySessionUser(u);
+          if (u.email) setGoogleLoginHint(u.email);
+          toast.success("Sessão iniciada com Google.");
+          const returnPath = readPostLoginReturnPath();
+          if (returnPath) {
+            navigate(returnPath, { replace: true });
           }
+          void queryClientInstance
+            .fetchQuery({
+              queryKey: PUBLIC_WORKSPACE_QUERY_KEY,
+              queryFn: fetchPublicWorkspaceJson,
+            })
+            .then((w) => hydrateMemberRegistryFromPublicWorkspace(w))
+            .catch(() => {});
+          setServerMenuEffective(null);
         } finally {
           loginInProgressRef.current = false;
         }
@@ -389,7 +391,13 @@ export function AuthProvider({ children }) {
     }
 
     stripGoogleParams();
-  }, [location.pathname, location.search, navigate, validateServerSession]);
+  }, [
+    location.pathname,
+    location.search,
+    navigate,
+    applySessionUser,
+    fetchSessionUserWithRetry,
+  ]);
 
   const startGoogleLogin = useCallback(
     async (opts = {}) => {

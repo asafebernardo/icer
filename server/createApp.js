@@ -1152,6 +1152,23 @@ export function createApplication(db, options = {}) {
       res.redirect(302, u.toString());
     };
 
+    /**
+     * 200 + meta refresh, não 302. O regresso da Google é um salto entre sites;
+     * um redirect imediato faz o Chrome descartar o cookie de sessão e `/api/auth/me` fica 401.
+     */
+    const sendSessionRedirect = (target) => {
+      const href = String(target)
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;");
+      res
+        .status(200)
+        .type("html")
+        .send(
+          `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${href}"><title>A entrar…</title></head><body><p><a href="${href}">Continuar</a></p></body></html>`,
+        );
+    };
+
     if (oauthErr) {
       const retryable = new Set([
         "login_required",
@@ -1238,6 +1255,7 @@ export function createApplication(db, options = {}) {
           full_name: 1,
           role: 1,
           disabled: 1,
+          deleted_at: 1,
           password_hash: 1,
           avatar_url: 1,
         },
@@ -1281,7 +1299,7 @@ export function createApplication(db, options = {}) {
       };
     }
 
-    if (!row || row.disabled === true) {
+    if (!row || row.disabled === true || isDeletedRow(row)) {
       if (!skipLoginAttemptLock) {
         await bumpLoginFailure(db, googleFailureKeys);
       }
@@ -1360,7 +1378,7 @@ export function createApplication(db, options = {}) {
     });
     const okUrl = new URL(`${base}/Home`);
     okUrl.searchParams.set("google_login", "ok");
-    res.redirect(302, okUrl.toString());
+    sendSessionRedirect(okUrl.toString());
   });
 
   app.post("/api/auth/logout", async (req, res) => {
