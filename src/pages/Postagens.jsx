@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   PostsCategoryFeedSkeleton,
@@ -37,6 +38,10 @@ import {
   sortPostsByPublicationDate,
 } from "@/lib/posts";
 import { withCsrfHeaderAsync } from "@/lib/csrf";
+import {
+  downloadEventosZip,
+  saveEventosFolders,
+} from "@/lib/exportEventosFolder";
 import { cn } from "@/lib/utils";
 
 const EVENTOS_CATEGORY_SET = new Set(POST_MOSAIC_EVENTOS_CATEGORY_KEYS);
@@ -63,6 +68,8 @@ export default function Postagens() {
   const [selectedCard, setSelectedCard] = useState(POSTS_EVENTOS_ALL_CARDS);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(null);
 
   const sessionUser = authUser ?? getUser();
   const canCreate =
@@ -71,6 +78,9 @@ export default function Postagens() {
     canMenuAction(sessionUser, MENU.POSTAGENS, "edit") && editMode;
   const canDelete =
     canMenuAction(sessionUser, MENU.POSTAGENS, "delete") && editMode;
+  const canExport =
+    canMenuAction(sessionUser, MENU.POSTAGENS, "create") ||
+    canMenuAction(sessionUser, MENU.POSTAGENS, "edit");
   const needsEditMode =
     canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
     !editMode &&
@@ -177,6 +187,44 @@ export default function Postagens() {
     setSelectedCard(POSTS_EVENTOS_ALL_CARDS);
   };
 
+  const exportForGoogleFotos = async () => {
+    if (exporting || listedPosts.length === 0) return;
+    setExporting(true);
+    setExportProgress({ done: 0, total: listedPosts.length, title: "" });
+    const onProgress = (info) => setExportProgress(info);
+    try {
+      let result;
+      if (typeof window.showDirectoryPicker === "function") {
+        const dir = await window.showDirectoryPicker({
+          mode: "readwrite",
+          id: "icer-eventos-fotos",
+        });
+        result = await saveEventosFolders(dir, listedPosts, { onProgress });
+        toast.success(
+          `Pasta «ICER Eventos» criada: ${result.posts} post(s), ${result.images} imagem(ns).`,
+        );
+      } else {
+        result = await downloadEventosZip(listedPosts, { onProgress });
+        toast.success(
+          `ZIP descarregado: ${result.posts} post(s), ${result.images} imagem(ns).`,
+        );
+      }
+      if (result.missing > 0) {
+        toast.warning(
+          `${result.missing} imagem(ns) não foram guardadas. O dados.txt indica quais.`,
+        );
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      toast.error(
+        error?.message || "Não foi possível guardar a pasta dos eventos.",
+      );
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
+  };
+
   return (
     <div className="posts-hub min-h-screen">
       <div className="posts-hub__atmosphere" aria-hidden />
@@ -219,7 +267,29 @@ export default function Postagens() {
               />
             </div>
           }
+          end={
+            canExport ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                disabled={exporting || listedPosts.length === 0}
+                onClick={() => void exportForGoogleFotos()}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                {exporting ? "A guardar…" : "Baixar para Google Fotos"}
+              </Button>
+            ) : null
+          }
         />
+        {exportProgress ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            A guardar {Math.min(exportProgress.done + 1, exportProgress.total)} de{" "}
+            {exportProgress.total}
+            {exportProgress.title ? `: ${exportProgress.title}` : ""}
+          </p>
+        ) : null}
 
         <PostsEventosHubActiveFilters
           selectedSubgroup={selectedSubgroup}
