@@ -1908,6 +1908,7 @@ export function createApplication(db, options = {}) {
         "eventos",
         "materiais",
         "fotos_galeria",
+        "musicas_letras",
         "files",
         "users",
         "sessions",
@@ -3510,7 +3511,16 @@ export function createApplication(db, options = {}) {
         res.status(400).json({ message: "invalid_request" });
         return;
       }
-      const restored = await restoreSoftDeletedRow(db, type, { id });
+      let restored;
+      try {
+        restored = await restoreSoftDeletedRow(db, type, { id });
+      } catch (e) {
+        if (e && e.code === 11000) {
+          res.status(409).json({ message: "numero_em_uso" });
+          return;
+        }
+        throw e;
+      }
       if (!restored.ok) {
         res.status(404).json({ message: "not_found" });
         return;

@@ -3,6 +3,7 @@ import {
   Calendar,
   FileText,
   FolderOpen,
+  Music,
   HardDriveDownload,
   Image as ImageIcon,
   KeyRound,
@@ -52,6 +53,9 @@ export const ACTION_LABELS = {
   "data.fotos_galeria.create": "Foto da galeria criada",
   "data.fotos_galeria.update": "Foto da galeria atualizada",
   "data.fotos_galeria.delete": "Foto da galeria eliminada",
+  "data.musicas_letras.create": "Letra criada",
+  "data.musicas_letras.update": "Letra atualizada",
+  "data.musicas_letras.delete_scheduled": "Letra marcada para eliminação",
 };
 
 export function labelForAction(action) {
@@ -172,6 +176,15 @@ const CATEGORIES = {
       "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/40",
     accentClass: "border-l-4 border-l-cyan-500/70 dark:border-l-cyan-400/60",
   },
+  hinario: {
+    label: "Hinário",
+    icon: Music,
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    badgeClass:
+      "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/40",
+    accentClass:
+      "border-l-4 border-l-indigo-500/70 dark:border-l-indigo-400/60",
+  },
   gallery: {
     label: "Galeria",
     icon: ImageIcon,
@@ -267,6 +280,7 @@ export function categoryForAction(action) {
   if (a.startsWith("data.eventos.")) return CATEGORIES.event;
   if (a.startsWith("data.materiais.")) return CATEGORIES.material;
   if (a.startsWith("data.fotos_galeria.")) return CATEGORIES.gallery;
+  if (a.startsWith("data.musicas_letras.")) return CATEGORIES.hinario;
 
   if (a.endsWith(".delete")) return CATEGORIES.data_delete;
   if (a.endsWith(".update")) return CATEGORIES.data_update;

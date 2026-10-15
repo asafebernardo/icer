@@ -108,6 +108,8 @@ describe("ICER API", () => {
     const csp = String(res.headers["content-security-policy"]);
     assert.match(csp, /default-src 'self'/);
     assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /worker-src 'self' blob:/);
+    assert.match(csp, /https:\/\/www\.recaptcha\.net/);
   });
 
   it("anti-clickjacking mantém-se com CSP desligada", async () => {
@@ -273,6 +275,60 @@ describe("ICER API", () => {
       })
       .expect(201);
     assert.ok(mat.body.id);
+  });
+
+  it("hinário: leitura exige sessão; número é único", async () => {
+    await request(app).get("/api/data/musicas-letras").expect(401);
+
+    const agent = request.agent(app);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: USER_EMAIL, password: USER_PASS })
+      .expect(200);
+    const csrf = await getCsrf(agent);
+
+    const created = await agent
+      .post("/api/data/musicas-letras")
+      .set("X-CSRF-Token", csrf)
+      .send({
+        numero: 12,
+        titulo: "Música de teste",
+        letra: "Primeira estrofe\n\nSegunda estrofe",
+      })
+      .expect(201);
+    assert.equal(created.body.numero, 12);
+    assert.equal(created.body.titulo, "Música de teste");
+
+    await agent
+      .post("/api/data/musicas-letras")
+      .set("X-CSRF-Token", csrf)
+      .send({ numero: 12, titulo: "Outra", letra: "Texto" })
+      .expect(409);
+
+    const list = await agent.get("/api/data/musicas-letras").expect(200);
+    assert.ok(list.body.some((m) => m.id === created.body.id));
+
+    const one = await agent
+      .get(`/api/data/musicas-letras/${created.body.id}`)
+      .expect(200);
+    assert.match(one.body.letra, /Primeira estrofe/);
+
+    await agent
+      .put(`/api/data/musicas-letras/${created.body.id}`)
+      .set("X-CSRF-Token", csrf)
+      .send({
+        numero: 13,
+        titulo: "Música de teste",
+        letra: "Estrofe revista",
+      })
+      .expect(200);
+
+    await agent
+      .delete(`/api/data/musicas-letras/${created.body.id}`)
+      .set("X-CSRF-Token", csrf)
+      .expect(204);
+
+    await agent.get(`/api/data/musicas-letras/${created.body.id}`).expect(404);
   });
 
   it("GET públicos de listagens (sem auth)", async () => {

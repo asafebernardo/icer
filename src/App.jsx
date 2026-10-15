@@ -24,6 +24,8 @@ import RouteSkeleton from "@/components/shared/RouteSkeleton";
 import Home from "./pages/Home";
 import Cultos from "./pages/Cultos";
 import Apps from "./pages/Apps";
+import HinarioPage from "./pages/HinarioPage";
+import HinarioMusicaPage from "./pages/HinarioMusicaPage";
 import FaleConosco from "./pages/FaleConosco";
 import { ThemeProvider } from "./lib/ThemeContext";
 import { INFORMACOES_APLICATIVOS_PATH, INFORMACOES_CONTATO_PATH, AGENDA_PATH } from "@/lib/postsNavPath";
@@ -145,6 +147,22 @@ const AppRoutes = () => {
         <Route path="Home" element={<Home />} />
         <Route path="Cultos" element={<Cultos />} />
         <Route path="Apps" element={<Apps />} />
+        <Route
+          path="Apps/musicas/:id"
+          element={
+            <PrivateRoute>
+              <HinarioMusicaPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="Apps/musicas"
+          element={
+            <PrivateRoute>
+              <HinarioPage />
+            </PrivateRoute>
+          }
+        />
         <Route path="FaleConosco" element={<FaleConosco />} />
         <Route path="Contato" element={<Navigate to={INFORMACOES_CONTATO_PATH} replace />} />
         <Route path="Recursos" element={<Navigate to={INFORMACOES_APLICATIVOS_PATH} replace />} />

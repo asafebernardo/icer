@@ -129,6 +129,7 @@ const SERVER_ENTITY_SLUG = {
   Material: "materiais",
   FotoGaleria: "fotos-galeria",
   Contato: "contatos",
+  MusicaLetra: "musicas-letras",
 };
 
 function createLocalEntityHandler(slug) {

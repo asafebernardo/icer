@@ -90,6 +90,7 @@ export async function ensureMongoIndexes(db) {
     "materiais",
     "fotos_galeria",
     "contatos",
+    "musicas_letras",
   ]) {
     await db.collection(c).createIndex({ id: 1 }, { unique: true });
   }
@@ -100,6 +101,14 @@ export async function ensureMongoIndexes(db) {
   await db.collection("materiais").createIndex({ created_at: 1 });
   await db.collection("fotos_galeria").createIndex({ created_at: 1 });
   await db.collection("contatos").createIndex({ created_at: 1 });
+  await db.collection("musicas_letras").createIndex(
+    { numero: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { deleted_at: null },
+      name: "numero_ativo_unique",
+    },
+  );
   await db.collection("audit_logs").createIndex({ id: 1 }, { unique: true });
   await db.collection("audit_logs").createIndex({ user_id: 1, created_at: -1 });
   await db.collection("audit_logs").createIndex({ created_at: -1 });

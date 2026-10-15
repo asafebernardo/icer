@@ -107,13 +107,52 @@ export async function backfillPostsPubSortAt(db) {
   if (ops.length) await coll.bulkWrite(ops);
 }
 
-/** @param {"posts"|"eventos"|"materiais"|"fotos_galeria"} table */
+const MUSICA_LETRA_MAX = 20000;
+
+/**
+ * @param {unknown} raw
+ * @returns {{ value: { numero: number, titulo: string, letra: string } } | { error: string }}
+ */
+function parseMusicaLetraBody(raw) {
+  const body = raw && typeof raw === "object" ? raw : {};
+  const numeroRaw = body.numero;
+  const numero =
+    typeof numeroRaw === "number"
+      ? numeroRaw
+      : Number(String(numeroRaw ?? "").trim());
+  if (!Number.isInteger(numero) || numero < 1 || numero > 9999) {
+    return { error: "numero_invalido" };
+  }
+  const titulo = String(body.titulo ?? "").trim();
+  if (!titulo || titulo.length > 200) return { error: "titulo_invalido" };
+  const letra = String(body.letra ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (!letra || letra.length > MUSICA_LETRA_MAX) return { error: "letra_invalida" };
+  return { value: { numero, titulo, letra } };
+}
+
+/**
+ * @param {import("mongodb").Db} db
+ * @param {number} numero
+ * @param {number | null} exceptId
+ */
+async function musicaNumeroEmUso(db, numero, exceptId) {
+  const filter = { numero, ...notDeletedFilter() };
+  if (exceptId != null) filter.id = { $ne: exceptId };
+  const row = await db
+    .collection("musicas_letras")
+    .findOne(filter, { projection: { id: 1 } });
+  return Boolean(row);
+}
+
+/** @param {"posts"|"eventos"|"materiais"|"fotos_galeria"|"musicas_letras"} table */
 function mongoSort(table, sort) {
   const s = String(sort || "").trim();
   if (!/^[-\w]+$/.test(s)) {
-    return table === "posts"
-      ? { pub_sort_at: -1, created_at: -1 }
-      : { created_at: -1 };
+    if (table === "posts") return { pub_sort_at: -1, created_at: -1 };
+    if (table === "musicas_letras") return { numero: 1, id: 1 };
+    return { created_at: -1 };
   }
   if (table === "eventos") {
     if (s === "data" || s === "event_date") return { event_date: 1, created_at: 1 };
@@ -122,6 +161,14 @@ function mongoSort(table, sort) {
   if (table === "posts") {
     if (s === "created_date" || s === "data") return { pub_sort_at: 1, created_at: 1 };
     if (s === "-created_date" || s === "-data") return { pub_sort_at: -1, created_at: -1 };
+  }
+  if (table === "musicas_letras") {
+    if (s === "numero" || s === "created_date" || s === "data") {
+      return { numero: 1, id: 1 };
+    }
+    if (s === "-numero" || s === "-created_date" || s === "-data") {
+      return { numero: -1, id: -1 };
+    }
   }
   if (s === "created_date" || s === "data") return { created_at: 1 };
   if (s === "-created_date" || s === "-data") return { created_at: -1 };
@@ -802,6 +849,176 @@ export function createDataRouter(db) {
         ip: clientIp(req),
       });
       const marked = await markRowSoftDeleted(db, "fotos_galeria", { id }, req.user.id);
+      if (!marked.ok) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
+      res.status(204).end();
+    },
+  );
+
+  r.get("/musicas-letras", requireAuth, async (req, res) => {
+    const limit = parseLimit(req.query.limit, 500, 5000);
+    const skip = parseLimit(req.query.skip, 0, 10000);
+    const sort = mongoSort("musicas_letras", req.query.sort);
+    const rows = await db
+      .collection("musicas_letras")
+      .find(notDeletedFilter(), { projection: { _id: 0 } })
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+    res.json(rows.map(rowToRecord));
+  });
+
+  r.get("/musicas-letras/:id", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ message: "invalid_id" });
+      return;
+    }
+    const row = await db.collection("musicas_letras").findOne(
+      { id, ...notDeletedFilter() },
+      { projection: { _id: 0 } },
+    );
+    if (!row) {
+      res.status(404).json({ message: "not_found" });
+      return;
+    }
+    res.json(rowToRecord(row));
+  });
+
+  r.post(
+    "/musicas-letras",
+    requireAuth,
+    requireMenu(db, "recursos", "create"),
+    async (req, res) => {
+      const parsed = parseMusicaLetraBody(req.body);
+      if (parsed.error) {
+        res.status(400).json({ message: parsed.error });
+        return;
+      }
+      if (await musicaNumeroEmUso(db, parsed.value.numero, null)) {
+        res.status(409).json({ message: "numero_em_uso" });
+        return;
+      }
+      const now = nowIso();
+      const id = await nextSeq(db, "musicas_letras");
+      try {
+        await db.collection("musicas_letras").insertOne({
+          id,
+          owner_user_id: req.user.id,
+          numero: parsed.value.numero,
+          body_json: JSON.stringify(parsed.value),
+          deleted_at: null,
+          created_at: now,
+          updated_at: now,
+        });
+      } catch (e) {
+        if (e && e.code === 11000) {
+          res.status(409).json({ message: "numero_em_uso" });
+          return;
+        }
+        throw e;
+      }
+      const row = await db
+        .collection("musicas_letras")
+        .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: "data.musicas_letras.create",
+        details: { resource_id: id, numero: parsed.value.numero },
+        ip: clientIp(req),
+      });
+      res.status(201).json(rowToRecord(row));
+    },
+  );
+
+  r.put(
+    "/musicas-letras/:id",
+    requireAuth,
+    requireMenu(db, "recursos", "edit"),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        res.status(400).json({ message: "invalid_id" });
+        return;
+      }
+      const parsed = parseMusicaLetraBody(req.body);
+      if (parsed.error) {
+        res.status(400).json({ message: parsed.error });
+        return;
+      }
+      const row = await db
+        .collection("musicas_letras")
+        .findOne({ id }, { projection: { _id: 0 } });
+      if (!row || isDeletedRow(row)) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
+      if (await musicaNumeroEmUso(db, parsed.value.numero, id)) {
+        res.status(409).json({ message: "numero_em_uso" });
+        return;
+      }
+      const now = nowIso();
+      try {
+        await db.collection("musicas_letras").updateOne(
+          { id },
+          {
+            $set: {
+              numero: parsed.value.numero,
+              body_json: JSON.stringify(parsed.value),
+              updated_at: now,
+            },
+          },
+        );
+      } catch (e) {
+        if (e && e.code === 11000) {
+          res.status(409).json({ message: "numero_em_uso" });
+          return;
+        }
+        throw e;
+      }
+      const next = await db
+        .collection("musicas_letras")
+        .findOne({ id }, { projection: { _id: 0 } });
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.musicas_letras.update",
+        details: { resource_id: id, numero: parsed.value.numero },
+        ip: clientIp(req),
+      });
+      res.json(rowToRecord(next));
+    },
+  );
+
+  r.delete(
+    "/musicas-letras/:id",
+    requireAuth,
+    requireMenu(db, "recursos", "delete"),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        res.status(400).json({ message: "invalid_id" });
+        return;
+      }
+      const row = await db
+        .collection("musicas_letras")
+        .findOne({ id }, { projection: { _id: 0 } });
+      if (!row || isDeletedRow(row)) {
+        res.status(404).json({ message: "not_found" });
+        return;
+      }
+      await recordAudit(db, {
+        userId: row.owner_user_id ?? req.user.id,
+        actorUserId: req.user.id,
+        action: "data.musicas_letras.delete_scheduled",
+        details: { resource_id: id },
+        ip: clientIp(req),
+      });
+      const marked = await markRowSoftDeleted(db, "musicas_letras", { id }, req.user.id);
       if (!marked.ok) {
         res.status(404).json({ message: "not_found" });
         return;
