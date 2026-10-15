@@ -62,7 +62,7 @@ import {
 } from "./loginAttemptLock.js";
 import { envBoolTrue, isHomologEnvironment, readCookieSecureFlag } from "./envFlags.js";
 import { getHomologSeedAccounts, isHomologSeedEmail } from "./homologSeed.js";
-import { addDaysIso, nowIso, randomToken, sha256Hex } from "./security.js";
+import { addDaysIso, addMinutesIso, nowIso, randomToken, sha256Hex } from "./security.js";
 import { effectiveMenuPermissions, menuActionAllowed } from "./menuPermissions.js";
 import {
   getPublicWorkspace,
@@ -571,6 +571,7 @@ export function createApplication(db, options = {}) {
       path === "/api/site-config" ||
       path === "/api/recaptcha/config" ||
       path === "/api/recaptcha/site-access" ||
+      path === "/api/auth/google-login/complete" ||
       path === "/api/public-workspace/dismiss-destaque"
     ) {
       return next();
@@ -1152,20 +1153,16 @@ export function createApplication(db, options = {}) {
       res.redirect(302, u.toString());
     };
 
-    /**
-     * 200 + meta refresh, não 302. O regresso da Google é um salto entre sites;
-     * um redirect imediato faz o Chrome descartar o cookie de sessão e `/api/auth/me` fica 401.
-     */
-    const sendSessionRedirect = (target) => {
-      const href = String(target)
+    const sendSessionHandoff = (ticket) => {
+      const safe = String(ticket)
         .replace(/&/g, "&amp;")
-        .replace(/"/g, "&quot;")
         .replace(/</g, "&lt;");
+      res.setHeader("Cache-Control", "no-store, private");
       res
         .status(200)
         .type("html")
         .send(
-          `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${href}"><title>A entrar…</title></head><body><p><a href="${href}">Continuar</a></p></body></html>`,
+          `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>A entrar…</title></head><body><p id="icer-auth-ticket" hidden>${safe}</p><p>A entrar…</p><script src="/auth-continue.js"></script></body></html>`,
         );
     };
 
@@ -1359,9 +1356,14 @@ export function createApplication(db, options = {}) {
     if (Object.keys(unset).length > 0) update.$unset = unset;
     await db.collection("users").updateOne({ id: row.id }, update);
 
-    const ttlMinutes = await getSessionTtlMinutes();
-    const { token } = await createSession(db, row.id, { minutes: ttlMinutes });
-    setSessionCookie(res, token, ttlMinutes * 60);
+    const ticket = randomToken();
+    const ticketNow = nowIso();
+    await db.collection("auth_login_tickets").insertOne({
+      ticket_hash: sha256Hex(ticket),
+      user_id: row.id,
+      expires_at: addMinutesIso(2),
+      created_at: ticketNow,
+    });
     setGoogleLoginHintCookie(res, email);
     ensureCsrfCookie(req, res);
     await recordAudit(db, {
@@ -1376,9 +1378,37 @@ export function createApplication(db, options = {}) {
       ip: clientIp(req),
       ...auditCtx(req),
     });
-    const okUrl = new URL(`${base}/Home`);
-    okUrl.searchParams.set("google_login", "ok");
-    sendSessionRedirect(okUrl.toString());
+    sendSessionHandoff(ticket);
+  });
+
+  app.post("/api/auth/google-login/complete", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store, private");
+    const ticket = String(req.body?.ticket || "").trim();
+    const fail = () => {
+      res.status(400).json({
+        ok: false,
+        redirect: "/Home?google_login=err&reason=oauth",
+      });
+    };
+    if (!ticket || ticket.length > 200) {
+      fail();
+      return;
+    }
+    const now = nowIso();
+    const doc = await db.collection("auth_login_tickets").findOne({
+      ticket_hash: sha256Hex(ticket),
+      expires_at: { $gt: now },
+    });
+    if (!doc || doc.user_id == null) {
+      fail();
+      return;
+    }
+    await db.collection("auth_login_tickets").deleteOne({ _id: doc._id });
+    const ttlMinutes = await getSessionTtlMinutes();
+    const { token } = await createSession(db, doc.user_id, { minutes: ttlMinutes });
+    setSessionCookie(res, token, ttlMinutes * 60);
+    ensureCsrfCookie(req, res);
+    res.json({ ok: true, redirect: "/Home?google_login=ok" });
   });
 
   app.post("/api/auth/logout", async (req, res) => {

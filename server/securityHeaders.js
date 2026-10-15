@@ -22,13 +22,15 @@ export function createSecurityHeadersMiddleware() {
             defaultSrc: ["'self'"],
             scriptSrc: [
               "'self'",
+              // O Bot Fight da Cloudflare injeta um script em linha novo em cada
+              // resposta (o hash muda). Sem isto o browser bloqueia esse script.
+              "'unsafe-inline'",
               "https://www.youtube.com",
               "https://www.google.com",
               "https://www.gstatic.com",
               "https://www.recaptcha.net",
+              "https://challenges.cloudflare.com",
               "https://static.cloudflareinsights.com",
-              // Snippet em linha que a Cloudflare injeta para o Web Analytics.
-              "'sha256-WvAgShaPrbP5mle39ryKNq/IWgKbeGufxDq82WPgAUs='",
             ],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
