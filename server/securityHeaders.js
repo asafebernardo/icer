@@ -26,6 +26,9 @@ export function createSecurityHeadersMiddleware() {
               "https://www.google.com",
               "https://www.gstatic.com",
               "https://www.recaptcha.net",
+              "https://static.cloudflareinsights.com",
+              // Snippet em linha que a Cloudflare injeta para o Web Analytics.
+              "'sha256-WvAgShaPrbP5mle39ryKNq/IWgKbeGufxDq82WPgAUs='",
             ],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
@@ -44,6 +47,7 @@ export function createSecurityHeadersMiddleware() {
               "https://www.google.com",
               "https://www.gstatic.com",
               "https://www.recaptcha.net",
+              "https://cloudflareinsights.com",
             ],
             workerSrc: ["'self'", "blob:", "https://www.google.com", "https://www.gstatic.com"],
             mediaSrc: ["'self'", "blob:", "data:"],
