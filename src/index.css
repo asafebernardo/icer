@@ -208,18 +208,6 @@
     isolation: isolate;
   }
 
-  /* reCAPTCHA v3: badge oculto — aviso no rodapé (requisito Google).
-   * display:none evita o iframe fixo no canto inferior a cobrir os controlos mobile. */
-  .grecaptcha-badge {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-  }
-
   h1,
   h2,
   h3,
@@ -248,6 +236,24 @@
       0 0 0 2px hsl(var(--background));
     min-width: 3rem;
     min-height: 3rem;
+  }
+}
+
+/* Fora de @layer: o Tailwind remove .grecaptcha-badge se estiver numa layer,
+   porque a classe não aparece no JSX. Sem esta regra o Google deixa o badge
+   com right negativo, o overflow da página corta o iframe e o login não gera token. */
+.grecaptcha-badge {
+  z-index: 45 !important;
+  right: 8px !important;
+  bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px)) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+@media (min-width: 640px) {
+  .grecaptcha-badge {
+    right: 5.5rem !important;
+    bottom: 1.25rem !important;
   }
 }
 

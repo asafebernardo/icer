@@ -30,6 +30,7 @@ export default function GoogleSignInButton({
     startHomologLogin,
     googleLoginBusy,
     googleLoginAvailable,
+    googleLoginChecked,
     googleLoginMissing,
     homologLoginAvailable,
     rememberedGoogleEmail,
@@ -38,19 +39,22 @@ export default function GoogleSignInButton({
   const serverAuth = isServerAuthEnabled();
   const canLogin =
     googleLoginAvailable || homologLoginAvailable;
-  const loginBlocked = !serverAuth || !canLogin;
+  const loginPending = serverAuth && googleLoginChecked === false;
+  const loginBlocked = !loginPending && (!serverAuth || !canLogin);
   const missingHint = Array.isArray(googleLoginMissing)
     ? googleLoginMissing.filter(Boolean)
     : [];
-  const blockedTitle = !serverAuth
-    ? "Autenticação do servidor desactivada"
-    : missingHint.length
-      ? `Login Google incompleto: falta ${missingHint.join(", ")}`
-      : "Login indisponível — integração não configurada";
+  const blockedTitle = loginPending
+    ? "A preparar o login…"
+    : !serverAuth
+      ? "Autenticação do servidor desactivada"
+      : missingHint.length
+        ? `Login Google incompleto: falta ${missingHint.join(", ")}`
+        : "Login indisponível — integração não configurada";
 
   const label = "Entrar";
 
-  const ariaLabel = loginBlocked
+  const ariaLabel = loginPending || loginBlocked
     ? blockedTitle
     : googleLoginAvailable && rememberedGoogleEmail
       ? `Entrar como ${rememberedGoogleEmail}`
@@ -59,7 +63,7 @@ export default function GoogleSignInButton({
         : "Entrar";
 
   const handleClick = () => {
-    if (loginBlocked || googleLoginBusy) return;
+    if (loginPending || loginBlocked || googleLoginBusy) return;
     onClick?.();
     if (googleLoginAvailable) {
       void startGoogleLogin();
@@ -74,14 +78,14 @@ export default function GoogleSignInButton({
         type="button"
         variant="outline"
         size="icon"
-        disabled={loginBlocked || googleLoginBusy}
+        disabled={loginPending || loginBlocked || googleLoginBusy}
         onClick={handleClick}
         aria-label={ariaLabel}
-        title={loginBlocked ? blockedTitle : ariaLabel}
+        title={loginPending || loginBlocked ? blockedTitle : ariaLabel}
         className={cn(
           SITE_LOGIN_BUTTON_CLASS,
           "h-10 w-10 shrink-0 rounded-full",
-          loginBlocked && "cursor-not-allowed opacity-50",
+          (loginPending || loginBlocked) && "cursor-not-allowed opacity-50",
           className,
         )}
       >
@@ -99,13 +103,13 @@ export default function GoogleSignInButton({
       type="button"
       variant="outline"
       size={size}
-      disabled={loginBlocked || googleLoginBusy}
+      disabled={loginPending || loginBlocked || googleLoginBusy}
       onClick={handleClick}
       aria-label={ariaLabel}
-      title={loginBlocked ? blockedTitle : ariaLabel}
+      title={loginPending || loginBlocked ? blockedTitle : ariaLabel}
       className={cn(
         SITE_LOGIN_BUTTON_CLASS,
-        loginBlocked && "cursor-not-allowed opacity-50",
+        (loginPending || loginBlocked) && "cursor-not-allowed opacity-50",
         className,
       )}
     >

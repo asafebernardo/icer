@@ -39,6 +39,9 @@ export default function SiteRecaptchaGate({ children }) {
       });
       const status = await statusRes.json().catch(() => ({}));
       if (status?.passed) {
+        if (cfg.site_key) {
+          void loadRecaptchaV3(cfg.site_key).catch(() => {});
+        }
         setPhase("passed");
         return;
       }
@@ -73,8 +76,11 @@ export default function SiteRecaptchaGate({ children }) {
         return;
       }
       setPhase("passed");
-    } catch {
-      setError("Não foi possível verificar o acesso ao site.");
+    } catch (err) {
+      setError(
+        recaptchaErrorMessagePt(err?.message) ||
+          "Não foi possível verificar o acesso ao site.",
+      );
       setPhase("failed");
     }
   }, []);

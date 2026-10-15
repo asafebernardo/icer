@@ -42,6 +42,7 @@ import {
   isRecaptchaEnabled,
   loadRecaptchaV3,
   recaptchaErrorMessagePt,
+  refreshRecaptchaConfig,
 } from "@/lib/recaptcha";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
 import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
@@ -83,6 +84,7 @@ export function AuthProvider({ children }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [googleLoginBusy, setGoogleLoginBusy] = useState(false);
   const [googleLoginAvailable, setGoogleLoginAvailable] = useState(false);
+  const [googleLoginChecked, setGoogleLoginChecked] = useState(false);
   const [googleLoginMissing, setGoogleLoginMissing] = useState([]);
   const [homologLoginAvailable, setHomologLoginAvailable] = useState(false);
   const [rememberedGoogleEmail, setRememberedGoogleEmail] = useState("");
@@ -279,6 +281,7 @@ export function AuthProvider({ children }) {
     if (!isServerAuthEnabled()) {
       setGoogleLoginAvailable(false);
       setGoogleLoginMissing([]);
+      setGoogleLoginChecked(true);
       setHomologLoginAvailable(false);
       setRememberedGoogleEmail("");
       return;
@@ -315,6 +318,8 @@ export function AuthProvider({ children }) {
           setGoogleLoginMissing([]);
           setRememberedGoogleEmail(getGoogleLoginHint());
         }
+      } finally {
+        if (!cancelled) setGoogleLoginChecked(true);
       }
     })();
     return () => {
@@ -404,6 +409,7 @@ export function AuthProvider({ children }) {
           opts.noSilent === true || googleReauthPendingRef.current;
         googleReauthPendingRef.current = false;
 
+        await refreshRecaptchaConfig();
         if (isRecaptchaEnabled()) {
           const cfg = getRecaptchaConfig();
           if (cfg.site_key) await loadRecaptchaV3(cfg.site_key);
@@ -461,7 +467,11 @@ export function AuthProvider({ children }) {
           window.location.assign(j.auth_url);
         }
       } catch (err) {
-        toast.error(err?.message || "Não foi possível iniciar o login com Google.");
+        toast.error(
+          recaptchaErrorMessagePt(err?.message) ||
+            err?.message ||
+            "Não foi possível iniciar o login com Google.",
+        );
       } finally {
         setGoogleLoginBusy(false);
       }
@@ -655,6 +665,7 @@ export function AuthProvider({ children }) {
         useAnotherGoogleAccount,
         googleLoginBusy,
         googleLoginAvailable,
+        googleLoginChecked,
         googleLoginMissing,
         homologLoginAvailable,
         rememberedGoogleEmail,

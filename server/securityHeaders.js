@@ -25,6 +25,7 @@ export function createSecurityHeadersMiddleware() {
               "https://www.youtube.com",
               "https://www.google.com",
               "https://www.gstatic.com",
+              "https://www.recaptcha.net",
             ],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
@@ -38,7 +39,13 @@ export function createSecurityHeadersMiddleware() {
               "https://www.google.com",
               "https://www.gstatic.com",
             ],
-            connectSrc: ["'self'", "https://www.google.com", "https://www.recaptcha.net"],
+            connectSrc: [
+              "'self'",
+              "https://www.google.com",
+              "https://www.gstatic.com",
+              "https://www.recaptcha.net",
+            ],
+            workerSrc: ["'self'", "blob:", "https://www.google.com", "https://www.gstatic.com"],
             mediaSrc: ["'self'", "blob:", "data:"],
             frameSrc: [
               "'self'",

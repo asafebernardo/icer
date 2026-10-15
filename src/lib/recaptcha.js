@@ -40,6 +40,24 @@ export async function refreshRecaptchaConfig() {
   }
 }
 
+function withTimeout(promise, ms, code) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(code)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function whenRecaptchaReady(grecaptcha) {
+  return withTimeout(
+    new Promise((resolve) => {
+      grecaptcha.ready(() => resolve(grecaptcha));
+    }),
+    12000,
+    "recaptcha_timeout",
+  );
+}
+
 /**
  * @param {string} siteKey
  */
@@ -48,9 +66,7 @@ export function loadRecaptchaV3(siteKey) {
     return Promise.resolve(null);
   }
   if (window.grecaptcha?.execute) {
-    return new Promise((resolve) => {
-      window.grecaptcha.ready(() => resolve(window.grecaptcha));
-    });
+    return whenRecaptchaReady(window.grecaptcha);
   }
   if (!loadPromise) {
     loadPromise = new Promise((resolve, reject) => {
@@ -60,12 +76,19 @@ export function loadRecaptchaV3(siteKey) {
       script.defer = true;
       script.onload = () => {
         if (!window.grecaptcha) {
+          loadPromise = null;
           reject(new Error("recaptcha_unavailable"));
           return;
         }
-        window.grecaptcha.ready(() => resolve(window.grecaptcha));
+        whenRecaptchaReady(window.grecaptcha).then(resolve, (err) => {
+          loadPromise = null;
+          reject(err);
+        });
       };
-      script.onerror = () => reject(new Error("recaptcha_load_failed"));
+      script.onerror = () => {
+        loadPromise = null;
+        reject(new Error("recaptcha_load_failed"));
+      };
       document.head.appendChild(script);
     });
   }
@@ -81,7 +104,11 @@ export async function executeRecaptcha(action = "submit") {
   if (!cfg.enabled || !cfg.site_key || cfg.version === "v2") return null;
   const grecaptcha = await loadRecaptchaV3(cfg.site_key);
   if (!grecaptcha?.execute) return null;
-  return grecaptcha.execute(cfg.site_key, { action });
+  return withTimeout(
+    grecaptcha.execute(cfg.site_key, { action }),
+    12000,
+    "recaptcha_timeout",
+  );
 }
 
 export function recaptchaErrorMessagePt(code) {
@@ -94,6 +121,12 @@ export function recaptchaErrorMessagePt(code) {
   }
   if (c === "recaptcha_unreachable" || c === "recaptcha_not_configured") {
     return "Serviço de verificação indisponível. Tente mais tarde.";
+  }
+  if (c === "recaptcha_load_failed" || c === "recaptcha_unavailable") {
+    return "O reCAPTCHA não carregou. Permita scripts do Google e tente novamente.";
+  }
+  if (c === "recaptcha_timeout") {
+    return "O reCAPTCHA demorou demais a responder. Recarregue a página e tente novamente.";
   }
   return "";
 }
