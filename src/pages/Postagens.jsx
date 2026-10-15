@@ -78,9 +78,6 @@ export default function Postagens() {
     canMenuAction(sessionUser, MENU.POSTAGENS, "edit") && editMode;
   const canDelete =
     canMenuAction(sessionUser, MENU.POSTAGENS, "delete") && editMode;
-  const canExport =
-    canMenuAction(sessionUser, MENU.POSTAGENS, "create") ||
-    canMenuAction(sessionUser, MENU.POSTAGENS, "edit");
   const needsEditMode =
     canMenuAction(sessionUser, MENU.POSTAGENS, "create") &&
     !editMode &&
@@ -267,22 +264,22 @@ export default function Postagens() {
               />
             </div>
           }
-          end={
-            canExport ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 text-xs"
-                disabled={exporting || listedPosts.length === 0}
-                onClick={() => void exportForGoogleFotos()}
-              >
-                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                {exporting ? "A guardar…" : "Baixar para Google Fotos"}
-              </Button>
-            ) : null
-          }
         />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[14px] border border-border bg-card px-3 py-2.5 sm:px-4">
+          <p className="text-sm text-foreground">
+            Baixar os posts deste filtro, cada um numa pasta com texto e imagens.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 px-3"
+            disabled={exporting || listedPosts.length === 0 || postsLoading}
+            onClick={() => void exportForGoogleFotos()}
+          >
+            <Download className="mr-1.5 h-4 w-4" aria-hidden />
+            {exporting ? "A guardar…" : "Baixar para Google Fotos"}
+          </Button>
+        </div>
         {exportProgress ? (
           <p className="mb-3 text-xs text-muted-foreground">
             A guardar {Math.min(exportProgress.done + 1, exportProgress.total)} de{" "}
