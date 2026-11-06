@@ -19,6 +19,7 @@ import {
   Trash2,
   Menu,
   X,
+  Music,
 } from "lucide-react";
 
 import { useSyncedAuthUser } from "@/hooks/useSyncedAuthUser";
@@ -113,6 +114,7 @@ export default function BottomNav() {
       "pending-deletions": Trash2,
       "audit-log": ScrollText,
       "cadastros-opcoes": BookMarked,
+      coletanea: Music,
     }),
     [],
   );

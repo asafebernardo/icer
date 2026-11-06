@@ -20,6 +20,7 @@ import {
 } from "./homologSeed.js";
 import { migratePostCategories } from "./postCategoryMigration.js";
 import { seedPostExamples } from "./postExamplesSeed.js";
+import { seedColetaneaSongs } from "./coletaneaSeed.js";
 import { assertDriveConfigured, isDriveStorageEnabled } from "./driveStorage.js";
 
 const root = process.cwd();
@@ -216,6 +217,21 @@ async function ensurePostExamplesSeed() {
 }
 
 await ensurePostExamplesSeed();
+
+try {
+  const coletaneaSeed = await seedColetaneaSongs(db);
+  if (coletaneaSeed.inserted > 0) {
+    log.info(
+      `Coletânea: ${color.brightYellow(String(coletaneaSeed.inserted))} músicas iniciais.`,
+    );
+  }
+} catch (err) {
+  log.warn(
+    color.dim(
+      `Coletânea: não foi possível carregar o catálogo inicial (${err?.message || err}).`,
+    ),
+  );
+}
 await ensureBuiltinAdminPermissionGroup();
 
 const enableUpstreamProxy = Boolean(

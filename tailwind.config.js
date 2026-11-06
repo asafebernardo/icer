@@ -23,6 +23,16 @@ module.exports = {
         display: ["var(--font-display)", "var(--font-inter)", "system-ui", "sans-serif"],
         serif: ["var(--font-wiki)", "Georgia", "Times New Roman", "Times", "serif"],
         wiki: ["var(--font-wiki)", "Georgia", "Times New Roman", "Times", "serif"],
+        "cl-lyric": [
+          '"Iowan Old Style"',
+          '"Palatino Linotype"',
+          "Palatino",
+          "Georgia",
+          "serif",
+        ],
+      },
+      maxWidth: {
+        "cl-phone": "28rem",
       },
       transitionDuration: {
         250: "250ms",
@@ -102,6 +112,23 @@ module.exports = {
         success: {
           DEFAULT: "hsl(var(--success) / <alpha-value>)",
           foreground: "hsl(var(--success-foreground) / <alpha-value>)",
+        },
+        cl: {
+          paper: "rgb(var(--cl-paper) / <alpha-value>)",
+          card: "rgb(var(--cl-card) / <alpha-value>)",
+          ink: "rgb(var(--cl-ink) / <alpha-value>)",
+          "ink-soft": "rgb(var(--cl-ink-soft) / <alpha-value>)",
+          line: "rgb(var(--cl-line) / <alpha-value>)",
+          pine: {
+            DEFAULT: "rgb(var(--cl-pine) / <alpha-value>)",
+            dark: "rgb(var(--cl-pine-dark) / <alpha-value>)",
+          },
+          danger: {
+            DEFAULT: "rgb(var(--cl-danger) / <alpha-value>)",
+            soft: "rgb(var(--cl-danger-soft) / <alpha-value>)",
+          },
+          "voice-men": "rgb(var(--cl-voice-men) / <alpha-value>)",
+          "voice-women": "rgb(var(--cl-voice-women) / <alpha-value>)",
         },
       },
       keyframes: {

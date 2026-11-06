@@ -1,0 +1,83 @@
+.coletanea-app {
+  --cl-paper: 243 239 230;
+  --cl-card: 255 253 248;
+  --cl-ink: 28 25 21;
+  --cl-ink-soft: 109 102 92;
+  --cl-line: 230 222 208;
+  --cl-pine: 30 77 58;
+  --cl-pine-dark: 22 57 43;
+  --cl-danger: 122 51 44;
+  --cl-danger-soft: 248 236 232;
+  --cl-voice-men: 29 78 158;
+  --cl-voice-women: 184 52 116;
+  color-scheme: light;
+  background: rgb(var(--cl-paper));
+  color: rgb(var(--cl-ink));
+  font-family: "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.coletanea-app[data-theme="dark"] {
+  color-scheme: dark;
+  --cl-paper: 0 0 0;
+  --cl-card: 18 18 18;
+  --cl-ink: 245 245 245;
+  --cl-ink-soft: 163 163 163;
+  --cl-line: 42 42 42;
+  --cl-pine: 46 122 90;
+  --cl-pine-dark: 32 92 68;
+  --cl-danger: 248 164 158;
+  --cl-danger-soft: 68 32 30;
+  --cl-voice-men: 147 197 253;
+  --cl-voice-women: 249 168 212;
+}
+
+.coletanea-app button,
+.coletanea-app input,
+.coletanea-app textarea {
+  font: inherit;
+}
+
+.coletanea-app .song-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.coletanea-app .song-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.coletanea-app .lyric-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgb(var(--cl-ink-soft));
+  white-space: pre-wrap;
+}
+
+.coletanea-app .marquee-track {
+  display: flex;
+  width: max-content;
+  animation: coletanea-marquee linear infinite;
+}
+
+.coletanea-app .marquee-item {
+  padding-right: 3rem;
+  white-space: nowrap;
+}
+
+@keyframes coletanea-marquee {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coletanea-app .marquee-track {
+    animation: none;
+  }
+}

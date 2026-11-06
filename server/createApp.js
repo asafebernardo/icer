@@ -72,6 +72,7 @@ import {
   appendDismissedDestaque,
 } from "./publicWorkspace.js";
 import { createDataRouter } from "./dataRoutes.js";
+import { mountColetaneaRoutes } from "./coletaneaRoutes.js";
 import { nextSeq } from "./sequences.js";
 import {
   clientIp,
@@ -1503,6 +1504,7 @@ export function createApplication(db, options = {}) {
   });
 
   app.use("/api/data", createDataRouter(db));
+  mountColetaneaRoutes(app, db);
 
   app.put("/api/users/me", requireAuth, async (req, res) => {
     const avatarUrlSchema = z
@@ -2012,6 +2014,7 @@ export function createApplication(db, options = {}) {
         "materiais",
         "fotos_galeria",
         "musicas_letras",
+        "coletanea_musicas",
         "files",
         "users",
         "sessions",
@@ -3565,6 +3568,7 @@ export function createApplication(db, options = {}) {
           if (pathname.startsWith("/api/files")) return false;
           if (pathname.startsWith("/api/data")) return false;
           if (pathname.startsWith("/api/health")) return false;
+          if (pathname.startsWith("/api/coletanea")) return false;
           return true;
         },
       }),

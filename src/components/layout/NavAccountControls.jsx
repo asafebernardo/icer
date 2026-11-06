@@ -25,6 +25,7 @@ import {
   Sparkles,
   FileStack,
   Trash2,
+  Music,
   Moon,
   Sun,
   Pencil,
@@ -141,6 +142,7 @@ export default function NavAccountControls() {
       "pending-deletions": Trash2,
       "audit-log": ScrollText,
       "cadastros-opcoes": BookMarked,
+      coletanea: Music,
     }),
     [],
   );

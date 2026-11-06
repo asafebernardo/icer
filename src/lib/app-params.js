@@ -16,9 +16,11 @@ const getAppParamValue = (
   const storageKey = `icer_${toSnakeCase(paramName)}`;
   const urlParams = new URLSearchParams(window.location.search);
   const searchParam = urlParams.get(paramName);
-  if (removeFromUrl) {
+  if (removeFromUrl && searchParam) {
     urlParams.delete(paramName);
-    window.history.replaceState({}, document.title, "/");
+    const qs = urlParams.toString();
+    const next = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash || ""}`;
+    window.history.replaceState(window.history.state, document.title, next);
   }
   if (searchParam) {
     storage.setItem(storageKey, searchParam);

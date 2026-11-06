@@ -1,3 +1,15 @@
+## [3.11.0](https://github.com/asafebernardo/icer/compare/v3.10.4...v3.11.0) (2026-11-06)
+
+### Features
+
+* **coletanea:** aplicativo de louvor em `/louvor`, aberto pelo botão flutuante das páginas do site e pelo card da página Apps
+* **coletanea:** criar, editar e apagar músicas no admin; a exclusão entra em Eliminações
+* **coletanea:** as 150 músicas iniciais entram na base na primeira arranque do servidor, quando a coleção ainda está vazia
+
+### Bug Fixes
+
+* **routing:** abrir uma página deixa de reescrever o endereço para `/`, o que devolvia a coletânea para `/Home`
+
 ## [0.0.0](https://github.com/asafebernardo/icer/compare/v3.9.1...v0.0.0) (2026-08-10)
 
 ### Features

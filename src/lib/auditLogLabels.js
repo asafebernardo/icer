@@ -4,6 +4,7 @@ import {
   FileText,
   FolderOpen,
   Music,
+  BookOpen,
   HardDriveDownload,
   Image as ImageIcon,
   KeyRound,
@@ -56,6 +57,9 @@ export const ACTION_LABELS = {
   "data.musicas_letras.create": "Letra criada",
   "data.musicas_letras.update": "Letra atualizada",
   "data.musicas_letras.delete_scheduled": "Letra marcada para eliminação",
+  "data.coletanea_musicas.create": "Música da coletânea criada",
+  "data.coletanea_musicas.update": "Música da coletânea atualizada",
+  "data.coletanea_musicas.delete_scheduled": "Música da coletânea marcada para eliminação",
 };
 
 export function labelForAction(action) {
@@ -176,6 +180,15 @@ const CATEGORIES = {
       "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/40",
     accentClass: "border-l-4 border-l-cyan-500/70 dark:border-l-cyan-400/60",
   },
+  coletanea: {
+    label: "Coletânea",
+    icon: BookOpen,
+    iconClass: "text-emerald-700 dark:text-emerald-300",
+    badgeClass:
+      "bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/40",
+    accentClass:
+      "border-l-4 border-l-emerald-600/70 dark:border-l-emerald-400/60",
+  },
   hinario: {
     label: "Hinário",
     icon: Music,
@@ -281,6 +294,7 @@ export function categoryForAction(action) {
   if (a.startsWith("data.materiais.")) return CATEGORIES.material;
   if (a.startsWith("data.fotos_galeria.")) return CATEGORIES.gallery;
   if (a.startsWith("data.musicas_letras.")) return CATEGORIES.hinario;
+  if (a.startsWith("data.coletanea_musicas.")) return CATEGORIES.coletanea;
 
   if (a.endsWith(".delete")) return CATEGORIES.data_delete;
   if (a.endsWith(".update")) return CATEGORIES.data_update;
