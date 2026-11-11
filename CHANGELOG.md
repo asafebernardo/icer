@@ -1,3 +1,8 @@
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v3.12.0...v0.0.0) (2026-11-11)
+
+### Bug Fixes
+
+* **docker:** include coletanea logo in build context ([5c6a60c](https://github.com/asafebernardo/icer/commit/5c6a60c43fad68143038188d943e4dd757d64b64))
 ## [3.12.0](https://github.com/asafebernardo/icer/compare/v3.11.0...v3.12.0) (2026-11-11)
 
 ### Features

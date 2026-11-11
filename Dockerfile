@@ -31,6 +31,7 @@ COPY index.html vite.config.js jsconfig.json postcss.config.js tailwind.config.j
 COPY src ./src
 COPY public ./public
 COPY shared ./shared
+COPY C.L.png ./C.L.png
 
 ARG VITE_USE_SERVER_AUTH=true
 ENV VITE_USE_SERVER_AUTH=${VITE_USE_SERVER_AUTH}
