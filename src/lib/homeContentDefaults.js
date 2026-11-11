@@ -1,11 +1,14 @@
 /** Valores por omissão do conteúdo editável da página inicial (localStorage `icer_site_config`). */
 
 export const DEFAULT_HERO_EYEBROW = "";
-export const DEFAULT_HERO_TITLE = "ICER Chapecó";
+export const DEFAULT_HERO_TITLE = "Igreja Cristã\nEvangélica Reformada";
 
 /** Textos antigos do hero — tratados como «não definidos» para aplicar o novo default. */
 const LEGACY_HERO_EYEBROWS = new Set(["Casa de Oração", "CASA DE ORAÇÃO"]);
-const LEGACY_HERO_TITLES = new Set(["Bem-vindo à ICER Chapecó"]);
+const LEGACY_HERO_TITLES = new Set([
+  "Bem-vindo à ICER Chapecó",
+  "ICER Chapecó",
+]);
 
 /** @param {string | null | undefined} eyebrow */
 /** @param {string | null | undefined} title */

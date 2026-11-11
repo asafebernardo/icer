@@ -1,3 +1,19 @@
+## [0.0.0](https://github.com/asafebernardo/icer/compare/v3.11.0...v0.0.0) (2026-11-11)
+
+### Features
+
+* **site:** atualiza aplicativos, home e reCAPTCHA ([5f1657b](https://github.com/asafebernardo/icer/commit/5f1657b406c3464f0297d8b573144e4e8277dd81))
+## [3.12.0](https://github.com/asafebernardo/icer/compare/v3.11.0...v3.12.0) (2026-11-11)
+
+### Features
+
+* **coletânea:** direciona o atalho flutuante ao aplicativo externo e remove o card de Apps
+* **home:** atualiza a identidade e centraliza o título em duas linhas
+
+### Bug Fixes
+
+* **recaptcha:** oculta o badge sem remover o aviso de privacidade e termos
+
 ## [3.11.0](https://github.com/asafebernardo/icer/compare/v3.10.4...v3.11.0) (2026-11-06)
 
 ### Features

@@ -9,7 +9,7 @@ export default function Navbar() {
             onCut={(event) => event.preventDefault()}
             onContextMenu={(event) => event.preventDefault()}
           >
-            Igreja Cristã Evangélica Reformada
+            Casa de Oração
           </p>
         </div>
       </div>

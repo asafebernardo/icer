@@ -2,7 +2,6 @@ import { useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronRight, Music } from "lucide-react";
 
-import { openColetaneaApp } from "@/coletanea/entry";
 import MateriaisTab from "@/components/materiais/MateriaisTab";
 import PageSectionIntro from "@/components/shared/PageSectionIntro";
 import { useAuth } from "@/lib/AuthContext";
@@ -62,23 +61,6 @@ export default function Apps() {
               para gerir materiais, links e o hinário.
             </p>
           ) : null}
-
-          <button
-            type="button"
-            onClick={openColetaneaApp}
-            className="mb-6 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-sm transition-colors hover:border-accent/40 hover:bg-accent/5"
-          >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Music className="h-6 w-6" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-base font-semibold text-foreground">Coletânea</span>
-              <span className="block text-sm text-muted-foreground">
-                Aplicativo de louvor
-              </span>
-            </span>
-            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-          </button>
 
           {user ? (
             <Link

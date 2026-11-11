@@ -246,7 +246,7 @@ export default function HeroSection() {
             ) : null}
             <h1
               className={cn(
-                "heading-premium text-3xl sm:text-5xl lg:text-7xl leading-[1.05] break-words",
+                "heading-premium whitespace-pre-line text-2xl leading-[1.1] break-words sm:text-4xl lg:text-5xl",
                 hasSlides
                   ? "text-white [text-shadow:0_4px_24px_rgba(0,0,0,0.55)]"
                   : "text-foreground",

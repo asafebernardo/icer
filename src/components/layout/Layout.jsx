@@ -4,7 +4,7 @@ import PrimaryNavSection from "./PrimaryNavSection";
 import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 import WhatsAppFab from "./WhatsAppFab";
-import ColetaneaMenuButton from "@/coletanea/ColetaneaMenuButton";
+import ColetaneaFloatingApp from "@/coletanea/ColetaneaFloatingApp";
 import DestaqueEventoGlobal from "@/components/layout/DestaqueEventoGlobal";
 import PostImagePresentationHost from "@/components/posts/PostImagePresentationHost";
 import SiteRecaptchaGate from "@/components/security/SiteRecaptchaGate";
@@ -37,7 +37,7 @@ export default function Layout() {
       <Footer />
       <BottomNav />
       <WhatsAppFab />
-      <ColetaneaMenuButton />
+      <ColetaneaFloatingApp />
     </div>
   );
 }
