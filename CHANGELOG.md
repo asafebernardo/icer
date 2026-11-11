@@ -1,8 +1,3 @@
-## [0.0.0](https://github.com/asafebernardo/icer/compare/v3.11.0...v0.0.0) (2026-11-11)
-
-### Features
-
-* **site:** atualiza aplicativos, home e reCAPTCHA ([5f1657b](https://github.com/asafebernardo/icer/commit/5f1657b406c3464f0297d8b573144e4e8277dd81))
 ## [3.12.0](https://github.com/asafebernardo/icer/compare/v3.11.0...v3.12.0) (2026-11-11)
 
 ### Features
