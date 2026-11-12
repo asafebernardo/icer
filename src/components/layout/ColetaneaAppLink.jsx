@@ -1,10 +1,10 @@
-import logo from "../../C.L.png";
+import logo from "../../../C.L.png";
 
 /** Acima do selo do reCAPTCHA (60px) e do menu inferior no celular. */
 const ABOVE_CAPTCHA =
   "bottom-[calc(5.25rem+60px+0.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-[calc(1.25rem+60px+0.75rem)]";
 
-export default function ColetaneaFloatingApp() {
+export default function ColetaneaAppLink() {
   return (
     <a
       href="https://asafebernardo.github.io/coletaneaMusicas/"

@@ -48,10 +48,6 @@ import HistoriaEventoPage from "./pages/HistoriaEventoPage";
 import Agenda from "./pages/Agenda";
 import AdminRoute from "./components/AdminRoute";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
-import ColetaneaShell from "@/coletanea/ColetaneaShell";
-import ColetaneaCatalogPage from "@/coletanea/ColetaneaCatalogPage";
-import ColetaneaSongPage from "@/coletanea/ColetaneaSongPage";
-import { isColetaneaPath } from "@/coletanea/entry";
 
 function RedirectLegacyPostagensEdit() {
   const { id } = useParams();
@@ -110,9 +106,7 @@ function RootRedirect() {
 function TrackLastVisitedPath() {
   const location = useLocation();
   useEffect(() => {
-    if (location.pathname === "/" || isColetaneaPath(location.pathname)) {
-      return;
-    }
+    if (location.pathname === "/") return;
     const p = location.pathname + location.search;
     sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
   }, [location.pathname, location.search]);
@@ -143,10 +137,6 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<RootRedirect />} />
-      <Route path="/louvor" element={<ColetaneaShell />}>
-        <Route index element={<ColetaneaCatalogPage />} />
-        <Route path="musicas/:id" element={<ColetaneaSongPage />} />
-      </Route>
 
       <Route path="/login" element={<Navigate to="/Home" replace />} />
       <Route path="/Login" element={<Navigate to="/Home" replace />} />

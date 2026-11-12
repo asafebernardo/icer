@@ -11,7 +11,6 @@ import AdminSitePanel from "@/components/dashboard/AdminSitePanel";
 import AdminCadastrosOpcoesPanel from "@/components/dashboard/AdminCadastrosOpcoesPanel";
 import AdminServerPanel from "@/components/dashboard/AdminServerPanel";
 import AdminUploadsPanel from "@/components/dashboard/AdminUploadsPanel";
-import AdminColetaneaPanel from "@/components/dashboard/AdminColetaneaPanel";
 import HomologBlockedMenusNotice from "@/components/admin/HomologBlockedMenusNotice";
 import { useAuth } from "@/lib/AuthContext";
 import useAdminNavAccess from "@/hooks/useAdminNavAccess";
@@ -162,9 +161,6 @@ export default function AdminSettingsShell({ tabMembrosSlot }) {
           </TabsContent>
           <TabsContent value="uploads">
             {canUseAdminTabs ? <AdminUploadsPanel /> : lockedNotice}
-          </TabsContent>
-          <TabsContent value="coletanea">
-            {canUseAdminTabs ? <AdminColetaneaPanel /> : lockedNotice}
           </TabsContent>
           <TabsContent value="cadastros-opcoes">
             {canUseAdminTabs ? <AdminCadastrosOpcoesPanel /> : lockedNotice}

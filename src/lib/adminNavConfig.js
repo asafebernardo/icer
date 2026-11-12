@@ -15,8 +15,6 @@ export const ADMIN_NAV_ITEM_ICON_TONE = {
     "bg-slate-600/18 text-slate-800 shadow-sm dark:bg-slate-500/30 dark:text-slate-100",
   "pending-deletions":
     "bg-rose-500/18 text-rose-900 shadow-sm dark:bg-rose-500/30 dark:text-rose-50",
-  coletanea:
-    "bg-emerald-500/20 text-emerald-900 shadow-sm shadow-emerald-500/10 dark:bg-emerald-500/30 dark:text-emerald-50",
   "admin-users":
     "bg-violet-500/20 text-violet-900 shadow-sm shadow-violet-500/10 dark:bg-violet-500/30 dark:text-violet-50",
   "permission-groups":
@@ -51,7 +49,6 @@ const ADMINISTRACAO_BASE_ITEMS = [
   },
   { id: "server", label: "Servidor", requiresServerAuth: true },
   { id: "uploads", label: "Arquivos", requiresServerAuth: true },
-  { id: "coletanea", label: "Coletânea", requiresServerAuth: true },
   {
     id: "cadastros-opcoes",
     label: "Padrão",

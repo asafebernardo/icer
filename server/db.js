@@ -95,7 +95,6 @@ export async function ensureMongoIndexes(db) {
     "fotos_galeria",
     "contatos",
     "musicas_letras",
-    "coletanea_musicas",
   ]) {
     await db.collection(c).createIndex({ id: 1 }, { unique: true });
   }

@@ -45,7 +45,6 @@ import {
   refreshRecaptchaConfig,
 } from "@/lib/recaptcha";
 import { LAST_VISITED_PATH_KEY } from "@/lib/lastPath";
-import { isColetaneaPath } from "@/coletanea/entry";
 import { fetchRuntimeEnv, getRuntimeEnvSync } from "@/lib/runtimeEnv";
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { tryHomologDevLogin } from "@/lib/homologDevLogin";
@@ -70,7 +69,6 @@ function readPostLoginReturnPath() {
     const raw = sessionStorage.getItem(LAST_VISITED_PATH_KEY) || "";
     if (!raw.startsWith("/")) return null;
     if (raw.startsWith("/login") || raw.startsWith("/Login")) return null;
-    if (isColetaneaPath(raw)) return null;
     if (raw === "/Home" || raw === "/") return null;
     return raw;
   } catch {
@@ -632,8 +630,7 @@ export function AuthProvider({ children }) {
     const p = location.pathname + location.search;
     if (
       location.pathname !== "/Home" &&
-      location.pathname !== "/" &&
-      !isColetaneaPath(location.pathname)
+      location.pathname !== "/"
     ) {
       sessionStorage.setItem(LAST_VISITED_PATH_KEY, p);
     }
